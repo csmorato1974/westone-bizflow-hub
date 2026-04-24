@@ -17,7 +17,7 @@ import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   direccion: string | null; latitud: number | null; longitud: number | null;
-  lista_precio_id: string | null;
+  lista_precio_id: string | null; notas: string | null;
 }
 
 export default function VendedorClientes() {

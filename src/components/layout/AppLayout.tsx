@@ -1,10 +1,19 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Link, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LogOut, User as UserIcon } from "lucide-react";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super Admin",
@@ -16,7 +25,14 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function AppLayout() {
   const { signOut, user, roles } = useAuth();
+  const navigate = useNavigate();
   const primaryRole = roles[0];
+  const initials = (user?.email ?? "U")
+    .split(/[@.\s]/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
 
   return (
     <SidebarProvider>
@@ -36,13 +52,41 @@ export function AppLayout() {
                   {ROLE_LABEL[primaryRole] ?? primaryRole}
                 </Badge>
               )}
-              <span className="hidden md:block text-xs text-brand/80 truncate max-w-[180px]">
-                {user?.email}
-              </span>
-              <Button size="sm" variant="ghost" onClick={signOut} className="text-brand hover:bg-primary/80 hover:text-brand">
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline ml-1">Salir</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex items-center gap-2 rounded-full p-0.5 hover:bg-primary/80 transition-colors"
+                    aria-label="Menú de perfil"
+                  >
+                    <Avatar className="h-8 w-8 border border-brand">
+                      <AvatarFallback className="bg-brand text-brand-foreground text-xs font-bold">
+                        {initials || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="truncate">{user?.email}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/app/perfil" className="cursor-pointer">
+                      <UserIcon className="h-4 w-4 mr-2" />
+                      Mi perfil
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await signOut();
+                      navigate("/login");
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Cerrar sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-6 overflow-auto">

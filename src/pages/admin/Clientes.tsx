@@ -4,12 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { logAudit } from "@/lib/audit";
 
 interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; user_id: string | null; }
 interface User { id: string; full_name: string | null; email: string | null; }
-
-const UNASSIGNED = "__none__";
 
 export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -36,75 +33,41 @@ export default function AdminClientes() {
   };
   useEffect(() => { load(); }, []);
 
-  const update = async (c: Cliente, patch: Partial<Cliente>) => {
-    const normalized: Partial<Cliente> = { ...patch };
-    if ("user_id" in patch) normalized.user_id = patch.user_id === UNASSIGNED ? null : patch.user_id;
-    if ("vendedor_id" in patch) normalized.vendedor_id = patch.vendedor_id === UNASSIGNED ? null : patch.vendedor_id;
-    if ("lista_precio_id" in patch) normalized.lista_precio_id = patch.lista_precio_id === UNASSIGNED ? null : patch.lista_precio_id;
-
-    const { error } = await supabase.from("clientes").update(normalized).eq("id", c.id);
+  const update = async (id: string, patch: Partial<Cliente>) => {
+    const { error } = await supabase.from("clientes").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
-
-    if ("user_id" in normalized) {
-      await logAudit("vincular_usuario_cliente", "clientes", c.id, {
-        empresa: c.empresa,
-        anterior_user_id: c.user_id,
-        nuevo_user_id: normalized.user_id,
-      });
-    }
-    toast.success("Actualizado");
-    load();
+    toast.success("Actualizado"); load();
   };
-
-  // user_id ya tomados por OTRAS fichas (para no duplicar vinculación)
-  const takenUserIds = new Set(clientes.filter((c) => c.user_id).map((c) => c.user_id as string));
 
   return (
     <div className="space-y-4">
-      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor, lista de precios y usuario portal</p></div>
+      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor, lista de precios y usuario</p></div>
       {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
         <div className="grid gap-3">
-          {clientes.map((c) => {
-            const availableUsers = clientesUsers.filter((u) => u.id === c.user_id || !takenUserIds.has(u.id));
-            return (
-              <Card key={c.id}>
-                <CardContent className="p-4 grid md:grid-cols-2 gap-3">
-                  <div>
-                    <p className="industrial-title">{c.empresa}</p>
-                    <p className="text-sm text-muted-foreground">{c.contacto} · {c.celular}</p>
-                    {c.user_id ? (
-                      <p className="text-xs text-success mt-1">✓ Vinculado a usuario portal</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-1">Sin usuario portal vinculado</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Select value={c.vendedor_id ?? UNASSIGNED} onValueChange={(v) => update(c, { vendedor_id: v as any })}>
-                      <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED}>— Sin asignar —</SelectItem>
-                        {vendedores.map((v) => <SelectItem key={v.id} value={v.id}>{v.full_name ?? v.email}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={c.lista_precio_id ?? UNASSIGNED} onValueChange={(v) => update(c, { lista_precio_id: v as any })}>
-                      <SelectTrigger><SelectValue placeholder="Lista de precios" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED}>— Sin lista —</SelectItem>
-                        {listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={c.user_id ?? UNASSIGNED} onValueChange={(v) => update(c, { user_id: v as any })}>
-                      <SelectTrigger><SelectValue placeholder="Usuario portal cliente" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED}>— Sin vincular —</SelectItem>
-                        {availableUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {clientes.map((c) => (
+            <Card key={c.id}>
+              <CardContent className="p-4 grid md:grid-cols-2 gap-3">
+                <div>
+                  <p className="industrial-title">{c.empresa}</p>
+                  <p className="text-sm text-muted-foreground">{c.contacto} · {c.celular}</p>
+                </div>
+                <div className="grid gap-2">
+                  <Select value={c.vendedor_id ?? ""} onValueChange={(v) => update(c.id, { vendedor_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
+                    <SelectContent>{vendedores.map((v) => <SelectItem key={v.id} value={v.id}>{v.full_name ?? v.email}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={c.lista_precio_id ?? ""} onValueChange={(v) => update(c.id, { lista_precio_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Lista de precios" /></SelectTrigger>
+                    <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={c.user_id ?? ""} onValueChange={(v) => update(c.id, { user_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Usuario portal cliente (opcional)" /></SelectTrigger>
+                    <SelectContent>{clientesUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>

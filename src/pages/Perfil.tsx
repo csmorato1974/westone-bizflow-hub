@@ -275,7 +275,13 @@ export default function Perfil() {
           <div className="flex items-start gap-4 flex-wrap">
             <div className="relative">
               <Avatar className="h-20 w-20 border-2 border-brand">
-                {avatarUrl && <AvatarImage src={avatarUrl} alt={fullName || email} />}
+                {avatarUrl && (
+                  <AvatarImage
+                    src={avatarUrl}
+                    alt={fullName || email}
+                    onError={() => console.warn("[avatar] no se pudo cargar la imagen:", avatarUrl)}
+                  />
+                )}
                 <AvatarFallback className="bg-primary text-brand industrial-title text-xl">
                   {initials}
                 </AvatarFallback>

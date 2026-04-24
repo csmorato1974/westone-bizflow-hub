@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Save, MessageCircle, User as UserIcon } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Save, MessageCircle, User as UserIcon, Camera, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { waLink } from "@/lib/whatsapp";
@@ -42,12 +42,15 @@ export default function Perfil() {
   const { user, roles, isAdmin, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
   const [vendedor, setVendedor] = useState<VendedorInfo | null>(null);
   const [clientesCount, setClientesCount] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     if (!user) return;
@@ -55,7 +58,7 @@ export default function Perfil() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email, phone")
+      .select("full_name, email, phone, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -63,6 +66,7 @@ export default function Perfil() {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
       setEmail(profile.email ?? user.email ?? "");
+      setAvatarUrl((profile as any).avatar_url ?? null);
     } else {
       setEmail(user.email ?? "");
     }
@@ -132,6 +136,68 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Solo se permiten imágenes");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen debe pesar menos de 5 MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("avatares")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from("avatares").getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", user.id);
+      if (updErr) throw updErr;
+
+      setAvatarUrl(publicUrl);
+      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: publicUrl });
+      toast.success("Foto de perfil actualizada");
+    } catch (err: any) {
+      toast.error(err.message ?? "No se pudo subir la imagen");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user || !avatarUrl) return;
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+      if (error) throw error;
+      setAvatarUrl(null);
+      await logAudit("eliminar_avatar", "profiles", user.id, {});
+      toast.success("Foto eliminada");
+    } catch (err: any) {
+      toast.error(err.message ?? "No se pudo eliminar la imagen");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const initials = (fullName || email || "U")
     .split(" ")
     .map((p) => p[0])
@@ -158,11 +224,31 @@ export default function Perfil() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start gap-4 flex-wrap">
-            <Avatar className="h-20 w-20 border-2 border-brand">
-              <AvatarFallback className="bg-primary text-brand industrial-title text-xl">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-20 w-20 border-2 border-brand">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt={fullName || email} />}
+                <AvatarFallback className="bg-primary text-brand industrial-title text-xl">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 disabled:opacity-50"
+                aria-label="Cambiar foto"
+                title="Cambiar foto"
+              >
+                {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+            </div>
             <div className="flex-1 min-w-[200px] space-y-2">
               <p className="industrial-title text-xl">{fullName || "Sin nombre"}</p>
               <p className="text-sm text-muted-foreground">{email}</p>
@@ -182,6 +268,31 @@ export default function Perfil() {
                   >
                     {clienteInfo.activo ? "Cuenta activa" : "Cuenta inactiva"}
                   </Badge>
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  <span className="ml-1">{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
+                </Button>
+                {avatarUrl && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleAvatarRemove}
+                    disabled={uploadingAvatar}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="ml-1">Quitar</span>
+                  </Button>
                 )}
               </div>
             </div>

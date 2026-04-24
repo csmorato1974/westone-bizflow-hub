@@ -10,20 +10,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2 } from "lucide-react";
+import { MapPin, Plus, MessageCircle, Loader2, UserPlus } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   direccion: string | null; latitud: number | null; longitud: number | null;
-  lista_precio_id: string | null;
+  lista_precio_id: string | null; user_id: string | null;
 }
+interface PortalUser { id: string; full_name: string | null; email: string | null; }
+
+const UNASSIGNED = "__none__";
 
 export default function VendedorClientes() {
   const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
+  const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,17 +45,32 @@ export default function VendedorClientes() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: cs }, { data: lp }, { data: tpl }] = await Promise.all([
+    const [{ data: cs }, { data: lp }, { data: tpl }, { data: ur }, { data: profs }] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "bienvenida").maybeSingle(),
+      supabase.from("user_roles").select("user_id,role").eq("role", "cliente"),
+      supabase.from("profiles").select("id,full_name,email"),
     ]);
+    const cIds = new Set((ur ?? []).map((r: any) => r.user_id));
+    setPortalUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setClientes(cs ?? []);
     setListas(lp ?? []);
     setWelcomeTpl(tpl?.mensaje ?? "");
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const linkUser = async (c: Cliente, raw: string) => {
+    const newId = raw === UNASSIGNED ? null : raw;
+    const { error } = await supabase.from("clientes").update({ user_id: newId }).eq("id", c.id);
+    if (error) return toast.error(error.message);
+    await logAudit("vincular_usuario_cliente", "clientes", c.id, {
+      empresa: c.empresa, anterior_user_id: c.user_id, nuevo_user_id: newId,
+    });
+    toast.success(newId ? "Usuario vinculado" : "Vinculación removida");
+    load();
+  };
 
   const captureGps = () => {
     if (!navigator.geolocation) return toast.error("Geolocalización no disponible");
@@ -139,6 +158,8 @@ export default function VendedorClientes() {
           {clientes.map((c) => {
             const msg = fillTemplate(welcomeTpl, { contacto: c.contacto, empresa: c.empresa });
             const maps = mapsLink(c.latitud, c.longitud);
+            const takenByOthers = new Set(clientes.filter((x) => x.id !== c.id && x.user_id).map((x) => x.user_id as string));
+            const availableUsers = portalUsers.filter((u) => u.id === c.user_id || !takenByOthers.has(u.id));
             return (
               <Card key={c.id} className="hover:border-brand transition-colors">
                 <CardContent className="p-4 space-y-2">
@@ -150,6 +171,18 @@ export default function VendedorClientes() {
                   </div>
                   <p className="text-sm">📞 {c.celular}</p>
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <UserPlus className="h-3 w-3" /> Usuario portal
+                    </div>
+                    <Select value={c.user_id ?? UNASSIGNED} onValueChange={(v) => linkUser(c, v)}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Vincular usuario" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>— Sin vincular —</SelectItem>
+                        {availableUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button asChild size="sm" variant="outline">
                       <a href={waLink(c.celular, msg)} target="_blank" rel="noopener noreferrer">

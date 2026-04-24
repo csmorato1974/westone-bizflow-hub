@@ -4,10 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
 
+interface ProfileInfo {
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   roles: AppRole[];
+  profile: ProfileInfo | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
@@ -15,6 +21,7 @@ interface AuthContextValue {
   hasRole: (role: AppRole) => boolean;
   isAdmin: boolean;
   refreshRoles: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);

@@ -103,21 +103,8 @@ export default function ClienteCatalogo() {
   };
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin" />;
-  if (!cliente) return (
-    <Card>
-      <CardContent className="p-8 text-center space-y-3">
-        <h2 className="industrial-title text-xl">Cuenta no vinculada</h2>
-        <p className="text-sm text-muted-foreground">
-          Tu usuario aún no está enlazado a una ficha de cliente. Pídele a tu vendedor o al administrador que vincule la siguiente cuenta a tu empresa:
-        </p>
-        <p className="font-mono text-sm bg-muted px-3 py-2 rounded inline-block">{user?.email}</p>
-        <p className="text-xs text-muted-foreground">
-          (Admin → Clientes → seleccionar tu empresa → "Usuario portal cliente")
-        </p>
-      </CardContent>
-    </Card>
-  );
-  if (!cliente.lista_precio_id) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada. Contacta a tu vendedor.</CardContent></Card>;
+  if (!cliente) return <Card><CardContent className="p-8 text-center text-muted-foreground">Tu cuenta de cliente aún no está vinculada. Contacta a tu vendedor.</CardContent></Card>;
+  if (!cliente.lista_precio_id) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada.</CardContent></Card>;
 
   return (
     <div className="space-y-4">

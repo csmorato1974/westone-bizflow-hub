@@ -17,15 +17,13 @@ import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   direccion: string | null; latitud: number | null; longitud: number | null;
-  lista_precio_id: string | null; user_id: string | null;
+  lista_precio_id: string | null;
 }
-interface ClienteUser { id: string; full_name: string | null; email: string | null; }
 
 export default function VendedorClientes() {
   const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
-  const [clienteUsers, setClienteUsers] = useState<ClienteUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,24 +36,19 @@ export default function VendedorClientes() {
   const [latitud, setLat] = useState<number | null>(null);
   const [longitud, setLng] = useState<number | null>(null);
   const [listaPrecio, setListaPrecio] = useState<string>("");
-  const [userVinculado, setUserVinculado] = useState<string>("");
   const [notas, setNotas] = useState("");
   const [gpsBusy, setGpsBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: cs }, { data: lp }, { data: tpl }, { data: ur }, { data: profs }] = await Promise.all([
+    const [{ data: cs }, { data: lp }, { data: tpl }] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "bienvenida").maybeSingle(),
-      supabase.from("user_roles").select("user_id,role").eq("role", "cliente"),
-      supabase.from("profiles").select("id,full_name,email"),
     ]);
     setClientes(cs ?? []);
     setListas(lp ?? []);
     setWelcomeTpl(tpl?.mensaje ?? "");
-    const cIds = new Set((ur ?? []).map((r: any) => r.user_id));
-    setClienteUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -72,7 +65,7 @@ export default function VendedorClientes() {
 
   const reset = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setDireccion("");
-    setLat(null); setLng(null); setListaPrecio(""); setUserVinculado(""); setNotas("");
+    setLat(null); setLng(null); setListaPrecio(""); setNotas("");
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -85,7 +78,6 @@ export default function VendedorClientes() {
       empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
       direccion: direccion.trim() || null, latitud, longitud,
       lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
-      user_id: userVinculado || null,
       vendedor_id: user.id,
     }).select().single();
     setSaving(false);
@@ -94,10 +86,6 @@ export default function VendedorClientes() {
     toast.success("Cliente creado");
     setOpen(false); reset(); load();
   };
-
-  // Usuarios cliente que aún no están vinculados a ninguna ficha
-  const linkedUserIds = new Set(clientes.map((c) => c.user_id).filter(Boolean) as string[]);
-  const availableClienteUsers = clienteUsers.filter((u) => !linkedUserIds.has(u.id));
 
   return (
     <div className="space-y-6">
@@ -132,20 +120,6 @@ export default function VendedorClientes() {
                   <SelectTrigger><SelectValue placeholder="Seleccionar lista" /></SelectTrigger>
                   <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label>Vincular a usuario registrado (opcional)</Label>
-                <Select value={userVinculado} onValueChange={setUserVinculado}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={availableClienteUsers.length === 0 ? "No hay usuarios cliente disponibles" : "Seleccionar usuario"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableClienteUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.email ?? u.full_name ?? u.id}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">Permite al cliente acceder a su catálogo en el portal.</p>
               </div>
               <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
               <DialogFooter>

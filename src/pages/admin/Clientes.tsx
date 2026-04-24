@@ -38,7 +38,7 @@ export default function AdminClientes() {
 
   return (
     <div className="space-y-4">
-      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor, lista de precios y usuario</p></div>
+      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor y lista de precios</p></div>
       {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
         <div className="grid gap-3">
           {clientes.map((c) => (

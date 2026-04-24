@@ -39,7 +39,7 @@ interface VendedorInfo {
 }
 
 export default function Perfil() {
-  const { user, roles, isAdmin, hasRole } = useAuth();
+  const { user, roles, isAdmin, hasRole, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -133,6 +133,7 @@ export default function Perfil() {
     setSaving(false);
     if (error) return toast.error(error.message);
     await logAudit("actualizar", "profiles", user.id, { full_name: fullName, phone });
+    await refreshProfile();
     toast.success("Perfil actualizado");
   };
 

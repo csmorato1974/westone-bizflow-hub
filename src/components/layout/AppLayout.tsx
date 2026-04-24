@@ -24,15 +24,23 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function AppLayout() {
-  const { signOut, user, roles } = useAuth();
+  const { signOut, user, roles, profile } = useAuth();
   const navigate = useNavigate();
   const primaryRole = roles[0];
-  const initials = (user?.email ?? "U")
-    .split(/[@.\s]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join("");
+  const fullName = profile?.full_name?.trim();
+  const initials = fullName
+    ? fullName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase())
+        .join("")
+    : (user?.email ?? "U")
+        .split(/[@.\s]/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase())
+        .join("");
 
   return (
     <SidebarProvider>

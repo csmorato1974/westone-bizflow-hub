@@ -286,23 +286,15 @@ export default function Perfil() {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 disabled:opacity-50"
+              <label
+                htmlFor="avatar-file-input"
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 cursor-pointer aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
                 aria-label="Cambiar foto"
                 title="Cambiar foto"
+                aria-disabled={uploadingAvatar}
               >
                 {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarUpload}
-              />
+              </label>
             </div>
             <div className="flex-1 min-w-[200px] space-y-2">
               <p className="industrial-title text-xl">{fullName || "Sin nombre"}</p>
@@ -325,17 +317,15 @@ export default function Perfil() {
                   </Badge>
                 )}
               </div>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingAvatar}
+              <div className="flex gap-2 pt-1 items-center flex-wrap">
+                <label
+                  htmlFor="avatar-file-input"
+                  className="inline-flex items-center gap-1 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
+                  aria-disabled={uploadingAvatar}
                 >
                   <Camera className="h-3.5 w-3.5" />
-                  <span className="ml-1">{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
-                </Button>
+                  <span>{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
+                </label>
                 {avatarUrl && (
                   <Button
                     type="button"
@@ -350,6 +340,19 @@ export default function Perfil() {
                   </Button>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">JPG, PNG o WEBP · máximo 5 MB</p>
+              <input
+                id="avatar-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={uploadingAvatar}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleAvatarFileSelected(f);
+                }}
+              />
             </div>
           </div>
         </CardContent>

@@ -12,7 +12,7 @@ import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 
-interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; imagen_url: string | null; }
+interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; max: number; }
 
 const LINEA_LABEL: Record<string, string> = {
@@ -44,27 +44,17 @@ export default function ClienteCatalogo() {
       if (!c.lista_precio_id) { setLoading(false); return; }
       const { data: items } = await supabase
         .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,imagen_url,stock(cantidad))")
+        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,stock(cantidad))")
         .eq("lista_id", c.lista_precio_id);
-      const activos = (items ?? []).filter((i: any) => i.productos?.activo);
-      // Fallback: si el embed de stock viene vacío, consultamos stock por separado
-      const ids = activos.map((i: any) => i.productos.id);
-      let stockMap: Record<string, number> = {};
-      if (ids.length) {
-        const { data: stockRows } = await supabase.from("stock").select("producto_id,cantidad").in("producto_id", ids);
-        stockMap = Object.fromEntries((stockRows ?? []).map((s: any) => [s.producto_id, s.cantidad]));
-      }
-      const prods: Producto[] = activos.map((i: any) => {
-        const embedStock = Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : null;
-        return {
+      const prods: Producto[] = (items ?? [])
+        .filter((i: any) => i.productos?.activo)
+        .map((i: any) => ({
           id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku,
           descripcion: i.productos.descripcion, ficha_tecnica: i.productos.ficha_tecnica,
           presentaciones: i.productos.presentaciones, linea: i.productos.linea,
-          imagen_url: i.productos.imagen_url ?? null,
           precio: Number(i.precio),
-          stock: embedStock ?? stockMap[i.productos.id] ?? 0,
-        };
-      });
+          stock: Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : 0,
+        }));
       setProductos(prods);
       setLoading(false);
     })();
@@ -149,14 +139,7 @@ export default function ClienteCatalogo() {
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto pr-2">
           {filtered.map((p) => (
-            <Card key={p.id} className="hover:border-brand transition-colors overflow-hidden">
-              <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                {p.imagen_url ? (
-                  <img src={p.imagen_url} alt={p.nombre} loading="lazy" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="industrial-title text-4xl text-muted-foreground">{p.nombre.charAt(0)}</span>
-                )}
-              </div>
+            <Card key={p.id} className="hover:border-brand transition-colors">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -192,7 +175,7 @@ export default function ClienteCatalogo() {
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.producto_id)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center">{c.cantidad}</span>
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max, imagen_url: null })}><Plus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max })}><Plus className="h-3 w-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.producto_id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>

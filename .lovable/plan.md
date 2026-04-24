@@ -1,33 +1,55 @@
 
 
-# Arreglar "Agotado" en catálogo y agregar imágenes de producto
+# Vincular usuarios cliente a fichas de cliente
 
-## Problema raíz
-1. **Todo aparece "Agotado"**: el catálogo embebe `productos(...stock(cantidad))` vía PostgREST, pero las tablas `productos` y `stock` no tienen foreign key declarada. Sin FK, el embed devuelve vacío y el stock se lee como `0`. Confirmado en BD: todos los productos tienen 100 unidades reales.
-2. **Sin imágenes**: la columna `productos.imagen_url` existe pero está vacía en los 14 productos, y no hay UI para subir imágenes ni bucket de Storage configurado.
+## Problema
+El catálogo del modo cliente busca un registro en `clientes` con `user_id = auth.uid()`. Actualmente **ningún cliente tiene ese campo poblado**, así que cualquier usuario con rol `cliente` ve el mensaje "cuenta no vinculada".
 
-## Cambios
+Ejemplo: el usuario `csmorato@hotmail.com` (rol `cliente`) existe, pero ninguna de las 3 fichas (`Caca Gas`, `Coco Gas`, `Pete taller`) lo tiene vinculado.
 
-### 1. Crear FK `stock.producto_id → productos.id` (migración)
-Permite que PostgREST resuelva el embed correctamente. Además agrego `ON DELETE CASCADE` para mantener integridad. También añado FKs faltantes en `lista_precio_items`, `pedido_items`, `pedidos.cliente_id`, `clientes.lista_precio_id`, `clientes.vendedor_id`, `clientes.user_id` para evitar problemas similares en otras pantallas.
+## Solución (3 partes)
 
-### 2. Hacer el catálogo robusto a embeds vacíos (`src/pages/cliente/Catalogo.tsx`)
-Como capa de seguridad, si `stock` no llega en el embed, hacer una segunda consulta a `stock` por los `producto_id` y mapear. Así, aunque la FK tarde en propagarse o falle el embed, el stock siempre se carga. También mostrar imagen del producto si existe.
+### 1. Vincular ahora `csmorato@hotmail.com` a una ficha existente
+Para que puedas probar el flujo de cliente de inmediato, vinculo ese usuario a una de las fichas existentes. Necesito que me digas a cuál: `Caca Gas`, `Coco Gas` o `Pete taller`. Si no especificas, vinculo a `Caca Gas` por defecto.
 
-### 3. Crear bucket de Storage `productos` y agregar UI de carga de imagen
-- Migración: crear bucket público `productos` con políticas (lectura pública, escritura solo admin).
-- En `src/pages/admin/Productos.tsx`: añadir input de archivo en el formulario crear/editar producto. Sube a Storage, guarda la URL pública en `productos.imagen_url`. Mostrar miniatura en la tabla.
+```sql
+UPDATE clientes SET user_id = 'c1ac10f3-d672-4f31-94e4-7288619bfb42'
+WHERE id = '<id de la ficha elegida>';
+```
 
-### 4. Mostrar imagen en el catálogo cliente
-En cada `Card` de producto, si `imagen_url` existe mostrar la imagen arriba (aspect-ratio cuadrado, `object-cover`); si no, mostrar un placeholder con la inicial del producto sobre fondo `bg-muted`.
+### 2. Mejorar `Admin → Clientes` para vincular usuarios fácilmente
+La pantalla ya tiene un selector "Usuario portal cliente (opcional)", pero:
+- No muestra qué fichas ya están vinculadas (puedes asignar el mismo usuario a varias por error).
+- No permite **desvincular** (quitar el `user_id`).
 
-## Archivos a editar
-- `src/pages/cliente/Catalogo.tsx` (lectura de stock + render imagen)
-- `src/pages/admin/Productos.tsx` (uploader de imagen + miniatura)
-- Migraciones: FKs faltantes + bucket `productos` con políticas RLS
+Cambios en `src/pages/admin/Clientes.tsx`:
+- Mostrar badge "🔗 Vinculado a {email}" cuando `user_id` esté presente.
+- Añadir opción "— Desvincular —" en el selector.
+- Filtrar de la lista los usuarios cliente que ya estén vinculados a otra ficha (con opción de mostrar todos).
 
-## Resultado esperado
-- Catálogo muestra "Stock: 100" en verde para los 14 productos.
-- Admin puede subir foto a cada producto y se ve en el catálogo del cliente.
-- Sin foto → placeholder limpio en vez de hueco.
+### 3. Permitir que el vendedor también vincule el usuario al crear/editar el cliente
+En `src/pages/vendedor/Clientes.tsx`:
+- Al crear cliente, agregar selector opcional "Vincular a usuario registrado" (lista usuarios con rol `cliente` que aún no estén vinculados).
+- Esto evita depender siempre del admin para activar el portal del cliente.
+
+## Mensaje más útil en el catálogo
+En `src/pages/cliente/Catalogo.tsx`, mejorar el mensaje cuando no hay vinculación, indicando claramente que un administrador o vendedor debe enlazar la cuenta a una ficha de cliente, mostrando el email del usuario actual para facilitar la identificación.
+
+## Flujo correcto a partir de ahora
+
+```text
+Cliente se registra en /login
+        ↓
+Confirma email
+        ↓
+Admin le asigna rol "cliente" en Admin → Usuarios
+        ↓
+Admin (o vendedor) abre la ficha del cliente y selecciona
+su usuario en "Usuario portal cliente"
+        ↓
+Cliente entra y ve su catálogo + puede pedir
+```
+
+## Confirma antes de ejecutar
+**¿A qué ficha vinculo `csmorato@hotmail.com`?** `Caca Gas`, `Coco Gas` o `Pete taller`. Si no respondes, uso `Caca Gas`.
 

@@ -136,12 +136,28 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
+  const cleanFolder = async () => {
+    if (!user) return;
+    const { data: existing, error: listErr } = await supabase.storage
+      .from("avatares")
+      .list(user.id, { limit: 100 });
+    if (listErr) {
+      console.warn("[avatar] no se pudo listar carpeta:", listErr.message);
+      return;
+    }
+    if (existing && existing.length) {
+      const paths = existing.map((f) => `${user.id}/${f.name}`);
+      const { error: delErr } = await supabase.storage.from("avatares").remove(paths);
+      if (delErr) console.warn("[avatar] no se pudieron borrar previos:", delErr.message);
+    }
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo se permiten imágenes");
+      toast.error("Solo se permiten imágenes (JPG, PNG, WEBP...)");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -151,28 +167,53 @@ export default function Perfil() {
 
     setUploadingAvatar(true);
     try {
+      // 1) limpiar archivos previos del usuario para no acumular basura
+      await cleanFolder();
+
+      // 2) subir nuevo archivo con nombre estable
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const path = `${user.id}/avatar.${ext}`;
+      console.log("[avatar] subiendo:", path, "tipo:", file.type, "tam:", file.size);
 
       const { error: upErr } = await supabase.storage
         .from("avatares")
-        .upload(path, file, { upsert: true, cacheControl: "3600" });
-      if (upErr) throw upErr;
+        .upload(path, file, {
+          upsert: true,
+          cacheControl: "3600",
+          contentType: file.type,
+        });
+      if (upErr) {
+        console.error("[avatar] error de upload:", upErr);
+        throw upErr;
+      }
 
+      // 3) URL pública con cache-busting
       const { data: pub } = supabase.storage.from("avatares").getPublicUrl(path);
-      const publicUrl = pub.publicUrl;
+      const publicUrl = `${pub.publicUrl}?t=${Date.now()}`;
+      console.log("[avatar] URL pública:", publicUrl);
 
-      const { error: updErr } = await supabase
+      // 4) actualizar profile y verificar que realmente persistió
+      const { data: updated, error: updErr } = await supabase
         .from("profiles")
         .update({ avatar_url: publicUrl })
-        .eq("id", user.id);
-      if (updErr) throw updErr;
+        .eq("id", user.id)
+        .select("id, avatar_url");
+
+      if (updErr) {
+        console.error("[avatar] error actualizando profile:", updErr);
+        throw updErr;
+      }
+      if (!updated || updated.length === 0) {
+        console.error("[avatar] update devolvió 0 filas — posible bloqueo de RLS");
+        throw new Error("No se pudo guardar el perfil (permisos). Refresca y vuelve a intentar.");
+      }
 
       setAvatarUrl(publicUrl);
       await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: publicUrl });
       toast.success("Foto de perfil actualizada");
     } catch (err: any) {
-      toast.error(err.message ?? "No se pudo subir la imagen");
+      console.error("[avatar] fallo final:", err);
+      toast.error(err?.message ?? "No se pudo subir la imagen");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -183,16 +224,24 @@ export default function Perfil() {
     if (!user || !avatarUrl) return;
     setUploadingAvatar(true);
     try {
-      const { error } = await supabase
+      // borrar archivos del bucket
+      await cleanFolder();
+
+      const { data: updated, error } = await supabase
         .from("profiles")
         .update({ avatar_url: null })
-        .eq("id", user.id);
+        .eq("id", user.id)
+        .select("id, avatar_url");
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error("No se pudo actualizar el perfil (permisos).");
+      }
       setAvatarUrl(null);
       await logAudit("eliminar_avatar", "profiles", user.id, {});
       toast.success("Foto eliminada");
     } catch (err: any) {
-      toast.error(err.message ?? "No se pudo eliminar la imagen");
+      console.error("[avatar] error al eliminar:", err);
+      toast.error(err?.message ?? "No se pudo eliminar la imagen");
     } finally {
       setUploadingAvatar(false);
     }

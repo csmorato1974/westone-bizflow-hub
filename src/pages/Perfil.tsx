@@ -136,6 +136,68 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Solo se permiten imágenes");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen debe pesar menos de 5 MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("avatares")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from("avatares").getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", user.id);
+      if (updErr) throw updErr;
+
+      setAvatarUrl(publicUrl);
+      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: publicUrl });
+      toast.success("Foto de perfil actualizada");
+    } catch (err: any) {
+      toast.error(err.message ?? "No se pudo subir la imagen");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user || !avatarUrl) return;
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", user.id);
+      if (error) throw error;
+      setAvatarUrl(null);
+      await logAudit("eliminar_avatar", "profiles", user.id, {});
+      toast.success("Foto eliminada");
+    } catch (err: any) {
+      toast.error(err.message ?? "No se pudo eliminar la imagen");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const initials = (fullName || email || "U")
     .split(" ")
     .map((p) => p[0])

@@ -5,13 +5,12 @@ import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; user_id: string | null; }
+interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; }
 interface User { id: string; full_name: string | null; email: string | null; }
 
 export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
-  const [clientesUsers, setClientesUsers] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,9 +23,7 @@ export default function AdminClientes() {
       supabase.from("profiles").select("id,full_name,email"),
     ]);
     const vIds = new Set((ur ?? []).filter((r: any) => r.role === "vendedor").map((r: any) => r.user_id));
-    const cIds = new Set((ur ?? []).filter((r: any) => r.role === "cliente").map((r: any) => r.user_id));
     setVendedores((profs ?? []).filter((p: any) => vIds.has(p.id)));
-    setClientesUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setListas(lp ?? []);
     setClientes(cs ?? []);
     setLoading(false);

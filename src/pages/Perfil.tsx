@@ -42,12 +42,15 @@ export default function Perfil() {
   const { user, roles, isAdmin, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
   const [vendedor, setVendedor] = useState<VendedorInfo | null>(null);
   const [clientesCount, setClientesCount] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     if (!user) return;
@@ -55,7 +58,7 @@ export default function Perfil() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email, phone")
+      .select("full_name, email, phone, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -63,6 +66,7 @@ export default function Perfil() {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
       setEmail(profile.email ?? user.email ?? "");
+      setAvatarUrl((profile as any).avatar_url ?? null);
     } else {
       setEmail(user.email ?? "");
     }

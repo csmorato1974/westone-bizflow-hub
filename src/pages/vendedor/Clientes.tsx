@@ -27,6 +27,7 @@ export default function VendedorClientes() {
   const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
+  const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,17 +45,32 @@ export default function VendedorClientes() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: cs }, { data: lp }, { data: tpl }] = await Promise.all([
+    const [{ data: cs }, { data: lp }, { data: tpl }, { data: ur }, { data: profs }] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "bienvenida").maybeSingle(),
+      supabase.from("user_roles").select("user_id,role").eq("role", "cliente"),
+      supabase.from("profiles").select("id,full_name,email"),
     ]);
+    const cIds = new Set((ur ?? []).map((r: any) => r.user_id));
+    setPortalUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setClientes(cs ?? []);
     setListas(lp ?? []);
     setWelcomeTpl(tpl?.mensaje ?? "");
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const linkUser = async (c: Cliente, raw: string) => {
+    const newId = raw === UNASSIGNED ? null : raw;
+    const { error } = await supabase.from("clientes").update({ user_id: newId }).eq("id", c.id);
+    if (error) return toast.error(error.message);
+    await logAudit("vincular_usuario_cliente", "clientes", c.id, {
+      empresa: c.empresa, anterior_user_id: c.user_id, nuevo_user_id: newId,
+    });
+    toast.success(newId ? "Usuario vinculado" : "Vinculación removida");
+    load();
+  };
 
   const captureGps = () => {
     if (!navigator.geolocation) return toast.error("Geolocalización no disponible");

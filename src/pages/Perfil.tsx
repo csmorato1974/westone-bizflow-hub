@@ -138,26 +138,23 @@ export default function Perfil() {
 
   const cleanFolder = async () => {
     if (!user) return;
-    const { data: existing, error: listErr } = await supabase.storage
+    const { data: existing } = await supabase.storage
       .from("avatares")
       .list(user.id, { limit: 100 });
-    if (listErr) {
-      console.warn("[avatar] no se pudo listar carpeta:", listErr.message);
-      return;
-    }
     if (existing && existing.length) {
       const paths = existing.map((f) => `${user.id}/${f.name}`);
-      const { error: delErr } = await supabase.storage.from("avatares").remove(paths);
-      if (delErr) console.warn("[avatar] no se pudieron borrar previos:", delErr.message);
+      await supabase.storage.from("avatares").remove(paths);
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const handleAvatarFileSelected = async (file: File) => {
+    if (!user) {
+      toast.error("No hay sesión activa");
+      return;
+    }
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo se permiten imágenes (JPG, PNG, WEBP...)");
+      toast.error("El archivo debe ser una imagen (JPG, PNG, WEBP)");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -167,13 +164,12 @@ export default function Perfil() {
 
     setUploadingAvatar(true);
     try {
-      // 1) limpiar archivos previos del usuario para no acumular basura
+      // 1) borrar archivos previos del usuario
       await cleanFolder();
 
-      // 2) subir nuevo archivo con nombre estable
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      // 2) subir archivo nuevo
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${user.id}/avatar.${ext}`;
-      console.log("[avatar] subiendo:", path, "tipo:", file.type, "tam:", file.size);
 
       const { error: upErr } = await supabase.storage
         .from("avatares")
@@ -183,37 +179,39 @@ export default function Perfil() {
           contentType: file.type,
         });
       if (upErr) {
-        console.error("[avatar] error de upload:", upErr);
-        throw upErr;
+        console.error("[avatar] error subiendo archivo:", upErr);
+        toast.error(`No se pudo subir la imagen: ${upErr.message}`);
+        return;
       }
 
-      // 3) URL pública con cache-busting
+      // 3) URL pública
       const { data: pub } = supabase.storage.from("avatares").getPublicUrl(path);
-      const publicUrl = `${pub.publicUrl}?t=${Date.now()}`;
-      console.log("[avatar] URL pública:", publicUrl);
+      const baseUrl = pub.publicUrl;
 
-      // 4) actualizar profile y verificar que realmente persistió
+      // 4) guardar en perfil (URL base, sin querystring) y verificar resultado
       const { data: updated, error: updErr } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: baseUrl })
         .eq("id", user.id)
         .select("id, avatar_url");
 
       if (updErr) {
-        console.error("[avatar] error actualizando profile:", updErr);
-        throw updErr;
+        console.error("[avatar] error actualizando perfil:", updErr);
+        toast.error(`No se pudo guardar el perfil: ${updErr.message}`);
+        return;
       }
       if (!updated || updated.length === 0) {
-        console.error("[avatar] update devolvió 0 filas — posible bloqueo de RLS");
-        throw new Error("No se pudo guardar el perfil (permisos). Refresca y vuelve a intentar.");
+        toast.error("No se pudo guardar el perfil. Refresca y vuelve a intentar.");
+        return;
       }
 
-      setAvatarUrl(publicUrl);
-      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: publicUrl });
+      // mostrar inmediatamente con cache-busting
+      setAvatarUrl(`${baseUrl}?t=${Date.now()}`);
+      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: baseUrl });
       toast.success("Foto de perfil actualizada");
     } catch (err: any) {
-      console.error("[avatar] fallo final:", err);
-      toast.error(err?.message ?? "No se pudo subir la imagen");
+      console.error("[avatar] excepción inesperada:", err);
+      toast.error(err?.message ?? "Ocurrió un error inesperado");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -221,20 +219,22 @@ export default function Perfil() {
   };
 
   const handleAvatarRemove = async () => {
-    if (!user || !avatarUrl) return;
+    if (!user) return;
     setUploadingAvatar(true);
     try {
-      // borrar archivos del bucket
       await cleanFolder();
-
       const { data: updated, error } = await supabase
         .from("profiles")
         .update({ avatar_url: null })
         .eq("id", user.id)
         .select("id, avatar_url");
-      if (error) throw error;
+      if (error) {
+        toast.error(`No se pudo eliminar: ${error.message}`);
+        return;
+      }
       if (!updated || updated.length === 0) {
-        throw new Error("No se pudo actualizar el perfil (permisos).");
+        toast.error("No se pudo actualizar el perfil");
+        return;
       }
       setAvatarUrl(null);
       await logAudit("eliminar_avatar", "profiles", user.id, {});
@@ -286,23 +286,15 @@ export default function Perfil() {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 disabled:opacity-50"
+              <label
+                htmlFor="avatar-file-input"
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 cursor-pointer aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
                 aria-label="Cambiar foto"
                 title="Cambiar foto"
+                aria-disabled={uploadingAvatar}
               >
                 {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarUpload}
-              />
+              </label>
             </div>
             <div className="flex-1 min-w-[200px] space-y-2">
               <p className="industrial-title text-xl">{fullName || "Sin nombre"}</p>
@@ -325,17 +317,15 @@ export default function Perfil() {
                   </Badge>
                 )}
               </div>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingAvatar}
+              <div className="flex gap-2 pt-1 items-center flex-wrap">
+                <label
+                  htmlFor="avatar-file-input"
+                  className="inline-flex items-center gap-1 h-9 px-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
+                  aria-disabled={uploadingAvatar}
                 >
                   <Camera className="h-3.5 w-3.5" />
-                  <span className="ml-1">{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
-                </Button>
+                  <span>{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
+                </label>
                 {avatarUrl && (
                   <Button
                     type="button"
@@ -350,6 +340,19 @@ export default function Perfil() {
                   </Button>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">JPG, PNG o WEBP · máximo 5 MB</p>
+              <input
+                id="avatar-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={uploadingAvatar}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleAvatarFileSelected(f);
+                }}
+              />
             </div>
           </div>
         </CardContent>

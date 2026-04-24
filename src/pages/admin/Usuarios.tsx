@@ -1,0 +1,91 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import { logAudit } from "@/lib/audit";
+
+type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
+const ROLES: AppRole[] = ["super_admin", "admin", "vendedor", "logistica", "cliente"];
+
+interface Row { id: string; full_name: string | null; email: string | null; roles: AppRole[]; }
+
+export default function AdminUsuarios() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState<Record<string, AppRole>>({});
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: profs }, { data: ur }] = await Promise.all([
+      supabase.from("profiles").select("id,full_name,email").order("created_at", { ascending: false }),
+      supabase.from("user_roles").select("user_id,role"),
+    ]);
+    const byUser = new Map<string, AppRole[]>();
+    (ur ?? []).forEach((r: any) => { const a = byUser.get(r.user_id) ?? []; a.push(r.role); byUser.set(r.user_id, a); });
+    setRows((profs ?? []).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] })));
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const addRole = async (userId: string, role: AppRole) => {
+    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+    if (error) return toast.error(error.message);
+    await logAudit("asignar_rol", "user_roles", userId, { role });
+    toast.success("Rol asignado"); load();
+  };
+  const removeRole = async (userId: string, role: AppRole) => {
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+    if (error) return toast.error(error.message);
+    await logAudit("quitar_rol", "user_roles", userId, { role });
+    toast.success("Rol removido"); load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="industrial-title text-3xl">Usuarios y Roles</h1>
+        <p className="text-sm text-muted-foreground">Asigna roles para controlar el acceso a los módulos</p>
+      </div>
+      {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
+        <div className="grid gap-3">
+          {rows.map((r) => (
+            <Card key={r.id}>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="font-semibold">{r.full_name ?? "(sin nombre)"}</p>
+                    <p className="text-xs text-muted-foreground">{r.email}</p>
+                  </div>
+                  <div className="flex gap-2 items-center flex-wrap">
+                    {r.roles.map((rl) => (
+                      <Badge key={rl} className="bg-brand text-brand-foreground gap-1">
+                        {rl}
+                        <button onClick={() => removeRole(r.id, rl)} aria-label="quitar"><X className="h-3 w-3" /></button>
+                      </Badge>
+                    ))}
+                    {r.roles.length === 0 && <span className="text-xs text-muted-foreground">Sin roles</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2 border-t">
+                  <Select value={adding[r.id] ?? ""} onValueChange={(v) => setAdding({ ...adding, [r.id]: v as AppRole })}>
+                    <SelectTrigger className="max-w-xs"><SelectValue placeholder="Agregar rol…" /></SelectTrigger>
+                    <SelectContent>
+                      {ROLES.filter((rl) => !r.roles.includes(rl)).map((rl) => <SelectItem key={rl} value={rl}>{rl}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" disabled={!adding[r.id]} onClick={() => { addRole(r.id, adding[r.id]); setAdding({ ...adding, [r.id]: undefined as any }); }} className="bg-primary text-brand">
+                    <Plus className="h-4 w-4" /> Asignar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

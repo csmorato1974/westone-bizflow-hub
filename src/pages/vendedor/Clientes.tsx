@@ -17,13 +17,15 @@ import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   direccion: string | null; latitud: number | null; longitud: number | null;
-  lista_precio_id: string | null;
+  lista_precio_id: string | null; user_id: string | null;
 }
+interface ClienteUser { id: string; full_name: string | null; email: string | null; }
 
 export default function VendedorClientes() {
   const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
+  const [clienteUsers, setClienteUsers] = useState<ClienteUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -36,19 +38,24 @@ export default function VendedorClientes() {
   const [latitud, setLat] = useState<number | null>(null);
   const [longitud, setLng] = useState<number | null>(null);
   const [listaPrecio, setListaPrecio] = useState<string>("");
+  const [userVinculado, setUserVinculado] = useState<string>("");
   const [notas, setNotas] = useState("");
   const [gpsBusy, setGpsBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: cs }, { data: lp }, { data: tpl }] = await Promise.all([
+    const [{ data: cs }, { data: lp }, { data: tpl }, { data: ur }, { data: profs }] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "bienvenida").maybeSingle(),
+      supabase.from("user_roles").select("user_id,role").eq("role", "cliente"),
+      supabase.from("profiles").select("id,full_name,email"),
     ]);
     setClientes(cs ?? []);
     setListas(lp ?? []);
     setWelcomeTpl(tpl?.mensaje ?? "");
+    const cIds = new Set((ur ?? []).map((r: any) => r.user_id));
+    setClienteUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);

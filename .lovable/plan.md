@@ -1,33 +1,28 @@
 
 
-# Activar tu cuenta como super_admin
+# Restaurar acceso al catálogo
 
-## Acciones
-1. Asignarte el rol `super_admin` insertando en `user_roles`:
-   ```sql
-   INSERT INTO public.user_roles (user_id, role)
-   VALUES ('1c210c34-bc35-4fee-b222-749f40754f3a', 'super_admin');
-   ```
-2. Mejorar el mensaje de la pantalla de registro en `src/pages/Login.tsx` para que diga claramente: "Cuenta creada. Revisa tu email para confirmar la cuenta. Después, un administrador debe asignarte un rol antes de acceder."
+## Diagnóstico
+El catálogo no aparece porque el usuario logueado (`csmorato@hotmail.es`) tiene rol `cliente` pero **no tiene ficha en la tabla `clientes`** vinculada a su `user_id`. La consulta retorna vacío y se muestra el mensaje "Tu cuenta de cliente aún no está vinculada".
 
-## Lo que NO se cambia
-- La confirmación por email se mantiene activa (más seguro para producción).
+Existen dos fichas con `user_id` asignado, pero a otras cuentas:
+- `Coco Gas` → `csmorato@hotmail.com` (dominio distinto)
+- `Pete taller` → `lykon.tex@gmail.com`
 
-## Pasos para ti
-1. Confirma el email enviado a `csmorato@gmail.com` (revisa también spam).
-2. Inicia sesión en `/login`.
-3. Ve a **Admin → Usuarios y Roles** para asignar roles a futuros usuarios (vendedor, cliente, logística, admin) una vez que confirmen su correo.
+## Acción a ejecutar
+Vincular la ficha **Coco Gas** al usuario actualmente logueado `csmorato@hotmail.es` (UUID `10dc9a19-425e-4a5a-ba42-b64cfe52a2bb`), que ya tiene rol `cliente` y ya tiene lista de precios asignada (`5def5d0c-917f-40f2-aa65-6e7d9cd55c4e` con 28 items).
 
-## Flujo de validación para nuevos usuarios
-```text
-Registro en /login
-      ↓
-Confirma email (link recibido)
-      ↓
-Inicia sesión → ve "No autorizado"
-      ↓
-Tú (super_admin) le asignas rol en Admin → Usuarios y Roles
-      ↓
-Recarga y accede a su panel
+```sql
+UPDATE public.clientes
+SET user_id = '10dc9a19-425e-4a5a-ba42-b64cfe52a2bb'
+WHERE id = '67eaccb9-9a99-4000-9110-3d5770fc53f7';
 ```
+
+Tras esto, al recargar `/app/catalogo` verá los 14 productos activos con sus precios y stock.
+
+## Mejora preventiva (opcional, recomendada)
+Para evitar que esto vuelva a pasar, agregar en **Admin → Clientes** y **Vendedor → Clientes** un selector "Vincular a usuario registrado" que liste los `profiles` con rol `cliente` aún no vinculados, para asignarles la ficha sin necesidad de SQL.
+
+## Pregunta
+¿Vinculo Coco Gas a tu cuenta actual (`csmorato@hotmail.es`) o prefieres otra ficha/otra cuenta? ¿Agrego también el selector de vinculación en la UI?
 

@@ -158,6 +158,8 @@ export default function VendedorClientes() {
           {clientes.map((c) => {
             const msg = fillTemplate(welcomeTpl, { contacto: c.contacto, empresa: c.empresa });
             const maps = mapsLink(c.latitud, c.longitud);
+            const takenByOthers = new Set(clientes.filter((x) => x.id !== c.id && x.user_id).map((x) => x.user_id as string));
+            const availableUsers = portalUsers.filter((u) => u.id === c.user_id || !takenByOthers.has(u.id));
             return (
               <Card key={c.id} className="hover:border-brand transition-colors">
                 <CardContent className="p-4 space-y-2">
@@ -169,6 +171,18 @@ export default function VendedorClientes() {
                   </div>
                   <p className="text-sm">📞 {c.celular}</p>
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <UserPlus className="h-3 w-3" /> Usuario portal
+                    </div>
+                    <Select value={c.user_id ?? UNASSIGNED} onValueChange={(v) => linkUser(c, v)}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Vincular usuario" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>— Sin vincular —</SelectItem>
+                        {availableUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button asChild size="sm" variant="outline">
                       <a href={waLink(c.celular, msg)} target="_blank" rel="noopener noreferrer">

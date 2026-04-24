@@ -138,26 +138,23 @@ export default function Perfil() {
 
   const cleanFolder = async () => {
     if (!user) return;
-    const { data: existing, error: listErr } = await supabase.storage
+    const { data: existing } = await supabase.storage
       .from("avatares")
       .list(user.id, { limit: 100 });
-    if (listErr) {
-      console.warn("[avatar] no se pudo listar carpeta:", listErr.message);
-      return;
-    }
     if (existing && existing.length) {
       const paths = existing.map((f) => `${user.id}/${f.name}`);
-      const { error: delErr } = await supabase.storage.from("avatares").remove(paths);
-      if (delErr) console.warn("[avatar] no se pudieron borrar previos:", delErr.message);
+      await supabase.storage.from("avatares").remove(paths);
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const handleAvatarFileSelected = async (file: File) => {
+    if (!user) {
+      toast.error("No hay sesión activa");
+      return;
+    }
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo se permiten imágenes (JPG, PNG, WEBP...)");
+      toast.error("El archivo debe ser una imagen (JPG, PNG, WEBP)");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -167,13 +164,12 @@ export default function Perfil() {
 
     setUploadingAvatar(true);
     try {
-      // 1) limpiar archivos previos del usuario para no acumular basura
+      // 1) borrar archivos previos del usuario
       await cleanFolder();
 
-      // 2) subir nuevo archivo con nombre estable
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      // 2) subir archivo nuevo
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
       const path = `${user.id}/avatar.${ext}`;
-      console.log("[avatar] subiendo:", path, "tipo:", file.type, "tam:", file.size);
 
       const { error: upErr } = await supabase.storage
         .from("avatares")
@@ -183,37 +179,39 @@ export default function Perfil() {
           contentType: file.type,
         });
       if (upErr) {
-        console.error("[avatar] error de upload:", upErr);
-        throw upErr;
+        console.error("[avatar] error subiendo archivo:", upErr);
+        toast.error(`No se pudo subir la imagen: ${upErr.message}`);
+        return;
       }
 
-      // 3) URL pública con cache-busting
+      // 3) URL pública
       const { data: pub } = supabase.storage.from("avatares").getPublicUrl(path);
-      const publicUrl = `${pub.publicUrl}?t=${Date.now()}`;
-      console.log("[avatar] URL pública:", publicUrl);
+      const baseUrl = pub.publicUrl;
 
-      // 4) actualizar profile y verificar que realmente persistió
+      // 4) guardar en perfil (URL base, sin querystring) y verificar resultado
       const { data: updated, error: updErr } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: baseUrl })
         .eq("id", user.id)
         .select("id, avatar_url");
 
       if (updErr) {
-        console.error("[avatar] error actualizando profile:", updErr);
-        throw updErr;
+        console.error("[avatar] error actualizando perfil:", updErr);
+        toast.error(`No se pudo guardar el perfil: ${updErr.message}`);
+        return;
       }
       if (!updated || updated.length === 0) {
-        console.error("[avatar] update devolvió 0 filas — posible bloqueo de RLS");
-        throw new Error("No se pudo guardar el perfil (permisos). Refresca y vuelve a intentar.");
+        toast.error("No se pudo guardar el perfil. Refresca y vuelve a intentar.");
+        return;
       }
 
-      setAvatarUrl(publicUrl);
-      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: publicUrl });
+      // mostrar inmediatamente con cache-busting
+      setAvatarUrl(`${baseUrl}?t=${Date.now()}`);
+      await logAudit("actualizar_avatar", "profiles", user.id, { avatar_url: baseUrl });
       toast.success("Foto de perfil actualizada");
     } catch (err: any) {
-      console.error("[avatar] fallo final:", err);
-      toast.error(err?.message ?? "No se pudo subir la imagen");
+      console.error("[avatar] excepción inesperada:", err);
+      toast.error(err?.message ?? "Ocurrió un error inesperado");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -221,20 +219,22 @@ export default function Perfil() {
   };
 
   const handleAvatarRemove = async () => {
-    if (!user || !avatarUrl) return;
+    if (!user) return;
     setUploadingAvatar(true);
     try {
-      // borrar archivos del bucket
       await cleanFolder();
-
       const { data: updated, error } = await supabase
         .from("profiles")
         .update({ avatar_url: null })
         .eq("id", user.id)
         .select("id, avatar_url");
-      if (error) throw error;
+      if (error) {
+        toast.error(`No se pudo eliminar: ${error.message}`);
+        return;
+      }
       if (!updated || updated.length === 0) {
-        throw new Error("No se pudo actualizar el perfil (permisos).");
+        toast.error("No se pudo actualizar el perfil");
+        return;
       }
       setAvatarUrl(null);
       await logAudit("eliminar_avatar", "profiles", user.id, {});

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { logAudit } from "@/lib/audit";
 
 interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; }
 interface User { id: string; full_name: string | null; email: string | null; }
@@ -31,9 +32,27 @@ export default function AdminClientes() {
   useEffect(() => { load(); }, []);
 
   const update = async (id: string, patch: Partial<Cliente>) => {
+    const prev = clientes.find((c) => c.id === id);
     const { error } = await supabase.from("clientes").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
-    toast.success("Actualizado"); load();
+    if ("vendedor_id" in patch) {
+      await logAudit("reasignar_vendedor", "clientes", id, {
+        empresa: prev?.empresa,
+        vendedor_anterior: prev?.vendedor_id,
+        vendedor_nuevo: patch.vendedor_id,
+      });
+      toast.success("Vendedor reasignado");
+    } else if ("lista_precio_id" in patch) {
+      await logAudit("cambiar_lista_precio", "clientes", id, {
+        empresa: prev?.empresa,
+        lista_anterior: prev?.lista_precio_id,
+        lista_nueva: patch.lista_precio_id,
+      });
+      toast.success("Lista de precios actualizada");
+    } else {
+      toast.success("Actualizado");
+    }
+    load();
   };
 
   return (

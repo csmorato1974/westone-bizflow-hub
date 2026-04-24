@@ -46,7 +46,7 @@ export default function Login() {
     const { error } = await signUp(sEmail, sPwd, sName);
     setBusy(false);
     if (error) toast.error(error);
-    else toast.success("Cuenta creada. Un administrador debe asignarte un rol para acceder.");
+    else toast.success("Cuenta creada. Revisa tu email para confirmar la cuenta. Después, un administrador debe asignarte un rol antes de acceder.");
   };
 
   return (
@@ -107,7 +107,7 @@ export default function Login() {
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear cuenta"}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Tu cuenta requerirá la asignación de un rol por parte del administrador antes de acceder a los módulos.
+                  Después de crear tu cuenta deberás <strong>confirmar tu email</strong>. Luego, un administrador debe asignarte un rol antes de acceder a los módulos.
                 </p>
               </form>
             </TabsContent>

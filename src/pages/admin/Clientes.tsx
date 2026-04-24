@@ -5,13 +5,12 @@ import { Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; user_id: string | null; }
+interface Cliente { id: string; empresa: string; contacto: string; celular: string; vendedor_id: string | null; lista_precio_id: string | null; }
 interface User { id: string; full_name: string | null; email: string | null; }
 
 export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
-  const [clientesUsers, setClientesUsers] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,9 +23,7 @@ export default function AdminClientes() {
       supabase.from("profiles").select("id,full_name,email"),
     ]);
     const vIds = new Set((ur ?? []).filter((r: any) => r.role === "vendedor").map((r: any) => r.user_id));
-    const cIds = new Set((ur ?? []).filter((r: any) => r.role === "cliente").map((r: any) => r.user_id));
     setVendedores((profs ?? []).filter((p: any) => vIds.has(p.id)));
-    setClientesUsers((profs ?? []).filter((p: any) => cIds.has(p.id)));
     setListas(lp ?? []);
     setClientes(cs ?? []);
     setLoading(false);
@@ -41,7 +38,7 @@ export default function AdminClientes() {
 
   return (
     <div className="space-y-4">
-      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor, lista de precios y usuario</p></div>
+      <div><h1 className="industrial-title text-3xl">Clientes</h1><p className="text-sm text-muted-foreground">Vista global · asignar vendedor y lista de precios</p></div>
       {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
         <div className="grid gap-3">
           {clientes.map((c) => (
@@ -59,10 +56,6 @@ export default function AdminClientes() {
                   <Select value={c.lista_precio_id ?? ""} onValueChange={(v) => update(c.id, { lista_precio_id: v })}>
                     <SelectTrigger><SelectValue placeholder="Lista de precios" /></SelectTrigger>
                     <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Select value={c.user_id ?? ""} onValueChange={(v) => update(c.id, { user_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Usuario portal cliente (opcional)" /></SelectTrigger>
-                    <SelectContent>{clientesUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </CardContent>

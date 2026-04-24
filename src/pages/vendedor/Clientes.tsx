@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2 } from "lucide-react";
+import { MapPin, Plus, MessageCircle, Loader2, Pencil } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 
@@ -28,6 +28,7 @@ export default function VendedorClientes() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [welcomeTpl, setWelcomeTpl] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");
@@ -86,6 +87,25 @@ export default function VendedorClientes() {
   const reset = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setDireccion("");
     setLat(null); setLng(null); setListaPrecio(""); setNotas("");
+    setEditingId(null);
+  };
+
+  const openEdit = (c: Cliente & { notas?: string | null }) => {
+    setEditingId(c.id);
+    setEmpresa(c.empresa);
+    setContacto(c.contacto);
+    setCelular(c.celular);
+    setDireccion(c.direccion ?? "");
+    setLat(c.latitud);
+    setLng(c.longitud);
+    setListaPrecio(c.lista_precio_id ?? "");
+    setNotas((c as { notas?: string | null }).notas ?? "");
+    setOpen(true);
+  };
+
+  const onOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (!v) reset();
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -94,16 +114,33 @@ export default function VendedorClientes() {
     if (empresa.trim().length < 2) return toast.error("Empresa requerida");
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
     setSaving(true);
-    const { data, error } = await supabase.from("clientes").insert({
+
+    const payload = {
       empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
       direccion: direccion.trim() || null, latitud, longitud,
       lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
-      vendedor_id: user.id,
-    }).select().single();
-    setSaving(false);
-    if (error) { toast.error(error.message); return; }
-    await logAudit("crear_cliente", "clientes", data.id, { empresa: data.empresa });
-    toast.success("Cliente creado");
+    };
+
+    if (editingId) {
+      const { data, error } = await supabase.from("clientes")
+        .update(payload)
+        .eq("id", editingId)
+        .eq("vendedor_id", user.id)
+        .select().single();
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
+      await logAudit("editar_cliente", "clientes", data.id, { empresa: data.empresa });
+      toast.success("Cliente actualizado");
+    } else {
+      const { data, error } = await supabase.from("clientes").insert({
+        ...payload,
+        vendedor_id: user.id,
+      }).select().single();
+      setSaving(false);
+      if (error) { toast.error(error.message); return; }
+      await logAudit("crear_cliente", "clientes", data.id, { empresa: data.empresa });
+      toast.success("Cliente creado");
+    }
     setOpen(false); reset(); load();
   };
 
@@ -114,14 +151,14 @@ export default function VendedorClientes() {
           <h1 className="industrial-title text-3xl">Mis Clientes</h1>
           <p className="text-sm text-muted-foreground">Cartera asignada a tu cuenta</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogTrigger asChild>
-            <Button className="bg-primary text-brand hover:bg-primary/90">
+            <Button onClick={() => { reset(); }} className="bg-primary text-brand hover:bg-primary/90">
               <Plus className="h-4 w-4" /> Nuevo cliente
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="industrial-title">Registrar cliente</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="industrial-title">{editingId ? "Editar cliente" : "Registrar cliente"}</DialogTitle></DialogHeader>
             <form onSubmit={onSave} className="space-y-3">
               <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
               <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
@@ -171,6 +208,9 @@ export default function VendedorClientes() {
                   <p className="text-sm">📞 {c.celular}</p>
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
                   <div className="flex gap-2 pt-2 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
+                      <Pencil className="h-3 w-3" /> Editar
+                    </Button>
                     <Button asChild size="sm" variant="outline">
                       <a href={waLink(c.celular, msg)} target="_blank" rel="noopener noreferrer">
                         <MessageCircle className="h-3 w-3" /> Bienvenida

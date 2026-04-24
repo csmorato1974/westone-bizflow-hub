@@ -10,15 +10,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2 } from "lucide-react";
+import { MapPin, Plus, MessageCircle, Loader2, UserPlus } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   direccion: string | null; latitud: number | null; longitud: number | null;
-  lista_precio_id: string | null;
+  lista_precio_id: string | null; user_id: string | null;
 }
+interface PortalUser { id: string; full_name: string | null; email: string | null; }
+
+const UNASSIGNED = "__none__";
 
 export default function VendedorClientes() {
   const { user } = useAuth();

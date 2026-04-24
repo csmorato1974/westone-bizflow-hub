@@ -224,11 +224,31 @@ export default function Perfil() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start gap-4 flex-wrap">
-            <Avatar className="h-20 w-20 border-2 border-brand">
-              <AvatarFallback className="bg-primary text-brand industrial-title text-xl">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-20 w-20 border-2 border-brand">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt={fullName || email} />}
+                <AvatarFallback className="bg-primary text-brand industrial-title text-xl">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-brand text-brand-foreground flex items-center justify-center shadow-md hover:bg-brand/90 disabled:opacity-50"
+                aria-label="Cambiar foto"
+                title="Cambiar foto"
+              >
+                {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+            </div>
             <div className="flex-1 min-w-[200px] space-y-2">
               <p className="industrial-title text-xl">{fullName || "Sin nombre"}</p>
               <p className="text-sm text-muted-foreground">{email}</p>
@@ -248,6 +268,31 @@ export default function Perfil() {
                   >
                     {clienteInfo.activo ? "Cuenta activa" : "Cuenta inactiva"}
                   </Badge>
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  <span className="ml-1">{avatarUrl ? "Cambiar foto" : "Subir foto"}</span>
+                </Button>
+                {avatarUrl && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleAvatarRemove}
+                    disabled={uploadingAvatar}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="ml-1">Quitar</span>
+                  </Button>
                 )}
               </div>
             </div>

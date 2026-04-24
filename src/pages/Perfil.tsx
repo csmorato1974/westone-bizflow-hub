@@ -133,6 +133,7 @@ export default function Perfil() {
     setSaving(false);
     if (error) return toast.error(error.message);
     await logAudit("actualizar", "profiles", user.id, { full_name: fullName, phone });
+    await refreshProfile();
     toast.success("Perfil actualizado");
   };
 

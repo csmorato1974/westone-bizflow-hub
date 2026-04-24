@@ -72,7 +72,7 @@ export default function VendedorClientes() {
 
   const reset = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setDireccion("");
-    setLat(null); setLng(null); setListaPrecio(""); setNotas("");
+    setLat(null); setLng(null); setListaPrecio(""); setUserVinculado(""); setNotas("");
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -85,6 +85,7 @@ export default function VendedorClientes() {
       empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
       direccion: direccion.trim() || null, latitud, longitud,
       lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
+      user_id: userVinculado || null,
       vendedor_id: user.id,
     }).select().single();
     setSaving(false);
@@ -93,6 +94,10 @@ export default function VendedorClientes() {
     toast.success("Cliente creado");
     setOpen(false); reset(); load();
   };
+
+  // Usuarios cliente que aún no están vinculados a ninguna ficha
+  const linkedUserIds = new Set(clientes.map((c) => c.user_id).filter(Boolean) as string[]);
+  const availableClienteUsers = clienteUsers.filter((u) => !linkedUserIds.has(u.id));
 
   return (
     <div className="space-y-6">

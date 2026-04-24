@@ -8,11 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info } from "lucide-react";
+import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info, ImageOff } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 
-interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; }
+interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; imagen_url: string | null; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; max: number; }
 
 const LINEA_LABEL: Record<string, string> = {
@@ -23,12 +23,33 @@ const LINEA_LABEL: Record<string, string> = {
   limpieza: "Limpieza",
 };
 
+function ProductImage({ src, alt }: { src: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className="w-full aspect-[4/3] bg-muted rounded flex items-center justify-center text-muted-foreground">
+        <ImageOff className="h-8 w-8 opacity-50" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="w-full aspect-[4/3] object-cover rounded bg-muted"
+    />
+  );
+}
+
 export default function ClienteCatalogo() {
   const { user } = useAuth();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cliente, setCliente] = useState<{ id: string; lista_precio_id: string | null } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [linea, setLinea] = useState<string>("all");
   const [info, setInfo] = useState<Producto | null>(null);
@@ -37,26 +58,39 @@ export default function ClienteCatalogo() {
 
   useEffect(() => {
     (async () => {
-      if (!user) return;
-      const { data: c } = await supabase.from("clientes").select("id,lista_precio_id").eq("user_id", user.id).maybeSingle();
-      if (!c) { setLoading(false); return; }
-      setCliente(c);
-      if (!c.lista_precio_id) { setLoading(false); return; }
-      const { data: items } = await supabase
-        .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,stock(cantidad))")
-        .eq("lista_id", c.lista_precio_id);
-      const prods: Producto[] = (items ?? [])
-        .filter((i: any) => i.productos?.activo)
-        .map((i: any) => ({
-          id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku,
-          descripcion: i.productos.descripcion, ficha_tecnica: i.productos.ficha_tecnica,
-          presentaciones: i.productos.presentaciones, linea: i.productos.linea,
-          precio: Number(i.precio),
-          stock: Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : 0,
-        }));
-      setProductos(prods);
-      setLoading(false);
+      setErrorMsg(null);
+      if (!user) { setLoading(false); return; }
+      try {
+        const { data: c, error: cErr } = await supabase
+          .from("clientes")
+          .select("id,lista_precio_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (cErr) throw cErr;
+        if (!c) { setLoading(false); return; }
+        setCliente(c);
+        if (!c.lista_precio_id) { setLoading(false); return; }
+        const { data: items, error: iErr } = await supabase
+          .from("lista_precio_items")
+          .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,imagen_url,stock(cantidad))")
+          .eq("lista_id", c.lista_precio_id);
+        if (iErr) throw iErr;
+        const prods: Producto[] = (items ?? [])
+          .filter((i: any) => i.productos?.activo)
+          .map((i: any) => ({
+            id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku,
+            descripcion: i.productos.descripcion, ficha_tecnica: i.productos.ficha_tecnica,
+            presentaciones: i.productos.presentaciones, linea: i.productos.linea,
+            imagen_url: i.productos.imagen_url ?? null,
+            precio: Number(i.precio),
+            stock: Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : 0,
+          }));
+        setProductos(prods);
+      } catch (e: any) {
+        setErrorMsg(e.message ?? "Error al cargar el catálogo");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [user]);
 
@@ -103,8 +137,15 @@ export default function ClienteCatalogo() {
   };
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin" />;
-  if (!cliente) return <Card><CardContent className="p-8 text-center text-muted-foreground">Tu cuenta de cliente aún no está vinculada. Contacta a tu vendedor.</CardContent></Card>;
-  if (!cliente.lista_precio_id) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada.</CardContent></Card>;
+  if (errorMsg) return <Card><CardContent className="p-8 text-center text-destructive">{errorMsg}</CardContent></Card>;
+  if (!cliente) return (
+    <Card><CardContent className="p-8 text-center space-y-2">
+      <p className="industrial-title text-lg">Cuenta no vinculada</p>
+      <p className="text-sm text-muted-foreground">Tu usuario aún no está asociado a una ficha de cliente. Pide a tu vendedor o al administrador que vincule tu cuenta desde el módulo de Clientes.</p>
+    </CardContent></Card>
+  );
+  if (!cliente.lista_precio_id) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada. Contacta a tu vendedor.</CardContent></Card>;
+  if (productos.length === 0) return <Card><CardContent className="p-8 text-center text-muted-foreground">No hay productos disponibles en tu lista de precios.</CardContent></Card>;
 
   return (
     <div className="space-y-4">
@@ -128,6 +169,7 @@ export default function ClienteCatalogo() {
           {filtered.map((p) => (
             <Card key={p.id} className="hover:border-brand transition-colors">
               <CardContent className="p-4 space-y-2">
+                <ProductImage src={p.imagen_url} alt={p.nombre} />
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="industrial-title text-base truncate">{p.nombre}</h3>
@@ -162,7 +204,7 @@ export default function ClienteCatalogo() {
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.producto_id)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center">{c.cantidad}</span>
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max })}><Plus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max, imagen_url: null })}><Plus className="h-3 w-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.producto_id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>
@@ -185,6 +227,7 @@ export default function ClienteCatalogo() {
         <DialogContent>
           <DialogHeader><DialogTitle className="industrial-title">{info?.nombre}</DialogTitle></DialogHeader>
           {info && <div className="space-y-2 text-sm">
+            <ProductImage src={info.imagen_url} alt={info.nombre} />
             <p>{info.descripcion}</p>
             {info.presentaciones && <p><strong>Presentaciones:</strong> {info.presentaciones.join(", ")}</p>}
             {info.ficha_tecnica && Object.entries(info.ficha_tecnica).length > 0 && (

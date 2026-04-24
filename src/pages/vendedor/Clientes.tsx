@@ -40,9 +40,10 @@ export default function VendedorClientes() {
   const [gpsBusy, setGpsBusy] = useState(false);
 
   const load = async () => {
+    if (!user) return;
     setLoading(true);
     const [{ data: cs }, { data: lp }, { data: tpl }] = await Promise.all([
-      supabase.from("clientes").select("*").order("created_at", { ascending: false }),
+      supabase.from("clientes").select("*").eq("vendedor_id", user.id).order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "bienvenida").maybeSingle(),
     ]);
@@ -51,7 +52,26 @@ export default function VendedorClientes() {
     setWelcomeTpl(tpl?.mensaje ?? "");
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+
+    const channel = supabase
+      .channel("vendedor-clientes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "clientes" },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const captureGps = () => {
     if (!navigator.geolocation) return toast.error("Geolocalización no disponible");

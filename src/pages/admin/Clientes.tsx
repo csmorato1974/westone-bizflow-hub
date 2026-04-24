@@ -57,10 +57,6 @@ export default function AdminClientes() {
                     <SelectTrigger><SelectValue placeholder="Lista de precios" /></SelectTrigger>
                     <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
                   </Select>
-                  <Select value={c.user_id ?? ""} onValueChange={(v) => update(c.id, { user_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Usuario portal cliente (opcional)" /></SelectTrigger>
-                    <SelectContent>{clientesUsers.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name ?? u.email}</SelectItem>)}</SelectContent>
-                  </Select>
                 </div>
               </CardContent>
             </Card>

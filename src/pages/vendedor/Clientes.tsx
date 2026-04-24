@@ -133,6 +133,20 @@ export default function VendedorClientes() {
                   <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Vincular a usuario registrado (opcional)</Label>
+                <Select value={userVinculado} onValueChange={setUserVinculado}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={availableClienteUsers.length === 0 ? "No hay usuarios cliente disponibles" : "Seleccionar usuario"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableClienteUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.email ?? u.full_name ?? u.id}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Permite al cliente acceder a su catálogo en el portal.</p>
+              </div>
               <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
               <DialogFooter>
                 <Button type="submit" disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand-dark">

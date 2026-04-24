@@ -1,90 +1,55 @@
+## Plan para arreglar la carga de foto de perfil
 
-# Westone Performance Ecosystem — MVP
+He revisado la pantalla de perfil, las políticas actuales del bucket `avatares`, y las solicitudes recientes. El problema más probable es que la subida no está llegando a completarse en almacenamiento: no aparecen requests al endpoint de archivos y el bucket no tiene objetos creados, por lo que la URL del avatar nunca se guarda.
 
-App web/PWA B2B segura para gestión de fuerza de ventas, clientes, pedidos, catálogo y logística, con identidad visual Westone (negro industrial + amarillo dorado #FFCC00, tipografía fuerte, look automotriz/heavy-duty).
+### Qué voy a aplicar
 
-## Identidad de marca aplicada
-- **Colores**: negro profundo, amarillo Westone dorado, acentos blancos y grises industriales.
-- **Logo Westone** (montaña + tipografía) en login, sidebar y portal de cliente, extraído del PDF.
-- **Estilo**: cards con bordes definidos, tipografía bold tipo industrial, fondos oscuros en paneles internos, mobile-first.
-- **PWA**: instalable en celular (manifest + meta tags + ícono Westone).
+1. Endurecer y simplificar la subida del avatar en `src/pages/Perfil.tsx`
+   - Reemplazar el flujo actual por uno más robusto:
+     - leer el archivo seleccionado
+     - validar tipo y tamaño
+     - subirlo a una ruta estable del usuario
+     - verificar explícitamente el resultado de la subida
+     - recién después guardar `avatar_url` en `profiles`
+   - Añadir mensajes de error visibles y específicos en pantalla para distinguir:
+     - error al elegir archivo
+     - error al subir archivo
+     - error al guardar perfil
 
-## Backend (Lovable Cloud)
-Auth + Postgres con RLS estricta. Tabla `user_roles` separada con enum `app_role` (`super_admin`, `admin`, `vendedor`, `logistica`, `cliente`) y función `has_role()` SECURITY DEFINER. Tabla `audit_logs` para acciones sensibles.
+2. Ajustar el manejo del input de archivo
+   - Hacer que el selector funcione de forma consistente tanto desde el botón principal como desde el botón circular del avatar.
+   - Resetear correctamente el input para permitir volver a seleccionar el mismo archivo.
+   - Añadir trazas de diagnóstico seguras para identificar si el evento `onChange` se dispara o no.
 
-**Tablas principales**: `profiles`, `user_roles`, `clientes` (empresa, contacto, celular, dirección, lat/lng, vendedor_id), `productos` (línea, descripción, ficha técnica, presentaciones), `listas_precios`, `lista_precio_items`, `cliente_lista_precio`, `stock`, `pedidos` (estado: borrador → enviado → aprobado → listo_despacho → en_ruta → entregado → cancelado), `pedido_items`, `audit_logs`, `notificaciones`.
+3. Corregir y reforzar permisos del bucket
+   - Crear una nueva migración SQL para recrear las políticas del bucket `avatares` de forma idempotente.
+   - Mantener lectura pública y asegurar permisos de `INSERT`, `UPDATE` y `DELETE` sólo dentro de la carpeta del usuario autenticado.
+   - Incluir `DROP POLICY IF EXISTS` antes de recrearlas para evitar estados inconsistentes entre entornos.
 
-**RLS por rol**:
-- Vendedor: ve/edita solo sus clientes y pedidos.
-- Cliente: ve solo su perfil, su lista de precios autorizada y sus pedidos.
-- Logística: ve pedidos en estado `listo_despacho`/`en_ruta`.
-- Admin / super_admin: acceso total.
+4. Mejorar la persistencia visual del avatar
+   - Normalizar la URL pública guardada y aplicar cache-busting sólo en el render, no como valor base persistido si hace falta.
+   - Añadir refresco posterior a la subida para confirmar que el perfil devuelve el avatar guardado.
+   - Mantener fallback con iniciales si la imagen falla al cargar.
 
-## Módulos del MVP
+5. Corregir warnings de componentes UI relacionados
+   - Actualizar `src/components/ui/badge.tsx` para usar `React.forwardRef`, porque hoy genera warnings de ref en `Perfil`.
+   - Revisar el uso del botón/trigger del avatar para evitar efectos secundarios con Radix y refs en el árbol del perfil.
 
-### 1. Autenticación y seguridad
-- Login email/password obligatorio, signup solo por invitación admin.
-- Rutas protegidas por rol (`<RequireRole>` wrapper).
-- Logout, recuperación de contraseña, sesión persistente.
-- Auditoría: cada acción crítica (crear cliente, crear pedido, cambio de estado, cambio de rol) escribe en `audit_logs`.
+### Resultado esperado
 
-### 2. Panel del Vendedor
-- Dashboard con sus KPIs (clientes, pedidos del mes, pendientes).
-- Registro de cliente: empresa, contacto, celular, dirección, **botón "Capturar GPS"** que usa `navigator.geolocation`.
-- Asignación de lista de precios al crear cliente.
-- Al crear cliente → genera link `wa.me` con mensaje de bienvenida prellenado para enviar manualmente.
-- Crear pedidos a nombre de sus clientes desde el catálogo autorizado de ese cliente.
+- El usuario podrá seleccionar una imagen desde su ordenador.
+- El archivo se guardará correctamente en el bucket de avatares.
+- La URL se persistirá en el perfil.
+- La nueva foto aparecerá inmediatamente en `Mi Perfil`.
+- Si algo falla, el sistema mostrará exactamente en qué paso falló.
 
-### 3. Portal del Cliente
-- Vista limpia con logo Westone.
-- Catálogo filtrado por su lista de precios (solo ve productos y precios autorizados).
-- Ficha de producto: descripción, datos técnicos (punto congelamiento/ebullición, presentación), imagen, stock disponible.
-- Carrito → generar pedido. Ve historial y estado en tiempo real.
+### Detalles técnicos
 
-### 4. Módulo de Pedidos
-- Estados con badges de color.
-- Vendedor/admin recibe notificación in-app cuando cliente genera pedido.
-- Admin aprueba → estado pasa a `listo_despacho` → notificación a logística.
-- Cada notificación genera un link `wa.me` clickeable con resumen del pedido.
+- Archivos a tocar:
+  - `src/pages/Perfil.tsx`
+  - `src/components/ui/badge.tsx`
+  - nueva migración en `supabase/migrations/...sql`
+- No voy a tocar `src/integrations/supabase/client.ts`.
+- La corrección de base de datos será sólo de políticas y no cambiará datos existentes.
 
-### 5. Panel de Logística
-- Solo ve pedidos `listo_despacho` y `en_ruta`.
-- Tarjeta de pedido con: cliente, dirección, contacto, celular (botón llamar / WhatsApp), **botón "Abrir en Maps"** con coordenadas GPS, lista de items.
-- Acciones: marcar `en_ruta`, marcar `entregado`.
-
-### 6. Panel Administrativo
-- Gestión de usuarios y asignación de roles.
-- Gestión de vendedores (asignar clientes).
-- CRUD de clientes (vista global).
-- CRUD de productos y fichas técnicas.
-- CRUD de listas de precios y asignación a clientes.
-- Gestión de stock (ajustes manuales con motivo, queda en auditoría).
-- Vista global de pedidos con filtros.
-- Configuración WhatsApp: plantillas de mensaje (bienvenida, nuevo pedido, listo despacho).
-- Visor de logs de auditoría con filtros (usuario, acción, fecha).
-
-### 7. WhatsApp (vía links wa.me)
-- No hay API ni costos. Cada notificación importante muestra un botón "Enviar por WhatsApp" que abre WhatsApp Web/App con el mensaje prellenado al número correcto.
-- Plantillas configurables desde admin (con variables `{cliente}`, `{pedido}`, `{direccion}`, etc.).
-
-## Catálogo precargado
-Los productos del PDF se cargan como seed con sus fichas técnicas:
-- **Refrigerantes ligeros**: Supercoolant Red, Supercoolant Green, Ultra Antifreeze (Blue/Pink), Racing.
-- **Anticongelantes ligeros**: Antifreeze Green, Antifreeze Red.
-- **Heavy Duty**: Antifreeze Green HD, Antifreeze Red 50/50 HD, Supercoolant HD.
-- **Western Blue DEF** (Diesel Exhaust Fluid).
-- **Limpieza**: Clear-X (limpiaparabrisas), Car-X (shampoo), Radiator-X.
-
-Cada producto con: descripción, punto de congelamiento, ebullición, presentaciones, recomendaciones de uso, imagen placeholder.
-
-## Diseño
-- Mobile-first, sidebar colapsable con íconos en desktop, drawer en móvil.
-- Header oscuro con logo Westone amarillo, badge del rol activo.
-- Cards con borde sutil amarillo en hover, botones primarios negros con texto amarillo, secundarios amarillos con texto negro.
-- Tipografía bold y mayúsculas en títulos (estilo industrial del PDF).
-
-## Lo que queda preparado para fase 2
-- Cifrado de datos sensibles a nivel app (campos celular/dirección listos para `pgsodium`).
-- Migración futura a WhatsApp Business API real (estructura de plantillas y notificaciones ya está).
-- Reportes y métricas avanzadas.
-- App nativa con Capacitor.
+Si apruebas, lo implemento completo ahora.

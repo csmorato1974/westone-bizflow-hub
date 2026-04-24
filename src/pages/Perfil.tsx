@@ -99,6 +99,23 @@ export default function Perfil() {
 
   useEffect(() => {
     load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+
+    // Realtime: refrescar cuando cambien asignaciones de clientes
+    const channel = supabase
+      .channel("perfil-clientes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "clientes" },
+        () => load(),
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 

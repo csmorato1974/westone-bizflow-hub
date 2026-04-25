@@ -13,6 +13,7 @@ import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Perfil from "./pages/Perfil";
+import Chat from "./pages/Chat";
 
 import VendedorClientes from "./pages/vendedor/Clientes";
 import VendedorPedidos from "./pages/vendedor/Pedidos";

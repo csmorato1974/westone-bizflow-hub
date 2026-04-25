@@ -13,6 +13,7 @@ import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Perfil from "./pages/Perfil";
+import Chat from "./pages/Chat";
 
 import VendedorClientes from "./pages/vendedor/Clientes";
 import VendedorPedidos from "./pages/vendedor/Pedidos";
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>
               <Route index element={<Dashboard />} />
               <Route path="perfil" element={<Perfil />} />
+              <Route path="chat" element={<Chat />} />
 
               <Route path="clientes" element={<RequireAuth roles={["vendedor"]}><VendedorClientes /></RequireAuth>} />
               <Route path="pedidos" element={<RequireAuth roles={["vendedor"]}><VendedorPedidos /></RequireAuth>} />

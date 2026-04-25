@@ -11,6 +11,7 @@ import { Loader2, Save, MessageCircle, User as UserIcon, Camera, Trash2 } from "
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { waLink } from "@/lib/whatsapp";
+import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super Admin",

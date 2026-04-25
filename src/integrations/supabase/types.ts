@@ -103,6 +103,68 @@ export type Database = {
           },
         ]
       }
+      conversation_participants: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          channel_role: Database["public"]["Enums"]["app_role"] | null
+          created_at: string
+          created_by: string
+          id: string
+          nombre: string | null
+          tipo: Database["public"]["Enums"]["conversation_type"]
+          updated_at: string
+        }
+        Insert: {
+          channel_role?: Database["public"]["Enums"]["app_role"] | null
+          created_at?: string
+          created_by: string
+          id?: string
+          nombre?: string | null
+          tipo: Database["public"]["Enums"]["conversation_type"]
+          updated_at?: string
+        }
+        Update: {
+          channel_role?: Database["public"]["Enums"]["app_role"] | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          nombre?: string | null
+          tipo?: Database["public"]["Enums"]["conversation_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lista_precio_items: {
         Row: {
           id: string
@@ -212,6 +274,38 @@ export type Database = {
           nombre?: string
         }
         Relationships: []
+      }
+      messages: {
+        Row: {
+          contenido: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          contenido: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          contenido?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notificaciones: {
         Row: {
@@ -574,9 +668,14 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_conversation_participant: {
+        Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "vendedor" | "logistica" | "cliente"
+      conversation_type: "direct" | "channel"
       pedido_estado:
         | "borrador"
         | "enviado"
@@ -719,6 +818,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "admin", "vendedor", "logistica", "cliente"],
+      conversation_type: ["direct", "channel"],
       pedido_estado: [
         "borrador",
         "enviado",

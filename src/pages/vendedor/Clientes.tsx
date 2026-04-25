@@ -254,6 +254,24 @@ export default function VendedorClientes() {
           })}
         </div>
       )}
+
+      <Dialog open={!!pedidosCliente} onOpenChange={(o) => !o && setPedidosCliente(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">
+              Pedidos de {pedidosCliente?.empresa}
+            </DialogTitle>
+          </DialogHeader>
+          {pedidosCliente && (
+            <PedidosRecientes
+              clienteId={pedidosCliente.id}
+              limit={20}
+              hideViewAll
+              title="Historial de pedidos"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

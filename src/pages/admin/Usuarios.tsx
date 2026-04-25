@@ -97,7 +97,7 @@ export default function AdminUsuarios() {
                     {r.roles.length === 0 && <span className="text-xs text-muted-foreground">Sin roles</span>}
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2 border-t">
+                <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <Select value={adding[r.id] ?? ""} onValueChange={(v) => setAdding({ ...adding, [r.id]: v as AppRole })}>
                     <SelectTrigger className="max-w-xs"><SelectValue placeholder="Agregar rol…" /></SelectTrigger>
                     <SelectContent>
@@ -107,6 +107,30 @@ export default function AdminUsuarios() {
                   <Button size="sm" disabled={!adding[r.id]} onClick={() => { addRole(r.id, adding[r.id]); setAdding({ ...adding, [r.id]: undefined as any }); }} className="bg-primary text-brand">
                     <Plus className="h-4 w-4" /> Asignar
                   </Button>
+                  {isSuper && r.id !== user?.id && !r.roles.includes("super_admin") && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="destructive" className="ml-auto" disabled={deletingId === r.id}>
+                          {deletingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          Eliminar
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar este usuario?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Se eliminará permanentemente la cuenta de <strong>{r.full_name ?? r.email}</strong>, sus roles, perfil y notificaciones. Esta acción no se puede deshacer.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteUser(r.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               </CardContent>
             </Card>

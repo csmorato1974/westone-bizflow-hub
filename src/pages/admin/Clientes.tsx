@@ -87,10 +87,18 @@ export default function AdminClientes() {
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("profiles").select("id,full_name,email,phone"),
     ]);
+    const rolesByUser = new Map<string, AppRole[]>();
+    (ur ?? []).forEach((r: { user_id: string; role: string }) => {
+      const arr = rolesByUser.get(r.user_id) ?? [];
+      arr.push(r.role as AppRole);
+      rolesByUser.set(r.user_id, arr);
+    });
     const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
     const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
-    setVendedores((profs ?? []).filter((p) => vIds.has(p.id)));
-    setClienteUsers((profs ?? []).filter((p) => cIds.has(p.id)));
+    const profsWithRoles: User[] = (profs ?? []).map((p) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] }));
+    setVendedores(profsWithRoles.filter((p) => vIds.has(p.id)));
+    setClienteUsers(profsWithRoles.filter((p) => cIds.has(p.id)));
+    setAllProfiles(profsWithRoles);
     setListas(lp ?? []);
     setClientes((cs ?? []) as Cliente[]);
     setLoading(false);

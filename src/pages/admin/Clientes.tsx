@@ -224,6 +224,8 @@ export default function AdminClientes() {
     // refrescar para que aparezca con su nuevo rol
     load();
   };
+
+  const onOpenChange = (v: boolean) => {
     setOpen(v);
     if (!v) {
       setEditing(null);

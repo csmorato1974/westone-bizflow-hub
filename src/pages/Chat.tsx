@@ -310,8 +310,8 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-3">
+    <div className="flex h-[100dvh] max-h-[calc(100dvh-4rem)] flex-col md:h-[calc(100vh-4rem)] md:max-h-none">
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div>
           <h1 className="text-xl font-semibold">Chat</h1>
           <p className="text-xs text-muted-foreground">
@@ -321,10 +321,13 @@ export default function Chat() {
         {isAdmin && <NewConversationDialog onCreated={loadConversations} />}
       </div>
 
-      <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]">
         {/* Lista de conversaciones */}
-        <div className="flex flex-col border-r bg-muted/20">
-          <div className="space-y-2 border-b p-3">
+        <div className={cn(
+          "flex min-h-0 flex-col border-r bg-muted/20",
+          activeId && "hidden md:flex",
+        )}>
+          <div className="shrink-0 space-y-2 border-b p-3">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

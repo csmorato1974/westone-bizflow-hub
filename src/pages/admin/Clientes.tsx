@@ -202,7 +202,28 @@ export default function AdminClientes() {
     setOpen(true);
   };
 
-  const onOpenChange = (v: boolean) => {
+  const convertirYCrearFicha = async (u: User) => {
+    setConvertingId(u.id);
+    // Asignar rol cliente si aún no lo tiene (los demás roles se conservan)
+    if (!(u.roles ?? []).includes("cliente")) {
+      const { error } = await supabase
+        .from("user_roles")
+        .insert({ user_id: u.id, role: "cliente" });
+      if (error && !/duplicate|unique/i.test(error.message)) {
+        setConvertingId(null);
+        return toast.error(error.message);
+      }
+      await logAudit("asignar_rol", "user_roles", u.id, {
+        role: "cliente",
+        origen: "clientes_admin",
+      });
+    }
+    setConvertingId(null);
+    toast.success("Rol cliente asignado · completá la ficha");
+    openCreateForUser(u);
+    // refrescar para que aparezca con su nuevo rol
+    load();
+  };
     setOpen(v);
     if (!v) {
       setEditing(null);

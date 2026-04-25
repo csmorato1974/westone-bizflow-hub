@@ -60,13 +60,24 @@ export default function AdminStock() {
 
   const save = async (variante_id: string) => {
     const cantidad = edits[variante_id];
-    if (cantidad == null || cantidad < 0 || isNaN(cantidad)) return;
+    if (cantidad == null || cantidad < 0 || isNaN(cantidad)) return toast.error("Cantidad inválida");
     const { error } = await supabase
       .from("variante_stock")
       .upsert({ variante_id, cantidad, updated_at: new Date().toISOString() }, { onConflict: "variante_id" });
     if (error) return toast.error(error.message);
     await logAudit("ajuste_stock_variante", "variante_stock", variante_id, { cantidad });
     toast.success("Stock actualizado");
+    // limpiar edición y refrescar para reflejar el nuevo "Actual"
+    setEdits((prev) => {
+      const next = { ...prev };
+      delete next[variante_id];
+      return next;
+    });
+    // Actualización optimista local + reload en background
+    setGroups((prev) => prev.map((g) => ({
+      ...g,
+      variantes: g.variantes.map((v) => v.id === variante_id ? { ...v, cantidad } : v),
+    })));
     load();
   };
 
@@ -125,25 +136,33 @@ export default function AdminStock() {
                 </div>
                 <div className="border-t pt-2 space-y-1">
                   {g.variantes.length === 0 && <p className="text-xs text-muted-foreground">Sin presentaciones definidas.</p>}
-                  {g.variantes.map((v) => (
-                    <div key={v.id} className="flex items-center gap-2 text-sm py-1">
-                      <span className={`flex-1 ${!v.activa && "text-muted-foreground line-through"}`}>
-                        <span className="font-semibold">{v.presentacion}</span>
-                        {v.sku_variante && <span className="ml-2 text-xs font-mono text-muted-foreground">{v.sku_variante}</span>}
-                        <span className="ml-2 text-xs text-muted-foreground">· Actual: {v.cantidad}</span>
-                      </span>
-                      <Input
-                        type="number"
-                        min="0"
-                        defaultValue={v.cantidad}
-                        onChange={(e) => setEdits({ ...edits, [v.id]: parseInt(e.target.value) })}
-                        className="w-20"
-                      />
-                      <Button size="icon" onClick={() => save(v.id)} className="bg-brand text-brand-foreground">
-                        <Save className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  {g.variantes.map((v) => {
+                    const editing = edits[v.id];
+                    const currentValue = editing != null && !isNaN(editing) ? editing : v.cantidad;
+                    const dirty = editing != null && editing !== v.cantidad;
+                    return (
+                      <div key={v.id} className="flex items-center gap-2 text-sm py-1">
+                        <span className={`flex-1 ${!v.activa && "text-muted-foreground line-through"}`}>
+                          <span className="font-semibold">{v.presentacion}</span>
+                          {v.sku_variante && <span className="ml-2 text-xs font-mono text-muted-foreground">{v.sku_variante}</span>}
+                          <span className="ml-2 text-xs text-muted-foreground">· Actual: {v.cantidad}</span>
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={currentValue}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setEdits({ ...edits, [v.id]: raw === "" ? NaN : parseInt(raw) });
+                          }}
+                          className={`w-20 ${dirty ? "border-brand" : ""}`}
+                        />
+                        <Button size="icon" onClick={() => save(v.id)} disabled={!dirty} className="bg-brand text-brand-foreground">
+                          <Save className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

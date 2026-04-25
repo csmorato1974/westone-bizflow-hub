@@ -370,6 +370,9 @@ export default function AdminClientes() {
                           )}
                         </div>
                         <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => setPedidosCliente({ id: c.id, empresa: c.empresa })}>
+                            <Package className="h-3 w-3" /> Ver pedidos
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                             <Pencil className="h-3 w-3" /> Editar
                           </Button>

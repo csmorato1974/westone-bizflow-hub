@@ -55,6 +55,7 @@ export default function AdminClientes() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");

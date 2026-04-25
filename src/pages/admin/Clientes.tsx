@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
+import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 
 interface Cliente {
   id: string;

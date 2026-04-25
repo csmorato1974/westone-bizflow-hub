@@ -39,6 +39,7 @@ export default function ClienteMisPedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [vendedores, setVendedores] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [hasClienteRecord, setHasClienteRecord] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("todos");
   const [selected, setSelected] = useState<Pedido | null>(null);
@@ -46,9 +47,17 @@ export default function ClienteMisPedidos() {
 
   const load = async () => {
     if (!user) return;
-    const { data } = await supabase.from("pedidos")
+    // verificar si la cuenta del cliente está vinculada a una ficha
+    const { count: clienteCount } = await supabase
+      .from("clientes")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setHasClienteRecord((clienteCount ?? 0) > 0);
+
+    const { data, error } = await supabase.from("pedidos")
       .select("id,numero,estado,total,created_at,notas,vendedor_id,clientes(empresa,contacto,celular,direccion),pedido_items(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku,imagen_url))")
       .order("created_at", { ascending: false });
+    if (error) console.error("[MisPedidos] error:", error);
     const list = (data as any) ?? [];
     setPedidos(list);
     const ids = Array.from(new Set(list.map((p: Pedido) => p.vendedor_id).filter(Boolean))) as string[];

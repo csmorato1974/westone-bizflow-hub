@@ -16,6 +16,7 @@ import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
+  email: string | null;
   direccion: string | null; latitud: number | null; longitud: number | null;
   lista_precio_id: string | null; notas: string | null;
 }
@@ -33,6 +34,7 @@ export default function VendedorClientes() {
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");
   const [celular, setCelular] = useState("");
+  const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
   const [latitud, setLat] = useState<number | null>(null);
   const [longitud, setLng] = useState<number | null>(null);
@@ -85,7 +87,7 @@ export default function VendedorClientes() {
   };
 
   const reset = () => {
-    setEmpresa(""); setContacto(""); setCelular(""); setDireccion("");
+    setEmpresa(""); setContacto(""); setCelular(""); setEmail(""); setDireccion("");
     setLat(null); setLng(null); setListaPrecio(""); setNotas("");
     setEditingId(null);
   };
@@ -95,6 +97,7 @@ export default function VendedorClientes() {
     setEmpresa(c.empresa);
     setContacto(c.contacto);
     setCelular(c.celular);
+    setEmail(c.email ?? "");
     setDireccion(c.direccion ?? "");
     setLat(c.latitud);
     setLng(c.longitud);
@@ -113,10 +116,13 @@ export default function VendedorClientes() {
     if (!user) return;
     if (empresa.trim().length < 2) return toast.error("Empresa requerida");
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
+    const emailTrim = email.trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
     setSaving(true);
 
     const payload = {
       empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
+      email: emailTrim || null,
       direccion: direccion.trim() || null, latitud, longitud,
       lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
     };
@@ -163,6 +169,7 @@ export default function VendedorClientes() {
               <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
               <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
               <div><Label>Celular * (con código país, ej. 59170000000)</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required /></div>
+              <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" /></div>
               <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
               <div className="flex gap-2 items-end">
                 <div className="flex-1"><Label>Latitud</Label><Input value={latitud ?? ""} readOnly /></div>
@@ -206,6 +213,7 @@ export default function VendedorClientes() {
                     </div>
                   </div>
                   <p className="text-sm">📞 {c.celular}</p>
+                  {c.email && <p className="text-xs text-muted-foreground truncate">✉️ {c.email}</p>}
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>

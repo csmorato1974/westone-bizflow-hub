@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Pencil, Search, Trash2 } from "lucide-react";
+import { Loader2, MapPin, Pencil, Search, Trash2, UserPlus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,9 @@ interface Cliente {
   lista_precio_id: string | null;
   user_id: string | null;
 }
-interface User { id: string; full_name: string | null; email: string | null; }
+interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; }
+
+type FormMode = "edit" | "create-from-user";
 
 export default function AdminClientes() {
   const { hasRole } = useAuth();
@@ -54,6 +56,7 @@ export default function AdminClientes() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
+  const [mode, setMode] = useState<FormMode>("edit");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -77,7 +80,7 @@ export default function AdminClientes() {
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
-      supabase.from("profiles").select("id,full_name,email"),
+      supabase.from("profiles").select("id,full_name,email,phone"),
     ]);
     const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
     const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
@@ -87,7 +90,18 @@ export default function AdminClientes() {
     setClientes((cs ?? []) as Cliente[]);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const channel = supabase
+      .channel("admin-clientes-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const vendedorMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -99,17 +113,22 @@ export default function AdminClientes() {
     listas.forEach((l) => m.set(l.id, l.nombre));
     return m;
   }, [listas]);
-  const clienteUserMap = useMemo(() => {
-    const m = new Map<string, string>();
-    clienteUsers.forEach((u) => m.set(u.id, u.full_name ?? u.email ?? "—"));
-    return m;
-  }, [clienteUsers]);
-  // user_ids ya enlazados a otra ficha (excluir del selector salvo el actual)
+  // user_ids ya enlazados a alguna ficha
   const linkedUserIds = useMemo(() => {
     const s = new Set<string>();
     clientes.forEach((c) => { if (c.user_id) s.add(c.user_id); });
     return s;
   }, [clientes]);
+
+  // cuentas con rol cliente que no tienen ficha vinculada
+  const huerfanos = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = clienteUsers.filter((u) => !linkedUserIds.has(u.id));
+    if (!q) return list;
+    return list.filter((u) =>
+      [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
+    );
+  }, [clienteUsers, linkedUserIds, search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,7 +139,14 @@ export default function AdminClientes() {
     );
   }, [clientes, search]);
 
+  const resetForm = () => {
+    setEmpresa(""); setContacto(""); setCelular(""); setEmail("");
+    setDireccion(""); setLat(null); setLng(null); setNotas("");
+    setActivo(true); setVendedorId(""); setListaPrecioId(""); setUserId("");
+  };
+
   const openEdit = (c: Cliente) => {
+    setMode("edit");
     setEditing(c);
     setEmpresa(c.empresa);
     setContacto(c.contacto);
@@ -137,15 +163,32 @@ export default function AdminClientes() {
     setOpen(true);
   };
 
+  const openCreateForUser = (u: User) => {
+    setMode("create-from-user");
+    setEditing(null);
+    resetForm();
+    const nombre = u.full_name ?? u.email ?? "";
+    setEmpresa(nombre);
+    setContacto(nombre);
+    setEmail(u.email ?? "");
+    setCelular(u.phone ?? "");
+    setUserId(u.id);
+    setActivo(true);
+    setOpen(true);
+  };
+
   const onOpenChange = (v: boolean) => {
     setOpen(v);
-    if (!v) setEditing(null);
+    if (!v) {
+      setEditing(null);
+      setMode("edit");
+    }
   };
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing) return;
     if (empresa.trim().length < 2) return toast.error("Empresa requerida");
+    if (contacto.trim().length < 2) return toast.error("Contacto requerido");
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
     const emailTrim = email.trim();
     if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
@@ -165,6 +208,19 @@ export default function AdminClientes() {
       lista_precio_id: listaPrecioId || null,
       user_id: userId || null,
     };
+
+    if (mode === "create-from-user") {
+      const { data, error } = await supabase.from("clientes").insert(patch).select("id").single();
+      setSaving(false);
+      if (error) return toast.error(error.message);
+      await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, { empresa: patch.empresa, user_id: patch.user_id });
+      toast.success("Ficha creada y vinculada");
+      setOpen(false);
+      load();
+      return;
+    }
+
+    if (!editing) { setSaving(false); return; }
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -239,90 +295,129 @@ export default function AdminClientes() {
 
       {loading ? (
         <Loader2 className="h-6 w-6 animate-spin" />
-      ) : filtered.length === 0 ? (
-        <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
       ) : (
-        <div className="grid gap-3">
-          {filtered.map((c) => {
-            const maps = mapsLink(c.latitud, c.longitud);
-            return (
-              <Card key={c.id} className={!c.activo ? "opacity-60" : ""}>
-                <CardContent className="p-4 grid md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <p className="industrial-title text-lg">{c.empresa}</p>
-                    <p className="text-sm">{c.contacto}</p>
-                    <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
-                    {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}
-                    {!c.activo && <p className="text-xs text-destructive">Inactivo</p>}
+        <>
+          {huerfanos.length > 0 && (
+            <Card className="border-warning/50 bg-warning/5">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="industrial-title text-base">Cuentas sin ficha de cliente</p>
+                    <p className="text-xs text-muted-foreground">
+                      Usuarios con rol cliente que aún no están vinculados a una ficha. Crea una para que puedan operar.
+                    </p>
                   </div>
-                  <div className="space-y-1 text-sm">
-                    {c.direccion && <p className="text-muted-foreground">📍 {c.direccion}</p>}
-                    {maps && (
-                      <a href={maps} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline text-xs">
-                        <MapPin className="h-3 w-3" /> Ver en Maps
-                      </a>
-                    )}
-                    {c.notas && <p className="text-xs text-muted-foreground line-clamp-3 pt-1">📝 {c.notas}</p>}
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="text-muted-foreground">Vendedor:</span> {c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : "Sin asignar"}</p>
-                    <p><span className="text-muted-foreground">Lista:</span> {c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : "—"}</p>
-                    <div>
-                      {c.user_id ? (
-                        <Badge variant="outline" className="border-success text-success">
-                          🔗 Cuenta vinculada
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
-                          Sin cuenta de acceso
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                        <Pencil className="h-3 w-3" /> Editar
+                  <Badge variant="outline" className="border-warning text-warning">
+                    {huerfanos.length} pendiente{huerfanos.length === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  {huerfanos.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between gap-3 flex-wrap rounded-md border bg-card p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{u.full_name ?? "(sin nombre)"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email ?? "—"}{u.phone ? ` · ${u.phone}` : ""}</p>
+                      </div>
+                      <Button size="sm" onClick={() => openCreateForUser(u)} className="bg-brand text-brand-foreground hover:bg-brand-dark">
+                        <UserPlus className="h-3 w-3" /> Crear ficha
                       </Button>
-                      {isSuper && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="destructive" disabled={deletingId === c.id}>
-                              {deletingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                              Eliminar
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Se eliminará permanentemente <strong>{c.empresa}</strong>
-                                {c.user_id ? " y su cuenta de acceso asociada" : ""}. Si tiene pedidos, la eliminación será bloqueada.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteCliente(c)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Eliminar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {filtered.length === 0 ? (
+            <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
+          ) : (
+            <div className="grid gap-3">
+              {filtered.map((c) => {
+                const maps = mapsLink(c.latitud, c.longitud);
+                return (
+                  <Card key={c.id} className={!c.activo ? "opacity-60" : ""}>
+                    <CardContent className="p-4 grid md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <p className="industrial-title text-lg">{c.empresa}</p>
+                        <p className="text-sm">{c.contacto}</p>
+                        <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
+                        {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}
+                        {!c.activo && <p className="text-xs text-destructive">Inactivo</p>}
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        {c.direccion && <p className="text-muted-foreground">📍 {c.direccion}</p>}
+                        {maps && (
+                          <a href={maps} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline text-xs">
+                            <MapPin className="h-3 w-3" /> Ver en Maps
+                          </a>
+                        )}
+                        {c.notas && <p className="text-xs text-muted-foreground line-clamp-3 pt-1">📝 {c.notas}</p>}
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <p><span className="text-muted-foreground">Vendedor:</span> {c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : "Sin asignar"}</p>
+                        <p><span className="text-muted-foreground">Lista:</span> {c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : "—"}</p>
+                        <div>
+                          {c.user_id ? (
+                            <Badge variant="outline" className="border-success text-success">
+                              🔗 Cuenta vinculada
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
+                              Sin cuenta de acceso
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
+                            <Pencil className="h-3 w-3" /> Editar
+                          </Button>
+                          {isSuper && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" disabled={deletingId === c.id}>
+                                  {deletingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                  Eliminar
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Se eliminará permanentemente <strong>{c.empresa}</strong>
+                                    {c.user_id ? " y su cuenta de acceso asociada" : ""}. Si tiene pedidos, la eliminación será bloqueada.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteCliente(c)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                    Eliminar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="industrial-title">Editar cliente</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="industrial-title">
+              {mode === "create-from-user" ? "Crear ficha para cuenta" : "Editar cliente"}
+            </DialogTitle>
+          </DialogHeader>
           <form onSubmit={onSave} className="space-y-3">
             <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
             <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
-            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required /></div>
+            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required placeholder="+593..." /></div>
             <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" /></div>
             <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
             <div className="grid grid-cols-2 gap-2">
@@ -374,7 +469,7 @@ export default function AdminClientes() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button type="submit" disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand-dark">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "create-from-user" ? "Crear ficha" : "Guardar"}
               </Button>
             </DialogFooter>
           </form>

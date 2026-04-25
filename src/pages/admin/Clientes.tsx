@@ -98,6 +98,17 @@ export default function AdminClientes() {
     listas.forEach((l) => m.set(l.id, l.nombre));
     return m;
   }, [listas]);
+  const clienteUserMap = useMemo(() => {
+    const m = new Map<string, string>();
+    clienteUsers.forEach((u) => m.set(u.id, u.full_name ?? u.email ?? "—"));
+    return m;
+  }, [clienteUsers]);
+  // user_ids ya enlazados a otra ficha (excluir del selector salvo el actual)
+  const linkedUserIds = useMemo(() => {
+    const s = new Set<string>();
+    clientes.forEach((c) => { if (c.user_id) s.add(c.user_id); });
+    return s;
+  }, [clientes]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -121,6 +132,7 @@ export default function AdminClientes() {
     setActivo(c.activo);
     setVendedorId(c.vendedor_id ?? "");
     setListaPrecioId(c.lista_precio_id ?? "");
+    setUserId(c.user_id ?? "");
     setOpen(true);
   };
 

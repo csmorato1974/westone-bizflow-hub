@@ -452,7 +452,19 @@ export default function Perfil() {
         </Card>
       )}
 
-      {clienteInfo && <PedidosRecientes clienteId={clienteInfo.id} />}
+      {hasRole("cliente") && clienteInfo && <PedidosRecientes clienteId={clienteInfo.id} />}
+      {hasRole("cliente") && !clienteInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="industrial-title text-lg">Mis pedidos recientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Tu cuenta aún no está vinculada a una ficha de cliente. Contacta al administrador para que cree tu ficha y puedas ver tus pedidos.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {hasRole("vendedor") && (
         <Card>

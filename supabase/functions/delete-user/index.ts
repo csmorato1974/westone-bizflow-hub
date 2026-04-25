@@ -62,51 +62,79 @@ Deno.serve(async (req) => {
       return json({ error: "No puedes eliminar a otro super_admin" }, 403);
     }
 
-    // Check for orphan-prone data: pedidos via clientes linked to this user
+    const summary: Record<string, number> = {
+      pedidos_desligados_vendedor: 0,
+      clientes_preservados: 0,
+      clientes_eliminados: 0,
+      mensajes_eliminados: 0,
+      conversaciones_desvinculadas: 0,
+    };
+
+    // 1) Pedidos donde figura como vendedor → desligar (preservar histórico)
+    const { count: pedidosVendedor } = await admin
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("vendedor_id", targetId);
+    if ((pedidosVendedor ?? 0) > 0) {
+      const { error: updErr } = await admin
+        .from("pedidos")
+        .update({ vendedor_id: null })
+        .eq("vendedor_id", targetId);
+      if (updErr) return json({ error: `No se pudo desligar pedidos: ${updErr.message}` }, 500);
+      summary.pedidos_desligados_vendedor = pedidosVendedor ?? 0;
+    }
+
+    // 2) Clientes vinculados al usuario → conservar si tienen pedidos, eliminar si no
     const { data: clientesDelUser } = await admin
       .from("clientes")
       .select("id")
       .eq("user_id", targetId);
-    const clienteIds = (clientesDelUser ?? []).map((c) => c.id);
+    const clienteIds = (clientesDelUser ?? []).map((c) => c.id as string);
 
-    if (clienteIds.length > 0) {
-      const { count } = await admin
+    for (const cid of clienteIds) {
+      const { count: pedidosCliente } = await admin
         .from("pedidos")
         .select("id", { count: "exact", head: true })
-        .in("cliente_id", clienteIds);
-      if ((count ?? 0) > 0) {
-        return json(
-          {
-            error:
-              "El usuario tiene clientes con pedidos asociados. Desactívalo en lugar de eliminarlo.",
-          },
-          409,
-        );
+        .eq("cliente_id", cid);
+      if ((pedidosCliente ?? 0) > 0) {
+        // Preservar ficha pero desligarla y desactivarla
+        const { error: upErr } = await admin
+          .from("clientes")
+          .update({ user_id: null, activo: false })
+          .eq("id", cid);
+        if (upErr) return json({ error: `No se pudo desligar cliente: ${upErr.message}` }, 500);
+        summary.clientes_preservados += 1;
+      } else {
+        const { error: delErr } = await admin.from("clientes").delete().eq("id", cid);
+        if (delErr) return json({ error: `No se pudo eliminar ficha: ${delErr.message}` }, 500);
+        summary.clientes_eliminados += 1;
       }
     }
 
-    // Also block if user is vendedor on existing pedidos
-    const { count: vendedorPedidos } = await admin
-      .from("pedidos")
+    // 3) Mensajes y participación en conversaciones
+    const { count: msgCount } = await admin
+      .from("messages")
       .select("id", { count: "exact", head: true })
-      .eq("vendedor_id", targetId);
-    if ((vendedorPedidos ?? 0) > 0) {
-      return json(
-        {
-          error:
-            "El usuario tiene pedidos como vendedor. Reasigna o desactívalo en lugar de eliminarlo.",
-        },
-        409,
-      );
+      .eq("sender_id", targetId);
+    if ((msgCount ?? 0) > 0) {
+      await admin.from("messages").delete().eq("sender_id", targetId);
+      summary.mensajes_eliminados = msgCount ?? 0;
+    }
+    const { count: cpCount } = await admin
+      .from("conversation_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", targetId);
+    if ((cpCount ?? 0) > 0) {
+      await admin.from("conversation_participants").delete().eq("user_id", targetId);
+      summary.conversaciones_desvinculadas = cpCount ?? 0;
     }
 
-    // Cleanup related rows
+    // 4) Cleanup directo
     await admin.from("user_roles").delete().eq("user_id", targetId);
-    await admin.from("clientes").delete().eq("user_id", targetId);
     await admin.from("notificaciones").delete().eq("user_id", targetId);
     await admin.from("profiles").delete().eq("id", targetId);
 
-    // Delete auth user
+    // 5) Eliminar el usuario de auth
     const { error: delErr } = await admin.auth.admin.deleteUser(targetId);
     if (delErr) {
       return json({ error: delErr.message }, 500);
@@ -118,10 +146,10 @@ Deno.serve(async (req) => {
       accion: "eliminar_usuario",
       entidad: "auth.users",
       entidad_id: targetId,
-      detalle: { by: callerId },
+      detalle: { by: callerId, ...summary },
     });
 
-    return json({ ok: true });
+    return json({ ok: true, summary });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

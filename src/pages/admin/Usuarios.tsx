@@ -69,9 +69,31 @@ export default function AdminUsuarios() {
       body: { user_id: userId },
     });
     setDeletingId(null);
-    if (error) return toast.error(error.message);
+    if (error) {
+      // supabase-js envuelve el error HTTP; intentar extraer el mensaje real del body
+      let msg = error.message;
+      try {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          const parsed = await ctx.json();
+          if (parsed?.error) msg = parsed.error;
+        }
+      } catch {
+        // ignorar errores de parseo
+      }
+      return toast.error(msg);
+    }
     if (data?.error) return toast.error(data.error);
-    toast.success("Usuario eliminado");
+    const s = data?.summary;
+    let extra = "";
+    if (s) {
+      const partes: string[] = [];
+      if (s.pedidos_desligados_vendedor) partes.push(`${s.pedidos_desligados_vendedor} pedido(s) sin vendedor`);
+      if (s.clientes_preservados) partes.push(`${s.clientes_preservados} ficha(s) preservada(s)`);
+      if (s.clientes_eliminados) partes.push(`${s.clientes_eliminados} ficha(s) eliminada(s)`);
+      if (partes.length) extra = ` · ${partes.join(", ")}`;
+    }
+    toast.success("Usuario eliminado" + extra);
     load();
   };
 
@@ -203,7 +225,15 @@ export default function AdminUsuarios() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>¿Eliminar este usuario?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Se eliminará permanentemente la cuenta de <strong>{r.full_name ?? r.email}</strong>, sus roles, perfil y notificaciones. Esta acción no se puede deshacer.
+                            Se eliminará permanentemente la cuenta de <strong>{r.full_name ?? r.email}</strong>, sus roles, perfil, notificaciones y mensajes de chat.
+                            <br /><br />
+                            <strong>Para preservar la contabilidad:</strong>
+                            <ul className="list-disc pl-5 mt-1 text-xs">
+                              <li>Los pedidos donde figuraba como vendedor quedarán <em>sin vendedor asignado</em>.</li>
+                              <li>Las fichas de cliente con historial se conservarán <em>desligadas y desactivadas</em>.</li>
+                              <li>Las fichas sin pedidos se eliminarán por completo.</li>
+                            </ul>
+                            Esta acción no se puede deshacer.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

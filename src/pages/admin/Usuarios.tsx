@@ -225,7 +225,15 @@ export default function AdminUsuarios() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>¿Eliminar este usuario?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Se eliminará permanentemente la cuenta de <strong>{r.full_name ?? r.email}</strong>, sus roles, perfil y notificaciones. Esta acción no se puede deshacer.
+                            Se eliminará permanentemente la cuenta de <strong>{r.full_name ?? r.email}</strong>, sus roles, perfil, notificaciones y mensajes de chat.
+                            <br /><br />
+                            <strong>Para preservar la contabilidad:</strong>
+                            <ul className="list-disc pl-5 mt-1 text-xs">
+                              <li>Los pedidos donde figuraba como vendedor quedarán <em>sin vendedor asignado</em>.</li>
+                              <li>Las fichas de cliente con historial se conservarán <em>desligadas y desactivadas</em>.</li>
+                              <li>Las fichas sin pedidos se eliminarán por completo.</li>
+                            </ul>
+                            Esta acción no se puede deshacer.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

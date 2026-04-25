@@ -1,41 +1,59 @@
-## Diagnóstico
+## Problema
 
-No existe ningún límite de 4 mensajes en el código ni en la base de datos. El problema está en cómo el chat maneja la **suscripción Realtime y el estado del input**:
+En `src/pages/Chat.tsx` la columna de mensajes crece sin límite y termina ocultando la caja de entrada (`Textarea` + botón Enviar), especialmente en móvil (360×669). Causas:
 
-1. **Canal Realtime con nombre fijo + re-suscripción constante**: El `useEffect` de Realtime depende de `[user?.id, activeId]`, así que cada vez que cambia la conversación activa se desuscribe y crea un nuevo canal con el mismo nombre `"chat-messages"`. Tras varios eventos el canal queda colgado en estado "joining" y deja de entregar nuevos mensajes.
-2. **Closure obsoleto de `activeId`**: el handler de Realtime captura `activeId` por closure, así que mensajes nuevos pueden compararse contra un valor desactualizado y terminar contados como "no leídos" en lugar de añadirse al hilo.
-3. **`send()` no actualiza el estado local**: confía 100% en que Realtime devuelva el INSERT propio. Si el canal está roto (causa #1), el mensaje se inserta en la BD pero nunca aparece en pantalla → da la falsa impresión de que "no deja enviar".
-4. **Re-renders en cascada**: en los logs se ven 8+ recargas seguidas de `user_roles`/`profiles` tras el cuarto mensaje, lo que confirma un bucle que también puede congelar el textarea.
+1. El contenedor raíz usa `h-[calc(100vh-4rem)]`, una altura fija que asume un header de 4rem y no respeta el layout real de `AppLayout` en móvil → el panel se sale del viewport.
+2. Los contenedores `flex` intermedios (grid de dos columnas, columna de mensajes) **no tienen `min-h-0`**, así que el `ScrollArea` no se contrae y empuja el input fuera de pantalla.
+3. El `scrollRef` apunta al `Root` de Radix `ScrollArea` y no al viewport interno, por lo que `scrollTo({ top: scrollHeight })` no siempre baja al último mensaje.
 
-Verificado en BD: la conversación tiene exactamente 4 mensajes guardados; los siguientes intentos fallan silenciosamente por las causas anteriores.
+## Cambios propuestos (un solo archivo: `src/pages/Chat.tsx`)
 
-## Cambios a realizar
+### 1. Contenedor raíz con altura flexible
+Reemplazar `h-[calc(100vh-4rem)]` por una combinación que se adapte al área disponible del `AppLayout` y siempre deje visible la caja de entrada:
 
-**`src/pages/Chat.tsx`**
+```tsx
+<div className="flex h-[100dvh] max-h-[calc(100dvh-4rem)] flex-col md:h-[calc(100vh-4rem)]">
+```
 
-1. **Estabilizar el canal Realtime**:
-   - Usar un nombre de canal **único por conversación** (ej. `chat-${activeId}`) o por usuario, en lugar del nombre fijo.
-   - Mover `activeId` a un `useRef` que el handler de Realtime lea siempre actualizado, y dejar el `useEffect` dependiendo solo de `user?.id` para que **no se re-suscriba** al cambiar de conversación.
-   - Asegurar `removeChannel` correcto en el cleanup.
+- `100dvh` (dynamic viewport height) evita que la barra del navegador móvil tape el input.
+- En escritorio mantiene el comportamiento actual.
 
-2. **Hacer `send()` optimista y robusto**:
-   - Insertar con `.select().single()` para recibir la fila creada y añadirla inmediatamente al estado local (evita depender de Realtime para ver el propio mensaje).
-   - Deduplicar en el handler de Realtime (si el id ya existe en `messages`, no añadirlo otra vez).
-   - Mostrar el `toast.error` con el mensaje real de Supabase si falla el insert, para que cualquier futuro fallo de RLS sea visible.
+### 2. Añadir `min-h-0` en cada nivel flex/grid
+Para que el `ScrollArea` de mensajes se contraiga correctamente:
 
-3. **Evitar el bucle de recargas**:
-   - Quitar la llamada a `loadConversations()` desde el handler Realtime de `conversation_participants` y reemplazarla por una recarga puntual sólo cuando realmente cambia la membresía del usuario (con un debounce simple o comprobando que el evento sea relevante).
-   - Memoizar `senderInfo` y evitar que el cambio de `messages` dispare recargas de perfiles/roles.
+- Grid principal: `grid flex-1 min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]`
+- Columna de mensajes: `flex flex-col min-h-0`
+- Wrapper del `ScrollArea` de mensajes: asegurar `flex-1 min-h-0`
+- Input siempre visible: el `<div className="border-t p-3">` queda como `shrink-0` para que nunca se reduzca ni se oculte.
 
-4. **Mejoras menores de UX**:
-   - Hacer scroll al fondo cuando llega un mensaje propio recién insertado de forma optimista.
-   - Limpiar el textarea **antes** del `await insert` (envío percibido instantáneo) y restaurar el texto si el insert falla.
+### 3. Caja de entrada siempre visible (sticky-safe)
+Cambiar el contenedor del input a:
+```tsx
+<div className="shrink-0 border-t bg-background p-3">
+```
+Y reducir el `min-h` del `Textarea` en móvil (`min-h-[40px]`) para que no consuma demasiado.
+
+### 4. Scroll automático al fondo confiable
+- Crear un `bottomRef` (`<div ref={bottomRef} />`) al final de la lista de mensajes.
+- Reemplazar los `scrollRef.current?.scrollTo(...)` por `bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })`.
+- Disparar el scroll en un `useEffect([messages.length, activeId])`, además del momento del envío y de la recepción Realtime.
+
+### 5. Lista lateral (conversaciones) en móvil
+En móvil el grid es de una sola columna, y al abrir una conversación ambas pantallas conviven. Para evitar que la lista ocupe espacio cuando hay un chat activo en pantallas pequeñas:
+
+- Lista: `className={cn("flex flex-col border-r bg-muted/20 min-h-0", activeId && "hidden md:flex")}`
+- Panel de mensajes: `className={cn("flex flex-col min-h-0", !activeId && "hidden md:flex")}`
+- Añadir un botón "← Volver" en el header del panel de mensajes visible solo en móvil (`md:hidden`) que haga `setActiveId(null)`.
+
+Esto resuelve también el problema secundario en móvil de que la lista de conversaciones empuje al chat fuera de la pantalla.
 
 ## Resultado esperado
 
-- Se pueden enviar mensajes sin límite alguno.
-- Los mensajes propios aparecen al instante aunque Realtime tenga un hipo.
-- Los mensajes de otros llegan en tiempo real sin necesidad de recargar.
-- Desaparece el bucle de peticiones repetidas a `user_roles` / `profiles`.
+- La caja de mensaje queda **siempre fija en la parte inferior**, visible en cualquier viewport.
+- El historial de mensajes hace **scroll interno** dentro de su `ScrollArea` y se posiciona automáticamente en el último mensaje.
+- En móvil, el usuario ve la lista o el chat (no ambos compitiendo por espacio) y puede volver con un botón.
+- No se modifica la lógica de Realtime, envío, permisos ni el esquema de base de datos.
 
-No requiere cambios en la base de datos ni en RLS.
+## Archivos a modificar
+
+- `src/pages/Chat.tsx` (único archivo)

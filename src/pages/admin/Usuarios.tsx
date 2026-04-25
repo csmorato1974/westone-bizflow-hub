@@ -25,7 +25,7 @@ import {
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
 const ROLES: AppRole[] = ["super_admin", "admin", "vendedor", "logistica", "cliente"];
 
-interface Row { id: string; full_name: string | null; email: string | null; roles: AppRole[]; }
+interface Row { id: string; full_name: string | null; email: string | null; phone: string | null; roles: AppRole[]; }
 
 export default function AdminUsuarios() {
   const { user, hasRole } = useAuth();

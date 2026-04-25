@@ -162,6 +162,7 @@ export default function AdminClientes() {
       activo,
       vendedor_id: vendedorId || null,
       lista_precio_id: listaPrecioId || null,
+      user_id: userId || null,
     };
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);
     setSaving(false);
@@ -175,6 +176,10 @@ export default function AdminClientes() {
     if (editing.lista_precio_id !== patch.lista_precio_id) {
       changes.lista_anterior = editing.lista_precio_id;
       changes.lista_nueva = patch.lista_precio_id;
+    }
+    if (editing.user_id !== patch.user_id) {
+      changes.cuenta_anterior = editing.user_id;
+      changes.cuenta_nueva = patch.user_id;
     }
     await logAudit("editar_cliente_admin", "clientes", editing.id, changes);
     toast.success("Cliente actualizado");

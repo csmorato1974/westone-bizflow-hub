@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Loader2, Minus, Plus, Trash2, Image as ImageIcon } from "lucide-react";
 import { logAudit } from "@/lib/audit";
-import { fillTemplate, waLink } from "@/lib/whatsapp";
 import { productImageUrl } from "@/lib/productImage";
 
-interface Producto { id: string; nombre: string; sku: string; precio: number; presentaciones: string[] | null; imagen_url: string | null; }
-interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; }
+interface Variante { id: string; presentacion: string; precio: number; stock: number; }
+interface Producto { id: string; nombre: string; sku: string; imagen_url: string | null; variantes: Variante[]; }
+interface CartItem { variante_id: string; producto_id: string; nombre: string; presentacion: string; precio: number; cantidad: number; }
 
 export default function NuevoPedido() {
   const { clienteId } = useParams();
@@ -27,6 +28,7 @@ export default function NuevoPedido() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedVar, setSelectedVar] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
@@ -36,26 +38,40 @@ export default function NuevoPedido() {
       setCliente(c);
       if (!c.lista_precio_id) { toast.error("Cliente sin lista de precios asignada"); setLoading(false); return; }
       const { data: items } = await supabase
-        .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,presentaciones,activo,imagen_url)")
+        .from("lista_precio_variante_items")
+        .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,variante_stock(cantidad),productos!inner(id,nombre,sku,activo,imagen_url))")
         .eq("lista_id", c.lista_precio_id);
-      const prods: Producto[] = (items ?? [])
-        .filter((i: any) => i.productos?.activo)
-        .map((i: any) => ({ id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku, precio: Number(i.precio), presentaciones: i.productos.presentaciones, imagen_url: i.productos.imagen_url ?? null }));
-      setProductos(prods);
+
+      const map = new Map<string, Producto>();
+      (items ?? []).forEach((row: any) => {
+        const v = row.producto_variantes;
+        const p = v?.productos;
+        if (!v || !p || !p.activo || !v.activa) return;
+        if (!map.has(p.id)) map.set(p.id, { id: p.id, nombre: p.nombre, sku: p.sku, imagen_url: p.imagen_url ?? null, variantes: [] });
+        const stockArr = Array.isArray(v.variante_stock) ? v.variante_stock : [];
+        map.get(p.id)!.variantes.push({
+          id: v.id, presentacion: v.presentacion, precio: Number(row.precio),
+          stock: stockArr[0]?.cantidad ?? 0,
+        });
+      });
+      const list = Array.from(map.values())
+        .map((p) => ({ ...p, variantes: p.variantes.sort((a, b) => a.presentacion.localeCompare(b.presentacion)) }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
+      setProductos(list);
+      setSelectedVar(Object.fromEntries(list.map((p) => [p.id, (p.variantes.find((v) => v.stock > 0) ?? p.variantes[0])?.id ?? ""])));
       setLoading(false);
     })();
   }, [clienteId, navigate]);
 
-  const add = (p: Producto) => {
+  const addByVariante = (p: Producto, v: Variante) => {
     setCart((prev) => {
-      const ex = prev.find((x) => x.producto_id === p.id);
-      if (ex) return prev.map((x) => x.producto_id === p.id ? { ...x, cantidad: x.cantidad + 1 } : x);
-      return [...prev, { producto_id: p.id, nombre: p.nombre, precio: p.precio, cantidad: 1 }];
+      const ex = prev.find((x) => x.variante_id === v.id);
+      if (ex) return prev.map((x) => x.variante_id === v.id ? { ...x, cantidad: x.cantidad + 1 } : x);
+      return [...prev, { variante_id: v.id, producto_id: p.id, nombre: p.nombre, presentacion: v.presentacion, precio: v.precio, cantidad: 1 }];
     });
   };
-  const dec = (id: string) => setCart((prev) => prev.flatMap((x) => x.producto_id === id ? (x.cantidad > 1 ? [{ ...x, cantidad: x.cantidad - 1 }] : []) : [x]));
-  const rm = (id: string) => setCart((prev) => prev.filter((x) => x.producto_id !== id));
+  const dec = (varId: string) => setCart((prev) => prev.flatMap((x) => x.variante_id === varId ? (x.cantidad > 1 ? [{ ...x, cantidad: x.cantidad - 1 }] : []) : [x]));
+  const rm = (varId: string) => setCart((prev) => prev.filter((x) => x.variante_id !== varId));
 
   const total = cart.reduce((s, x) => s + x.cantidad * x.precio, 0);
 
@@ -75,11 +91,17 @@ export default function NuevoPedido() {
     }).select().single();
     if (error || !pedido) { setSaving(false); toast.error(error?.message ?? "Error"); return; }
     const { error: e2 } = await supabase.from("pedido_items").insert(
-      cart.map((c) => ({ pedido_id: pedido.id, producto_id: c.producto_id, cantidad: c.cantidad, precio_unitario: c.precio }))
+      cart.map((c) => ({
+        pedido_id: pedido.id,
+        producto_id: c.producto_id,
+        variante_id: c.variante_id,
+        presentacion: c.presentacion,
+        cantidad: c.cantidad,
+        precio_unitario: c.precio,
+      }))
     );
     if (e2) { setSaving(false); toast.error(e2.message); return; }
 
-    // notify admins
     const { data: admins } = await supabase.from("user_roles").select("user_id").in("role", ["admin", "super_admin"]);
     if (admins && admins.length > 0) {
       await supabase.from("notificaciones").insert(admins.map((a) => ({
@@ -108,37 +130,69 @@ export default function NuevoPedido() {
       <Input placeholder="Buscar producto…" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="grid gap-2 sm:grid-cols-2 max-h-[60vh] overflow-y-auto pr-2">
-          {filtered.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0 border">
-                  {p.imagen_url ? (
-                    <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-cover" loading="lazy" />
+          {filtered.map((p) => {
+            const sel = selectedVar[p.id] ?? p.variantes[0]?.id ?? "";
+            const v = p.variantes.find((x) => x.id === sel) ?? p.variantes[0];
+            return (
+              <Card key={p.id}>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0 border">
+                      {p.imagen_url ? (
+                        <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold truncate">{p.nombre}</p>
+                      <p className="text-xs text-muted-foreground">{p.sku}</p>
+                    </div>
+                  </div>
+                  {p.variantes.length > 0 ? (
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Label className="text-xs text-muted-foreground">Presentación</Label>
+                        <Select value={sel} onValueChange={(val) => setSelectedVar((s) => ({ ...s, [p.id]: val }))}>
+                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {p.variantes.map((vv) => (
+                              <SelectItem key={vv.id} value={vv.id}>
+                                {vv.presentacion} — Bs {vv.precio.toFixed(2)} (stock {vv.stock})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button size="sm" onClick={() => v && addByVariante(p, v)} disabled={!v} className="bg-brand text-brand-foreground hover:bg-brand-dark"><Plus className="h-4 w-4" /></Button>
+                    </div>
                   ) : (
-                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Sin presentaciones disponibles.</p>
                   )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold truncate">{p.nombre}</p>
-                  <p className="text-xs text-muted-foreground">{p.sku} · Bs {p.precio.toFixed(2)}</p>
-                </div>
-                <Button size="sm" onClick={() => add(p)} className="bg-brand text-brand-foreground hover:bg-brand-dark"><Plus className="h-4 w-4" /></Button>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
         <Card className="h-fit sticky top-4">
           <CardContent className="p-4 space-y-3">
             <h3 className="industrial-title">Pedido</h3>
             {cart.length === 0 && <p className="text-sm text-muted-foreground">Sin productos</p>}
             {cart.map((c) => (
-              <div key={c.producto_id} className="flex items-center justify-between gap-2 text-sm">
-                <div className="min-w-0 flex-1"><p className="truncate">{c.nombre}</p><p className="text-xs text-muted-foreground">Bs {c.precio.toFixed(2)}</p></div>
+              <div key={c.variante_id} className="flex items-center justify-between gap-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">{c.nombre}</p>
+                  <p className="text-xs text-muted-foreground">{c.presentacion} · Bs {c.precio.toFixed(2)}</p>
+                </div>
                 <div className="flex items-center gap-1">
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.producto_id)}><Minus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.variante_id)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center">{c.cantidad}</span>
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", precio: c.precio, presentaciones: null, imagen_url: null })}><Plus className="h-3 w-3" /></Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.producto_id)}><Trash2 className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => {
+                    const p = productos.find((x) => x.id === c.producto_id);
+                    const v = p?.variantes.find((x) => x.id === c.variante_id);
+                    if (p && v) addByVariante(p, v);
+                  }}><Plus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.variante_id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>
             ))}

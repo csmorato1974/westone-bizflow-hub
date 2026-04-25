@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -266,6 +267,17 @@ export default function AdminClientes() {
                   <div className="space-y-2 text-sm">
                     <p><span className="text-muted-foreground">Vendedor:</span> {c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : "Sin asignar"}</p>
                     <p><span className="text-muted-foreground">Lista:</span> {c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : "—"}</p>
+                    <div>
+                      {c.user_id ? (
+                        <Badge variant="outline" className="border-success text-success">
+                          🔗 Cuenta vinculada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
+                          Sin cuenta de acceso
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex gap-2 flex-wrap">
                       <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                         <Pencil className="h-3 w-3" /> Editar
@@ -334,6 +346,25 @@ export default function AdminClientes() {
                   {listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Cuenta de acceso vinculada</Label>
+              <Select value={userId || "__none__"} onValueChange={(v) => setUserId(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Sin cuenta vinculada" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sin cuenta vinculada —</SelectItem>
+                  {clienteUsers
+                    .filter((u) => u.id === userId || !linkedUserIds.has(u.id))
+                    .map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {(u.full_name ?? u.email ?? u.id)}{u.email && u.full_name ? ` · ${u.email}` : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Lista de usuarios registrados con rol cliente. Vincular permite acceder al catálogo y crear pedidos.
+              </p>
             </div>
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
             <div className="flex items-center gap-2">

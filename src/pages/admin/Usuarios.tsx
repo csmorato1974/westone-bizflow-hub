@@ -33,6 +33,8 @@ export default function AdminUsuarios() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<Record<string, AppRole>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterRole, setFilterRole] = useState<AppRole | "all" | "sin_rol">("all");
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);

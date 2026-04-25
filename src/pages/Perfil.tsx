@@ -452,6 +452,8 @@ export default function Perfil() {
         </Card>
       )}
 
+      {clienteInfo && <PedidosRecientes clienteId={clienteInfo.id} />}
+
       {hasRole("vendedor") && (
         <Card>
           <CardHeader>

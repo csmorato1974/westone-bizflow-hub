@@ -399,7 +399,10 @@ export default function Chat() {
         </div>
 
         {/* Panel de mensajes */}
-        <div className="flex flex-col">
+        <div className={cn(
+          "flex min-h-0 flex-col",
+          !activeId && "hidden md:flex",
+        )}>
           {!activeConv ? (
             <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
               <MessageSquare className="mb-3 h-12 w-12 opacity-30" />
@@ -407,7 +410,16 @@ export default function Chat() {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 border-b px-4 py-3">
+              <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 md:hidden"
+                  onClick={() => setActiveId(null)}
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="text-xs">
                     {activeConv.tipo === "channel"
@@ -430,7 +442,7 @@ export default function Chat() {
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 px-4 py-3" ref={scrollRef as never}>
+              <ScrollArea className="min-h-0 flex-1 px-4 py-3" ref={scrollRef as never}>
                 <div className="space-y-3">
                   {messages.map((m) => {
                     const mine = m.sender_id === user?.id;
@@ -467,10 +479,11 @@ export default function Chat() {
                       Aún no hay mensajes en esta conversación.
                     </p>
                   )}
+                  <div ref={bottomRef} />
                 </div>
               </ScrollArea>
 
-              <div className="border-t p-3">
+              <div className="shrink-0 border-t bg-background p-3">
                 <div className="flex items-end gap-2">
                   <Textarea
                     value={text}
@@ -482,10 +495,10 @@ export default function Chat() {
                       }
                     }}
                     placeholder="Escribe un mensaje..."
-                    className="min-h-[44px] resize-none"
+                    className="max-h-32 min-h-[40px] resize-none"
                     rows={1}
                   />
-                  <Button onClick={send} disabled={sending || !text.trim()} size="icon" className="h-11 w-11 shrink-0">
+                  <Button onClick={send} disabled={sending || !text.trim()} size="icon" className="h-10 w-10 shrink-0">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>

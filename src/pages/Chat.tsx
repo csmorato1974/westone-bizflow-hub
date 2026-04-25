@@ -94,6 +94,8 @@ export default function Chat() {
   const [filter, setFilter] = useState<"all" | "direct" | "channel">("all");
   const [search, setSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const activeIdRef = useRef<string | null>(null);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   // Cargar conversaciones del usuario
   const loadConversations = async () => {

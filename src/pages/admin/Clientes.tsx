@@ -365,9 +365,60 @@ export default function AdminClientes() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{u.full_name ?? "(sin nombre)"}</p>
                         <p className="text-xs text-muted-foreground truncate">{u.email ?? "—"}{u.phone ? ` · ${u.phone}` : ""}</p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {(u.roles ?? []).map((r) => (
+                            <Badge key={r} className="bg-brand text-brand-foreground text-[10px] px-1.5 py-0">{r}</Badge>
+                          ))}
+                        </div>
                       </div>
                       <Button size="sm" onClick={() => openCreateForUser(u)} className="bg-brand text-brand-foreground hover:bg-brand-dark">
                         <UserPlus className="h-3 w-3" /> Crear ficha
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {convertibles.length > 0 && (
+            <Card className="border-muted-foreground/30 bg-muted/20">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="industrial-title text-base">Otros perfiles disponibles para convertir</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cualquier perfil registrado (vendedor, logística, sin rol, etc.) puede convertirse en cliente. Sus roles previos se conservan.
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {convertibles.length} perfil{convertibles.length === 1 ? "" : "es"}
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  {convertibles.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between gap-3 flex-wrap rounded-md border bg-card p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{u.full_name ?? "(sin nombre)"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email ?? "—"}{u.phone ? ` · ${u.phone}` : ""}</p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {(u.roles ?? []).length === 0 ? (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">sin rol</Badge>
+                          ) : (
+                            (u.roles ?? []).map((r) => (
+                              <Badge key={r} className="bg-brand text-brand-foreground text-[10px] px-1.5 py-0">{r}</Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={convertingId === u.id}
+                        onClick={() => convertirYCrearFicha(u)}
+                        className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                      >
+                        {convertingId === u.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                        Convertir en cliente
                       </Button>
                     </div>
                   ))}

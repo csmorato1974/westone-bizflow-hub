@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Plus, Trash2, X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +33,8 @@ export default function AdminUsuarios() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<Record<string, AppRole>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterRole, setFilterRole] = useState<AppRole | "all" | "sin_rol">("all");
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -71,15 +74,65 @@ export default function AdminUsuarios() {
     load();
   };
 
+  const filteredRows = rows.filter((r) => {
+    if (filterRole === "sin_rol" && r.roles.length !== 0) return false;
+    if (filterRole !== "all" && filterRole !== "sin_rol" && !r.roles.includes(filterRole)) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const name = (r.full_name ?? "").toLowerCase();
+      const email = (r.email ?? "").toLowerCase();
+      if (!name.includes(q) && !email.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const counts = ROLES.reduce<Record<string, number>>((acc, rl) => {
+    acc[rl] = rows.filter((r) => r.roles.includes(rl)).length;
+    return acc;
+  }, {});
+  const sinRolCount = rows.filter((r) => r.roles.length === 0).length;
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="industrial-title text-3xl">Usuarios y Roles</h1>
         <p className="text-sm text-muted-foreground">Asigna roles para controlar el acceso a los módulos</p>
       </div>
+
+      <Card>
+        <CardContent className="p-4 flex flex-col md:flex-row gap-3 md:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre o email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={filterRole} onValueChange={(v) => setFilterRole(v as AppRole | "all" | "sin_rol")}>
+            <SelectTrigger className="md:w-64">
+              <SelectValue placeholder="Filtrar por categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos ({rows.length})</SelectItem>
+              {ROLES.map((rl) => (
+                <SelectItem key={rl} value={rl}>
+                  {rl} ({counts[rl] ?? 0})
+                </SelectItem>
+              ))}
+              <SelectItem value="sin_rol">Sin rol ({sinRolCount})</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
       {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (
         <div className="grid gap-3">
-          {rows.map((r) => (
+          <p className="text-xs text-muted-foreground">
+            Mostrando {filteredRows.length} de {rows.length} usuarios
+          </p>
+          {filteredRows.map((r) => (
             <Card key={r.id}>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">

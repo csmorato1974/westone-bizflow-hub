@@ -56,11 +56,13 @@ export function PedidosRecientes({ clienteId, limit = 5, hideViewAll = false, ti
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="industrial-title text-lg flex items-center gap-2">
           <Package className="h-4 w-4 text-brand" />
-          Mis pedidos recientes
+          {title}
         </CardTitle>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/app/mis-pedidos"><ExternalLink className="h-3 w-3 mr-1" /> Ver todos</Link>
-        </Button>
+        {!hideViewAll && (
+          <Button asChild size="sm" variant="outline">
+            <Link to="/app/mis-pedidos"><ExternalLink className="h-3 w-3 mr-1" /> Ver todos</Link>
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-2">
         {loading ? (

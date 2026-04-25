@@ -143,6 +143,18 @@ export default function AdminClientes() {
     );
   }, [clienteUsers, linkedUserIds, search]);
 
+  // perfiles SIN rol cliente y SIN ficha vinculada — candidatos a convertir
+  const convertibles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = allProfiles.filter(
+      (u) => !linkedUserIds.has(u.id) && !(u.roles ?? []).includes("cliente"),
+    );
+    if (!q) return list;
+    return list.filter((u) =>
+      [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
+    );
+  }, [allProfiles, linkedUserIds, search]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return clientes;

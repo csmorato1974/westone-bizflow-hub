@@ -218,6 +218,17 @@ export default function VendedorClientes() {
                   <p className="text-sm">📞 {c.celular}</p>
                   {c.email && <p className="text-xs text-muted-foreground truncate">✉️ {c.email}</p>}
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
+                  <div>
+                    {c.user_id ? (
+                      <Badge variant="outline" className="border-success text-success text-xs">
+                        🔗 Cuenta vinculada
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-muted-foreground text-muted-foreground text-xs">
+                        Sin cuenta de acceso
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar

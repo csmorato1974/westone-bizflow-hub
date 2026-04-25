@@ -67,10 +67,25 @@ export default function ClienteCatalogo() {
   const [selectedVar, setSelectedVar] = useState<Record<string, string>>({});
 
   const loadProductos = useCallback(async (listaId: string) => {
-    const { data: items } = await supabase
+    // Consulta dividida: primero precios+variantes+productos, luego stock por separado
+    const { data: items, error: itemsErr } = await supabase
       .from("lista_precio_variante_items")
-      .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,variante_stock(cantidad),productos!inner(id,nombre,sku,descripcion,ficha_tecnica,linea,activo,imagen_url))")
+      .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,productos!inner(id,nombre,sku,descripcion,ficha_tecnica,linea,activo,imagen_url))")
       .eq("lista_id", listaId);
+    if (itemsErr) { toast.error(itemsErr.message); return; }
+
+    const varianteIds = (items ?? [])
+      .map((row: any) => row.producto_variantes?.id)
+      .filter(Boolean) as string[];
+
+    const stockMap = new Map<string, number>();
+    if (varianteIds.length > 0) {
+      const { data: stockRows } = await supabase
+        .from("variante_stock")
+        .select("variante_id,cantidad")
+        .in("variante_id", varianteIds);
+      (stockRows ?? []).forEach((s: any) => stockMap.set(s.variante_id, s.cantidad ?? 0));
+    }
 
     const map = new Map<string, Producto>();
     (items ?? []).forEach((row: any) => {
@@ -84,12 +99,11 @@ export default function ClienteCatalogo() {
           variantes: [],
         });
       }
-      const stockArr = Array.isArray(v.variante_stock) ? v.variante_stock : [];
       map.get(p.id)!.variantes.push({
         id: v.id,
         presentacion: v.presentacion,
         precio: Number(row.precio),
-        stock: stockArr[0]?.cantidad ?? 0,
+        stock: stockMap.get(v.id) ?? 0,
       });
     });
     const list = Array.from(map.values())

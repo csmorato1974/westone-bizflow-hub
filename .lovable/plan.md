@@ -1,55 +1,34 @@
-## Plan para arreglar la carga de foto de perfil
+## Plan: corregir el guardado visual de stock y la disponibilidad en catálogo
 
-He revisado la pantalla de perfil, las políticas actuales del bucket `avatares`, y las solicitudes recientes. El problema más probable es que la subida no está llegando a completarse en almacenamiento: no aparecen requests al endpoint de archivos y el bucket no tiene objetos creados, por lo que la URL del avatar nunca se guarda.
+### Qué voy a corregir
+1. Ajustar la pantalla **Admin > Stock** para que lea correctamente la cantidad desde `variante_stock` y muestre el valor real después de guardar.
+2. Mantener el guardado con `upsert` por `variante_id`, pero reforzar la actualización local para que el cambio se vea inmediato sin depender de una recarga ambigua.
+3. Alinear la misma lectura de stock en **Cliente > Catálogo** y **Vendedor > Nuevo Pedido** para que todos consuman la cantidad por variante de forma consistente.
 
-### Qué voy a aplicar
+### Hallazgo confirmado
+- El guardado **sí llega a la base de datos**.
+- La tabla `variante_stock` ya tiene `UNIQUE(variante_id)` y el `POST ... on_conflict=variante_id` devuelve `200`.
+- El problema principal está en la **lectura/render**: en `AdminStock` la relación `variante_stock(cantidad)` llega como objeto en la respuesta observada, pero el código la trata como arreglo y por eso termina mostrando `0` en muchos casos, dando la impresión de que no guardó.
 
-1. Endurecer y simplificar la subida del avatar en `src/pages/Perfil.tsx`
-   - Reemplazar el flujo actual por uno más robusto:
-     - leer el archivo seleccionado
-     - validar tipo y tamaño
-     - subirlo a una ruta estable del usuario
-     - verificar explícitamente el resultado de la subida
-     - recién después guardar `avatar_url` en `profiles`
-   - Añadir mensajes de error visibles y específicos en pantalla para distinguir:
-     - error al elegir archivo
-     - error al subir archivo
-     - error al guardar perfil
+### Cambios a implementar
+- En `src/pages/admin/Stock.tsx`:
+  - normalizar la lectura de `variante_stock` para aceptar objeto o arreglo;
+  - extraer `cantidad` con una función segura;
+  - conservar inputs controlados y limpiar `edits` al guardar;
+  - actualizar el estado local antes de refrescar para que el usuario vea el nuevo stock enseguida.
+- En `src/pages/cliente/Catalogo.tsx`:
+  - mantener la consulta separada de stock por `variante_id`;
+  - revisar el mapeo para que no caiga en `0` cuando la fila existe;
+  - confirmar que el badge “Agotado” use la cantidad correcta de la variante seleccionada.
+- En `src/pages/vendedor/NuevoPedido.tsx`:
+  - aplicar el mismo criterio de lectura consistente de stock por variante.
 
-2. Ajustar el manejo del input de archivo
-   - Hacer que el selector funcione de forma consistente tanto desde el botón principal como desde el botón circular del avatar.
-   - Resetear correctamente el input para permitir volver a seleccionar el mismo archivo.
-   - Añadir trazas de diagnóstico seguras para identificar si el evento `onChange` se dispara o no.
-
-3. Corregir y reforzar permisos del bucket
-   - Crear una nueva migración SQL para recrear las políticas del bucket `avatares` de forma idempotente.
-   - Mantener lectura pública y asegurar permisos de `INSERT`, `UPDATE` y `DELETE` sólo dentro de la carpeta del usuario autenticado.
-   - Incluir `DROP POLICY IF EXISTS` antes de recrearlas para evitar estados inconsistentes entre entornos.
-
-4. Mejorar la persistencia visual del avatar
-   - Normalizar la URL pública guardada y aplicar cache-busting sólo en el render, no como valor base persistido si hace falta.
-   - Añadir refresco posterior a la subida para confirmar que el perfil devuelve el avatar guardado.
-   - Mantener fallback con iniciales si la imagen falla al cargar.
-
-5. Corregir warnings de componentes UI relacionados
-   - Actualizar `src/components/ui/badge.tsx` para usar `React.forwardRef`, porque hoy genera warnings de ref en `Perfil`.
-   - Revisar el uso del botón/trigger del avatar para evitar efectos secundarios con Radix y refs en el árbol del perfil.
-
-### Resultado esperado
-
-- El usuario podrá seleccionar una imagen desde su ordenador.
-- El archivo se guardará correctamente en el bucket de avatares.
-- La URL se persistirá en el perfil.
-- La nueva foto aparecerá inmediatamente en `Mi Perfil`.
-- Si algo falla, el sistema mostrará exactamente en qué paso falló.
+### Validación
+- Probar desde Admin cambiando una cantidad y guardando.
+- Confirmar que el valor “Actual” cambia al instante y se mantiene al recargar.
+- Confirmar que el mismo producto deja de verse como agotado en catálogo si su variante seleccionada tiene stock.
 
 ### Detalles técnicos
-
-- Archivos a tocar:
-  - `src/pages/Perfil.tsx`
-  - `src/components/ui/badge.tsx`
-  - nueva migración en `supabase/migrations/...sql`
-- No voy a tocar `src/integrations/supabase/client.ts`.
-- La corrección de base de datos será sólo de políticas y no cambiará datos existentes.
-
-Si apruebas, lo implemento completo ahora.
+- Archivo principal afectado: `src/pages/admin/Stock.tsx`
+- Archivos de consistencia: `src/pages/cliente/Catalogo.tsx`, `src/pages/vendedor/NuevoPedido.tsx`
+- No hace falta una migración nueva para esta corrección, porque el esquema y RLS ya soportan el `upsert` correctamente.

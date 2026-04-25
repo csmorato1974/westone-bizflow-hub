@@ -33,23 +33,35 @@ export default function AdminStock() {
 
   const load = async () => {
     setLoading(true);
-    const { data: variantes } = await supabase
+    // Consulta dividida: variantes + productos por un lado, stock por otro.
+    // Evita problemas de embedding (objeto vs array) en la respuesta.
+    const { data: variantes, error: vErr } = await supabase
       .from("producto_variantes")
-      .select("id,presentacion,sku_variante,activa,orden,producto_id,productos(id,nombre,sku,imagen_url),variante_stock(cantidad)")
+      .select("id,presentacion,sku_variante,activa,orden,producto_id,productos(id,nombre,sku,imagen_url)")
       .order("orden", { ascending: true });
+    if (vErr) { toast.error(vErr.message); setLoading(false); return; }
+
+    const ids = (variantes ?? []).map((v: any) => v.id).filter(Boolean) as string[];
+    const stockMap = new Map<string, number>();
+    if (ids.length > 0) {
+      const { data: stockRows } = await supabase
+        .from("variante_stock")
+        .select("variante_id,cantidad")
+        .in("variante_id", ids);
+      (stockRows ?? []).forEach((s: any) => stockMap.set(s.variante_id, Number(s.cantidad ?? 0)));
+    }
 
     const map = new Map<string, ProductoGroup>();
     (variantes ?? []).forEach((v: any) => {
       const p = v.productos;
       if (!p) return;
       if (!map.has(p.id)) map.set(p.id, { id: p.id, nombre: p.nombre, sku: p.sku, imagen_url: p.imagen_url ?? null, variantes: [] });
-      const stockArr = Array.isArray(v.variante_stock) ? v.variante_stock : [];
       map.get(p.id)!.variantes.push({
         id: v.id,
         presentacion: v.presentacion,
         sku_variante: v.sku_variante,
         activa: v.activa,
-        cantidad: stockArr[0]?.cantidad ?? 0,
+        cantidad: stockMap.get(v.id) ?? 0,
       });
     });
     const list = Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));

@@ -34,6 +34,7 @@ export default function VendedorClientes() {
   const [saving, setSaving] = useState(false);
   const [welcomeTpl, setWelcomeTpl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pedidosCliente, setPedidosCliente] = useState<Cliente | null>(null);
 
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");

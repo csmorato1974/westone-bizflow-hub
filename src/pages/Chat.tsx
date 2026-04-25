@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Send, MessageSquare, Hash, Loader2, Search } from "lucide-react";
+import { Plus, Send, MessageSquare, Hash, Loader2, Search, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +94,14 @@ export default function Chat() {
   const [filter, setFilter] = useState<"all" | "direct" | "channel">("all");
   const [search, setSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  // Auto-scroll al fondo cuando cambian mensajes o conversación activa
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, activeId]);
 
   // Cargar conversaciones del usuario
   const loadConversations = async () => {
@@ -304,8 +310,8 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-3">
+    <div className="flex h-[100dvh] max-h-[calc(100dvh-4rem)] flex-col md:h-[calc(100vh-4rem)] md:max-h-none">
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div>
           <h1 className="text-xl font-semibold">Chat</h1>
           <p className="text-xs text-muted-foreground">
@@ -315,10 +321,13 @@ export default function Chat() {
         {isAdmin && <NewConversationDialog onCreated={loadConversations} />}
       </div>
 
-      <div className="grid flex-1 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]">
         {/* Lista de conversaciones */}
-        <div className="flex flex-col border-r bg-muted/20">
-          <div className="space-y-2 border-b p-3">
+        <div className={cn(
+          "flex min-h-0 flex-col border-r bg-muted/20",
+          activeId && "hidden md:flex",
+        )}>
+          <div className="shrink-0 space-y-2 border-b p-3">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -390,7 +399,10 @@ export default function Chat() {
         </div>
 
         {/* Panel de mensajes */}
-        <div className="flex flex-col">
+        <div className={cn(
+          "flex min-h-0 flex-col",
+          !activeId && "hidden md:flex",
+        )}>
           {!activeConv ? (
             <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
               <MessageSquare className="mb-3 h-12 w-12 opacity-30" />
@@ -398,7 +410,16 @@ export default function Chat() {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 border-b px-4 py-3">
+              <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 md:hidden"
+                  onClick={() => setActiveId(null)}
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="text-xs">
                     {activeConv.tipo === "channel"
@@ -421,7 +442,7 @@ export default function Chat() {
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 px-4 py-3" ref={scrollRef as never}>
+              <ScrollArea className="min-h-0 flex-1 px-4 py-3" ref={scrollRef as never}>
                 <div className="space-y-3">
                   {messages.map((m) => {
                     const mine = m.sender_id === user?.id;
@@ -458,10 +479,11 @@ export default function Chat() {
                       Aún no hay mensajes en esta conversación.
                     </p>
                   )}
+                  <div ref={bottomRef} />
                 </div>
               </ScrollArea>
 
-              <div className="border-t p-3">
+              <div className="shrink-0 border-t bg-background p-3">
                 <div className="flex items-end gap-2">
                   <Textarea
                     value={text}
@@ -473,10 +495,10 @@ export default function Chat() {
                       }
                     }}
                     placeholder="Escribe un mensaje..."
-                    className="min-h-[44px] resize-none"
+                    className="max-h-32 min-h-[40px] resize-none"
                     rows={1}
                   />
-                  <Button onClick={send} disabled={sending || !text.trim()} size="icon" className="h-11 w-11 shrink-0">
+                  <Button onClick={send} disabled={sending || !text.trim()} size="icon" className="h-10 w-10 shrink-0">
                     {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>

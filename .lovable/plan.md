@@ -1,59 +1,54 @@
-## Problema
 
-En `src/pages/Chat.tsx` la columna de mensajes crece sin límite y termina ocultando la caja de entrada (`Textarea` + botón Enviar), especialmente en móvil (360×669). Causas:
+## Objetivo
 
-1. El contenedor raíz usa `h-[calc(100vh-4rem)]`, una altura fija que asume un header de 4rem y no respeta el layout real de `AppLayout` en móvil → el panel se sale del viewport.
-2. Los contenedores `flex` intermedios (grid de dos columnas, columna de mensajes) **no tienen `min-h-0`**, así que el `ScrollArea` no se contrae y empuja el input fuera de pantalla.
-3. El `scrollRef` apunta al `Root` de Radix `ScrollArea` y no al viewport interno, por lo que `scrollTo({ top: scrollHeight })` no siempre baja al último mensaje.
+En `/app/admin/clientes` (sección Clientes del super admin / admin), incluir automáticamente **todos los perfiles registrados** en la sección "Cuentas sin ficha de cliente" — no solo los que ya tienen rol `cliente`. Cada contacto mostrará su(s) rol(es) actual(es) como una etiqueta configurable, permitiendo convertirlo en cliente con un clic.
 
-## Cambios propuestos (un solo archivo: `src/pages/Chat.tsx`)
+Esto resuelve el caso típico: un usuario se registra como vendedor (o sin rol, o con cualquier otro rol) y más tarde necesita operar también como cliente.
 
-### 1. Contenedor raíz con altura flexible
-Reemplazar `h-[calc(100vh-4rem)]` por una combinación que se adapte al área disponible del `AppLayout` y siempre deje visible la caja de entrada:
+## Cambios — solo frontend
 
-```tsx
-<div className="flex h-[100dvh] max-h-[calc(100dvh-4rem)] flex-col md:h-[calc(100vh-4rem)]">
-```
+### `src/pages/admin/Clientes.tsx`
 
-- `100dvh` (dynamic viewport height) evita que la barra del navegador móvil tape el input.
-- En escritorio mantiene el comportamiento actual.
+1. **Ampliar el cálculo de "huérfanos"**:
+   - Hoy `huerfanos` filtra `clienteUsers` (solo perfiles con rol `cliente`) que no tengan ficha vinculada.
+   - Cambiar a: **todos los perfiles** (`profiles`) que NO estén ya vinculados a una ficha de `clientes` vía `user_id`, excepto el propio super admin si se desea (opcional, lo dejamos visible).
+   - Para esto, cargar todos los perfiles y un mapa `userId → AppRole[]` desde `user_roles` (ya se trae `ur`).
 
-### 2. Añadir `min-h-0` en cada nivel flex/grid
-Para que el `ScrollArea` de mensajes se contraiga correctamente:
+2. **Mostrar rol(es) actuales como badge configurable** en cada tarjeta de "Cuentas sin ficha":
+   - Junto al nombre/email mostrar badges con cada rol actual (ej. `vendedor`, `logistica`, `sin rol`).
+   - Estilo coherente con `AdminUsuarios` (badge `bg-brand`).
+   - Botón **"Convertir en cliente"** que:
+     - Si el perfil aún no tiene rol `cliente`, hace `INSERT` en `user_roles` con `role: 'cliente'` (manteniendo sus otros roles — los roles son acumulativos, ya soportado por la tabla con `unique(user_id, role)`).
+     - Luego abre el diálogo `openCreateForUser(u)` ya existente para crear la ficha en `clientes` y vincular `user_id`.
+   - Mantener el botón existente **"Crear ficha"** para los que ya son `cliente` puro.
 
-- Grid principal: `grid flex-1 min-h-0 grid-cols-1 overflow-hidden md:grid-cols-[320px_1fr]`
-- Columna de mensajes: `flex flex-col min-h-0`
-- Wrapper del `ScrollArea` de mensajes: asegurar `flex-1 min-h-0`
-- Input siempre visible: el `<div className="border-t p-3">` queda como `shrink-0` para que nunca se reduzca ni se oculte.
+3. **Renombrar / reagrupar la sección**:
+   - Título: "Perfiles disponibles para vincular como cliente".
+   - Texto auxiliar: "Cualquier perfil registrado puede ser convertido en cliente. Sus roles previos se conservan."
+   - Subdivisión visual opcional con dos grupos:
+     - **"Cuentas con rol cliente sin ficha"** (flujo actual, prioritario, badge `warning`).
+     - **"Otros perfiles (vendedor, logística, sin rol, etc.)"** (colapsable o segundo bloque, badge informativo, con botón "Convertir en cliente + crear ficha").
 
-### 3. Caja de entrada siempre visible (sticky-safe)
-Cambiar el contenedor del input a:
-```tsx
-<div className="shrink-0 border-t bg-background p-3">
-```
-Y reducir el `min-h` del `Textarea` en móvil (`min-h-[40px]`) para que no consuma demasiado.
+4. **Filtro/búsqueda**:
+   - El input `search` actual aplicará también al nuevo bloque (filtrar por nombre / email).
+   - Añadir un mini selector para filtrar "Mostrar perfiles con rol: todos / sin rol / vendedor / logistica / admin".
 
-### 4. Scroll automático al fondo confiable
-- Crear un `bottomRef` (`<div ref={bottomRef} />`) al final de la lista de mensajes.
-- Reemplazar los `scrollRef.current?.scrollTo(...)` por `bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })`.
-- Disparar el scroll en un `useEffect([messages.length, activeId])`, además del momento del envío y de la recepción Realtime.
+5. **Auditoría**:
+   - Al asignar el rol `cliente` registrar `logAudit("asignar_rol", "user_roles", userId, { role: "cliente", origen: "clientes_admin" })`.
+   - Al crear la ficha se mantiene `logAudit("crear_cliente_admin", ...)` ya existente.
 
-### 5. Lista lateral (conversaciones) en móvil
-En móvil el grid es de una sola columna, y al abrir una conversación ambas pantallas conviven. Para evitar que la lista ocupe espacio cuando hay un chat activo en pantallas pequeñas:
+6. **Realtime**:
+   - El canal `admin-clientes-sync` ya escucha `profiles`, `user_roles` y `clientes`, así que cualquier alta nueva aparecerá automáticamente sin recargar. No hace falta cambiarlo.
 
-- Lista: `className={cn("flex flex-col border-r bg-muted/20 min-h-0", activeId && "hidden md:flex")}`
-- Panel de mensajes: `className={cn("flex flex-col min-h-0", !activeId && "hidden md:flex")}`
-- Añadir un botón "← Volver" en el header del panel de mensajes visible solo en móvil (`md:hidden`) que haga `setActiveId(null)`.
+## Lo que NO se cambia
 
-Esto resuelve también el problema secundario en móvil de que la lista de conversaciones empuje al chat fuera de la pantalla.
+- No se modifica la base de datos: la tabla `user_roles` ya soporta múltiples roles por usuario (`unique(user_id, role)`), y la RLS `roles_admin_manage` permite a admins/super_admins insertar el rol.
+- No se altera el sidebar (la entrada "Clientes" en Administración ya existe y es la que se enriquecerá).
+- No se modifican los flujos de Vendedores / Logística / Cliente — solo se permite que un mismo perfil tenga rol `cliente` adicional.
 
-## Resultado esperado
+## Resultado para el usuario
 
-- La caja de mensaje queda **siempre fija en la parte inferior**, visible en cualquier viewport.
-- El historial de mensajes hace **scroll interno** dentro de su `ScrollArea` y se posiciona automáticamente en el último mensaje.
-- En móvil, el usuario ve la lista o el chat (no ambos compitiendo por espacio) y puede volver con un botón.
-- No se modifica la lógica de Realtime, envío, permisos ni el esquema de base de datos.
-
-## Archivos a modificar
-
-- `src/pages/Chat.tsx` (único archivo)
+Como super admin, al entrar a **Administración → Clientes** verás:
+- Tu lista actual de clientes con ficha (sin cambios).
+- Una sección ampliada con **todos los perfiles** que aún no son clientes con ficha, mostrando su rol actual con un badge.
+- Un botón **"Convertir en cliente"** que en un paso le agrega el rol `cliente` al perfil y abre el formulario de ficha pre-rellenado, dejándolo operativo como cualquier cliente dado de alta desde el inicio.

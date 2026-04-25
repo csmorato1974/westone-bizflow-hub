@@ -41,7 +41,8 @@ interface Cliente {
   lista_precio_id: string | null;
   user_id: string | null;
 }
-interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; }
+type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
+interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; roles?: AppRole[]; }
 
 type FormMode = "edit" | "create-from-user";
 
@@ -51,6 +52,8 @@ export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
   const [clienteUsers, setClienteUsers] = useState<User[]>([]);
+  const [allProfiles, setAllProfiles] = useState<User[]>([]);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -84,10 +87,18 @@ export default function AdminClientes() {
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("profiles").select("id,full_name,email,phone"),
     ]);
+    const rolesByUser = new Map<string, AppRole[]>();
+    (ur ?? []).forEach((r: { user_id: string; role: string }) => {
+      const arr = rolesByUser.get(r.user_id) ?? [];
+      arr.push(r.role as AppRole);
+      rolesByUser.set(r.user_id, arr);
+    });
     const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
     const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
-    setVendedores((profs ?? []).filter((p) => vIds.has(p.id)));
-    setClienteUsers((profs ?? []).filter((p) => cIds.has(p.id)));
+    const profsWithRoles: User[] = (profs ?? []).map((p) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] }));
+    setVendedores(profsWithRoles.filter((p) => vIds.has(p.id)));
+    setClienteUsers(profsWithRoles.filter((p) => cIds.has(p.id)));
+    setAllProfiles(profsWithRoles);
     setListas(lp ?? []);
     setClientes((cs ?? []) as Cliente[]);
     setLoading(false);
@@ -131,6 +142,18 @@ export default function AdminClientes() {
       [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
     );
   }, [clienteUsers, linkedUserIds, search]);
+
+  // perfiles SIN rol cliente y SIN ficha vinculada — candidatos a convertir
+  const convertibles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = allProfiles.filter(
+      (u) => !linkedUserIds.has(u.id) && !(u.roles ?? []).includes("cliente"),
+    );
+    if (!q) return list;
+    return list.filter((u) =>
+      [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
+    );
+  }, [allProfiles, linkedUserIds, search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -177,6 +200,29 @@ export default function AdminClientes() {
     setUserId(u.id);
     setActivo(true);
     setOpen(true);
+  };
+
+  const convertirYCrearFicha = async (u: User) => {
+    setConvertingId(u.id);
+    // Asignar rol cliente si aún no lo tiene (los demás roles se conservan)
+    if (!(u.roles ?? []).includes("cliente")) {
+      const { error } = await supabase
+        .from("user_roles")
+        .insert({ user_id: u.id, role: "cliente" });
+      if (error && !/duplicate|unique/i.test(error.message)) {
+        setConvertingId(null);
+        return toast.error(error.message);
+      }
+      await logAudit("asignar_rol", "user_roles", u.id, {
+        role: "cliente",
+        origen: "clientes_admin",
+      });
+    }
+    setConvertingId(null);
+    toast.success("Rol cliente asignado · completá la ficha");
+    openCreateForUser(u);
+    // refrescar para que aparezca con su nuevo rol
+    load();
   };
 
   const onOpenChange = (v: boolean) => {
@@ -319,9 +365,60 @@ export default function AdminClientes() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{u.full_name ?? "(sin nombre)"}</p>
                         <p className="text-xs text-muted-foreground truncate">{u.email ?? "—"}{u.phone ? ` · ${u.phone}` : ""}</p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {(u.roles ?? []).map((r) => (
+                            <Badge key={r} className="bg-brand text-brand-foreground text-[10px] px-1.5 py-0">{r}</Badge>
+                          ))}
+                        </div>
                       </div>
                       <Button size="sm" onClick={() => openCreateForUser(u)} className="bg-brand text-brand-foreground hover:bg-brand-dark">
                         <UserPlus className="h-3 w-3" /> Crear ficha
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {convertibles.length > 0 && (
+            <Card className="border-muted-foreground/30 bg-muted/20">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="industrial-title text-base">Otros perfiles disponibles para convertir</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cualquier perfil registrado (vendedor, logística, sin rol, etc.) puede convertirse en cliente. Sus roles previos se conservan.
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {convertibles.length} perfil{convertibles.length === 1 ? "" : "es"}
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  {convertibles.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between gap-3 flex-wrap rounded-md border bg-card p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{u.full_name ?? "(sin nombre)"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email ?? "—"}{u.phone ? ` · ${u.phone}` : ""}</p>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {(u.roles ?? []).length === 0 ? (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">sin rol</Badge>
+                          ) : (
+                            (u.roles ?? []).map((r) => (
+                              <Badge key={r} className="bg-brand text-brand-foreground text-[10px] px-1.5 py-0">{r}</Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={convertingId === u.id}
+                        onClick={() => convertirYCrearFicha(u)}
+                        className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                      >
+                        {convertingId === u.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                        Convertir en cliente
                       </Button>
                     </div>
                   ))}

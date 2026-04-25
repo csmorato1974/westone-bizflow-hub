@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
+import { productImageUrl } from "@/lib/productImage";
+import { Image as ImageIcon } from "lucide-react";
 
 interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; imagen_url: string | null; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; max: number; }
@@ -127,7 +129,14 @@ export default function ClienteCatalogo() {
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto pr-2">
           {filtered.map((p) => (
-            <Card key={p.id} className="hover:border-brand transition-colors">
+            <Card key={p.id} className="hover:border-brand transition-colors overflow-hidden">
+              <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
+                {p.imagen_url ? (
+                  <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-cover" loading="lazy" />
+                ) : (
+                  <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                )}
+              </div>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

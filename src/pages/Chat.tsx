@@ -94,8 +94,14 @@ export default function Chat() {
   const [filter, setFilter] = useState<"all" | "direct" | "channel">("all");
   const [search, setSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  // Auto-scroll al fondo cuando cambian mensajes o conversación activa
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, activeId]);
 
   // Cargar conversaciones del usuario
   const loadConversations = async () => {

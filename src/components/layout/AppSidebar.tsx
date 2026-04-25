@@ -118,6 +118,7 @@ export function AppSidebar() {
         {renderGroup("Cliente", clienteItems)}
         {renderGroup("Logística", logisticaItems)}
         {renderGroup("Administración", adminItems)}
+        {renderGroup(isSuper ? "Super Admin" : "Administración", superAdminItems)}
       </SidebarContent>
     </Sidebar>
   );

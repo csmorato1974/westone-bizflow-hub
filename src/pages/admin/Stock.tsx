@@ -60,13 +60,24 @@ export default function AdminStock() {
 
   const save = async (variante_id: string) => {
     const cantidad = edits[variante_id];
-    if (cantidad == null || cantidad < 0 || isNaN(cantidad)) return;
+    if (cantidad == null || cantidad < 0 || isNaN(cantidad)) return toast.error("Cantidad inválida");
     const { error } = await supabase
       .from("variante_stock")
       .upsert({ variante_id, cantidad, updated_at: new Date().toISOString() }, { onConflict: "variante_id" });
     if (error) return toast.error(error.message);
     await logAudit("ajuste_stock_variante", "variante_stock", variante_id, { cantidad });
     toast.success("Stock actualizado");
+    // limpiar edición y refrescar para reflejar el nuevo "Actual"
+    setEdits((prev) => {
+      const next = { ...prev };
+      delete next[variante_id];
+      return next;
+    });
+    // Actualización optimista local + reload en background
+    setGroups((prev) => prev.map((g) => ({
+      ...g,
+      variantes: g.variantes.map((v) => v.id === variante_id ? { ...v, cantidad } : v),
+    })));
     load();
   };
 

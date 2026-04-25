@@ -6,22 +6,31 @@ import { EstadoBadge } from "@/components/EstadoBadge";
 import { Loader2 } from "lucide-react";
 
 interface Pedido {
-  id: string; numero: number; estado: string; total: number; created_at: string;
+  id: string; numero: number; estado: string; total: number; created_at: string; vendedor_id: string | null;
   pedido_items: { cantidad: number; precio_unitario: number; productos: { nombre: string } | null }[];
 }
 
 export default function ClienteMisPedidos() {
   const { user } = useAuth();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [vendedores, setVendedores] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       if (!user) return;
       const { data } = await supabase.from("pedidos")
-        .select("id,numero,estado,total,created_at,pedido_items(cantidad,precio_unitario,productos(nombre))")
+        .select("id,numero,estado,total,created_at,vendedor_id,pedido_items(cantidad,precio_unitario,productos(nombre))")
         .order("created_at", { ascending: false });
-      setPedidos((data as any) ?? []);
+      const list = (data as any) ?? [];
+      setPedidos(list);
+      const ids = Array.from(new Set(list.map((p: Pedido) => p.vendedor_id).filter(Boolean))) as string[];
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id,full_name,email").in("id", ids);
+        const map: Record<string, string> = {};
+        (profs ?? []).forEach((p: any) => { map[p.id] = p.full_name ?? p.email ?? "—"; });
+        setVendedores(map);
+      }
       setLoading(false);
     })();
   }, [user]);
@@ -43,6 +52,9 @@ export default function ClienteMisPedidos() {
                   <div>
                     <p className="industrial-title text-lg">Pedido #{p.numero}</p>
                     <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()}</p>
+                    {p.vendedor_id && vendedores[p.vendedor_id] && (
+                      <p className="text-xs text-muted-foreground">Vendedor: <span className="font-medium text-foreground">{vendedores[p.vendedor_id]}</span></p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <EstadoBadge estado={p.estado} />

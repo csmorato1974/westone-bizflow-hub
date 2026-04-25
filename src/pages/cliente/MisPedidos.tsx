@@ -55,7 +55,7 @@ export default function ClienteMisPedidos() {
     setHasClienteRecord((clienteCount ?? 0) > 0);
 
     const { data, error } = await supabase.from("pedidos")
-      .select("id,numero,estado,total,created_at,notas,vendedor_id,clientes(empresa,contacto,celular,direccion),pedido_items(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku,imagen_url))")
+      .select("id,numero,estado,total,created_at,notas,vendedor_id,clientes(empresa,contacto,celular,direccion),pedido_items!pedido_items_pedido_id_fkey(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku,imagen_url))")
       .order("created_at", { ascending: false });
     if (error) console.error("[MisPedidos] error:", error);
     const list = (data as any) ?? [];

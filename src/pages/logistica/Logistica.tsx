@@ -23,7 +23,7 @@ export default function Logistica() {
     setLoading(true);
     const [{ data }, { data: t }] = await Promise.all([
       supabase.from("pedidos")
-        .select("id,numero,estado,total,notas,created_at,clientes(empresa,contacto,celular,direccion,latitud,longitud),pedido_items(cantidad,presentacion,productos(nombre,sku))")
+        .select("id,numero,estado,total,notas,created_at,clientes(empresa,contacto,celular,direccion,latitud,longitud),pedido_items!pedido_items_pedido_id_fkey(cantidad,presentacion,productos(nombre,sku))")
         .in("estado", ["listo_despacho", "en_ruta"])
         .order("created_at", { ascending: true }),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "en_ruta").maybeSingle(),

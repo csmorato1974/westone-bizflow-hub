@@ -31,7 +31,7 @@ export function PedidosRecientes({ clienteId, limit = 5, hideViewAll = false, ti
   const load = async () => {
     const { data, error } = await supabase
       .from("pedidos")
-      .select("id,numero,estado,total,created_at,pedido_items(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku))")
+      .select("id,numero,estado,total,created_at,pedido_items!pedido_items_pedido_id_fkey(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku))")
       .eq("cliente_id", clienteId)
       .order("created_at", { ascending: false })
       .limit(limit);

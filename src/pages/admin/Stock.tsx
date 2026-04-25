@@ -152,6 +152,11 @@ export default function AdminStock() {
                     const editing = edits[v.id];
                     const currentValue = editing != null && !isNaN(editing) ? editing : v.cantidad;
                     const dirty = editing != null && editing !== v.cantidad;
+                    const stepBy = (delta: number) => {
+                      const base = editing != null && !isNaN(editing) ? editing : v.cantidad;
+                      const next = Math.max(0, base + delta);
+                      setEdits({ ...edits, [v.id]: next });
+                    };
                     return (
                       <div key={v.id} className="flex items-center gap-2 text-sm py-1">
                         <span className={`flex-1 ${!v.activa && "text-muted-foreground line-through"}`}>
@@ -159,16 +164,39 @@ export default function AdminStock() {
                           {v.sku_variante && <span className="ml-2 text-xs font-mono text-muted-foreground">{v.sku_variante}</span>}
                           <span className="ml-2 text-xs text-muted-foreground">· Actual: {v.cantidad}</span>
                         </span>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={currentValue}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            setEdits({ ...edits, [v.id]: raw === "" ? NaN : parseInt(raw) });
-                          }}
-                          className={`w-20 ${dirty ? "border-brand" : ""}`}
-                        />
+                        <div className="flex items-center">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => stepBy(-1)}
+                            disabled={currentValue <= 0}
+                            className="h-9 w-9 rounded-r-none"
+                            aria-label="Restar 1"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={currentValue}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setEdits({ ...edits, [v.id]: raw === "" ? NaN : parseInt(raw) });
+                            }}
+                            className={`w-16 h-9 rounded-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${dirty ? "border-brand" : ""}`}
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => stepBy(1)}
+                            className="h-9 w-9 rounded-l-none"
+                            aria-label="Sumar 1"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                         <Button size="icon" onClick={() => save(v.id)} disabled={!dirty} className="bg-brand text-brand-foreground">
                           <Save className="h-4 w-4" />
                         </Button>

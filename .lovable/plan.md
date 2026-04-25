@@ -1,52 +1,41 @@
-## Plan para arreglar el detalle de pedidos y mostrar todos los pedidos realizados
+## Diagnóstico
 
-### Objetivo
-Hacer que el detalle de los pedidos sí se cargue y se vea correctamente en:
-- Perfil del cliente
-- Mis Pedidos
-- Vista admin por cliente
-- Cualquier otra vista que lea `pedido_items` desde `pedidos`
+No existe ningún límite de 4 mensajes en el código ni en la base de datos. El problema está en cómo el chat maneja la **suscripción Realtime y el estado del input**:
 
-### Problema detectado
-El backend tiene dos relaciones entre `pedidos` y `pedido_items`:
-- `pedido_items_pedido_id_fkey`
-- `pi_pedido_id_fkey`
+1. **Canal Realtime con nombre fijo + re-suscripción constante**: El `useEffect` de Realtime depende de `[user?.id, activeId]`, así que cada vez que cambia la conversación activa se desuscribe y crea un nuevo canal con el mismo nombre `"chat-messages"`. Tras varios eventos el canal queda colgado en estado "joining" y deja de entregar nuevos mensajes.
+2. **Closure obsoleto de `activeId`**: el handler de Realtime captura `activeId` por closure, así que mensajes nuevos pueden compararse contra un valor desactualizado y terminar contados como "no leídos" en lugar de añadirse al hilo.
+3. **`send()` no actualiza el estado local**: confía 100% en que Realtime devuelva el INSERT propio. Si el canal está roto (causa #1), el mensaje se inserta en la BD pero nunca aparece en pantalla → da la falsa impresión de que "no deja enviar".
+4. **Re-renders en cascada**: en los logs se ven 8+ recargas seguidas de `user_roles`/`profiles` tras el cuarto mensaje, lo que confirma un bucle que también puede congelar el textarea.
 
-Por eso las consultas embebidas como `pedido_items(...)` fallan con error de relación ambigua y la interfaz termina mostrando solo las secciones vacías, sin detalle.
+Verificado en BD: la conversación tiene exactamente 4 mensajes guardados; los siguientes intentos fallan silenciosamente por las causas anteriores.
 
-### Implementación
-1. Crear una migración para eliminar la relación duplicada que no corresponde:
-   - quitar `pi_pedido_id_fkey`
-   - quitar también `pi_producto_id_fkey` si sigue duplicando la relación normal con `productos`
+## Cambios a realizar
 
-2. Corregir las consultas del frontend para que dejen de depender de la relación ambigua:
-   - actualizar `src/components/cliente/PedidosRecientes.tsx`
-   - actualizar `src/pages/cliente/MisPedidos.tsx`
-   - actualizar `src/pages/admin/Pedidos.tsx`
-   - actualizar `src/pages/logistica/Logistica.tsx`
-   - usar relación explícita en los `select`, por ejemplo `pedido_items!pedido_items_pedido_id_fkey(...)`
+**`src/pages/Chat.tsx`**
 
-3. Mantener visible el detalle completo de todos los pedidos:
-   - en Perfil: pedidos recientes con desglose por producto
-   - en Mis Pedidos: historial completo con detalle expandible por pedido
-   - en Admin > Clientes: modal con historial completo del cliente
-   - en Admin > Pedidos y Logística: asegurar que los ítems sigan cargando sin romperse
+1. **Estabilizar el canal Realtime**:
+   - Usar un nombre de canal **único por conversación** (ej. `chat-${activeId}`) o por usuario, en lugar del nombre fijo.
+   - Mover `activeId` a un `useRef` que el handler de Realtime lea siempre actualizado, y dejar el `useEffect` dependiendo solo de `user?.id` para que **no se re-suscriba** al cambiar de conversación.
+   - Asegurar `removeChannel` correcto en el cleanup.
 
-4. Añadir manejo visual de error/carga más claro:
-   - si la consulta falla, mostrar mensaje útil en vez de dejar secciones aparentemente vacías
-   - conservar realtime donde ya existe
+2. **Hacer `send()` optimista y robusto**:
+   - Insertar con `.select().single()` para recibir la fila creada y añadirla inmediatamente al estado local (evita depender de Realtime para ver el propio mensaje).
+   - Deduplicar en el handler de Realtime (si el id ya existe en `messages`, no añadirlo otra vez).
+   - Mostrar el `toast.error` con el mensaje real de Supabase si falla el insert, para que cualquier futuro fallo de RLS sea visible.
 
-5. Validar el resultado:
-   - confirmar que el admin pueda abrir “Ver pedidos” y ver todos los ítems
-   - confirmar que una cuenta cliente vinculada vea sus pedidos en Perfil y Mis Pedidos
-   - confirmar que ya no aparezca el error de relación ambigua en las peticiones
+3. **Evitar el bucle de recargas**:
+   - Quitar la llamada a `loadConversations()` desde el handler Realtime de `conversation_participants` y reemplazarla por una recarga puntual sólo cuando realmente cambia la membresía del usuario (con un debounce simple o comprobando que el evento sea relevante).
+   - Memoizar `senderInfo` y evitar que el cambio de `messages` dispare recargas de perfiles/roles.
 
-### Detalles técnicos
-- La causa no es que falten pedidos, sino que la consulta REST falla con `PGRST201` por relaciones duplicadas.
-- Se detectó en red este error:
-  `Could not embed because more than one relationship was found for 'pedidos' and 'pedido_items'`
-- La tabla `pedido_items` tiene actualmente FKs duplicadas hacia `pedidos` y `productos`.
-- Aunque la migración eliminará la duplicidad, también dejaré las consultas con join explícito para que la app sea robusta incluso mientras se sincronizan los tipos.
+4. **Mejoras menores de UX**:
+   - Hacer scroll al fondo cuando llega un mensaje propio recién insertado de forma optimista.
+   - Limpiar el textarea **antes** del `await insert` (envío percibido instantáneo) y restaurar el texto si el insert falla.
 
-### Resultado esperado
-Al aprobar, dejaré funcionando la visualización del detalle de todos los pedidos realizados, tanto para clientes como para administración, sin secciones vacías ni consultas rotas.
+## Resultado esperado
+
+- Se pueden enviar mensajes sin límite alguno.
+- Los mensajes propios aparecen al instante aunque Realtime tenga un hipo.
+- Los mensajes de otros llegan en tiempo real sin necesidad de recargar.
+- Desaparece el bucle de peticiones repetidas a `user_roles` / `profiles`.
+
+No requiere cambios en la base de datos ni en RLS.

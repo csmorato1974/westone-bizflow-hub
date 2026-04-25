@@ -299,20 +299,6 @@ export type Database = {
             referencedRelation: "producto_variantes"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "pi_pedido_id_fkey"
-            columns: ["pedido_id"]
-            isOneToOne: false
-            referencedRelation: "pedidos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pi_producto_id_fkey"
-            columns: ["producto_id"]
-            isOneToOne: false
-            referencedRelation: "productos"
-            referencedColumns: ["id"]
-          },
         ]
       }
       pedidos: {

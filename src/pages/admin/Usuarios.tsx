@@ -4,9 +4,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
 const ROLES: AppRole[] = ["super_admin", "admin", "vendedor", "logistica", "cliente"];
@@ -14,9 +26,12 @@ const ROLES: AppRole[] = ["super_admin", "admin", "vendedor", "logistica", "clie
 interface Row { id: string; full_name: string | null; email: string | null; roles: AppRole[]; }
 
 export default function AdminUsuarios() {
+  const { user, hasRole } = useAuth();
+  const isSuper = hasRole("super_admin");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<Record<string, AppRole>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -42,6 +57,18 @@ export default function AdminUsuarios() {
     if (error) return toast.error(error.message);
     await logAudit("quitar_rol", "user_roles", userId, { role });
     toast.success("Rol removido"); load();
+  };
+
+  const deleteUser = async (userId: string) => {
+    setDeletingId(userId);
+    const { data, error } = await supabase.functions.invoke("delete-user", {
+      body: { user_id: userId },
+    });
+    setDeletingId(null);
+    if (error) return toast.error(error.message);
+    if (data?.error) return toast.error(data.error);
+    toast.success("Usuario eliminado");
+    load();
   };
 
   return (

@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Pencil, Search } from "lucide-react";
+import { Loader2, MapPin, Pencil, Search, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Cliente {
   id: string;
@@ -25,15 +37,19 @@ interface Cliente {
   activo: boolean;
   vendedor_id: string | null;
   lista_precio_id: string | null;
+  user_id: string | null;
 }
 interface User { id: string; full_name: string | null; email: string | null; }
 
 export default function AdminClientes() {
+  const { hasRole } = useAuth();
+  const isSuper = hasRole("super_admin");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [open, setOpen] = useState(false);

@@ -235,6 +235,9 @@ export default function VendedorClientes() {
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPedidosCliente(c)}>
+                      <Package className="h-3 w-3" /> Ver pedidos
+                    </Button>
                     <Button asChild size="sm" variant="outline">
                       <a href={waLink(c.celular, msg)} target="_blank" rel="noopener noreferrer">
                         <MessageCircle className="h-3 w-3" /> Bienvenida

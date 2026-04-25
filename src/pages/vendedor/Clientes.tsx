@@ -34,6 +34,7 @@ export default function VendedorClientes() {
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");
   const [celular, setCelular] = useState("");
+  const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
   const [latitud, setLat] = useState<number | null>(null);
   const [longitud, setLng] = useState<number | null>(null);

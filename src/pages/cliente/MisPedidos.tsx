@@ -42,6 +42,7 @@ export default function ClienteMisPedidos() {
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("todos");
   const [selected, setSelected] = useState<Pedido | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = async () => {
     if (!user) return;

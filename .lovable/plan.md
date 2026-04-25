@@ -1,84 +1,61 @@
-# Arreglo de "Eliminar usuario" desde el panel de Super Admin
+## Objetivo
+Eliminar todos los perfiles del sistema **excepto** el super_admin `csolizmo@gmail.com` (id `9ea7d930-f7ef-46e6-ae0f-8ab73d04be58`), con borrado total de su rastro (pedidos, items, clientes, mensajes, conversaciones huérfanas, notificaciones, roles, perfil y cuenta auth).
 
-## Diagnóstico
+## Perfiles a eliminar (7)
+| Email | ID | Rol |
+|---|---|---|
+| andinochuck@gmail.com | 511978ef-f45d-44d3-a8d4-db6bddd2e490 | cliente |
+| csmorat@yahoo.es | 654986ba-4520-469b-9bcc-2ef978ad5e83 | cliente |
+| csmorato@hotmail.com | c1ac10f3-d672-4f31-94e4-7288619bfb42 | cliente |
+| csmorato@hotmail.es | 10dc9a19-425e-4a5a-ba42-b64cfe52a2bb | vendedor |
+| kniazyouk@gmail.com | a24ad277-9c42-4054-9081-51754df20d8e | admin |
+| lykon.tex@gmail.com | 3b5a3a40-07f4-48f9-8846-21674fa3d568 | vendedor |
+| vinculovirtualvv@gmail.com | 9c5de27b-12e2-45c1-9598-ac2a8a189798 | cliente |
 
-Revisé los logs de la edge function `delete-user` y **todas las llamadas devuelven HTTP 409 (Conflict)**. Esto ocurre por dos razones combinadas:
+## Estrategia
+La edge function `delete-user` actual **preserva el histórico** (desliga vendedor de pedidos, desactiva clientes con pedidos). El usuario pidió **borrado total**, así que necesito crear una edge function temporal de uso único `purge-users` que sí cascade-elimine todo, sin tocar la lógica conservadora de `delete-user` (que sigue siendo la correcta para el día a día).
 
-### 1. La función bloquea cualquier eliminación con historial
-En `supabase/functions/delete-user/index.ts` hay dos guardas que devuelven 409:
-- Si el usuario tiene clientes con pedidos → bloquea.
-- Si el usuario aparece como `vendedor_id` en pedidos → bloquea.
+## Pasos
 
-Como prácticamente todos los perfiles del sistema acaban quedando vinculados a algún pedido (por la conversión vendedor → cliente que hicimos antes), **nunca se puede eliminar a nadie**.
+### 1. Crear edge function temporal `purge-users`
+Archivo: `supabase/functions/purge-users/index.ts`
 
-### 2. El frontend no muestra el mensaje de error real
-En `src/pages/admin/Usuarios.tsx`, el handler hace:
-```ts
-const { data, error } = await supabase.functions.invoke("delete-user", { ... });
-if (error) return toast.error(error.message);   // ← entra aquí con 409
-if (data?.error) return toast.error(data.error); // ← nunca se ejecuta
-```
-Cuando la edge function devuelve un status no-2xx, `supabase-js` lanza un `FunctionsHttpError` genérico ("Edge Function returned a non-2xx status code") y el cuerpo JSON con el mensaje real **nunca se lee**. Eso es el "mensaje raro" que ves.
+- Solo invocable por `super_admin`.
+- Recibe `{ user_ids: string[] }`.
+- Para cada `user_id`:
+  1. Obtener `cliente_ids` de `clientes` donde `user_id = target`.
+  2. Obtener `pedido_ids` de `pedidos` donde `cliente_id IN cliente_ids` **OR** `vendedor_id = target` **OR** `creado_por = target`.
+  3. `DELETE FROM pedido_items WHERE pedido_id IN pedido_ids`.
+  4. `DELETE FROM pedidos WHERE id IN pedido_ids`.
+  5. `DELETE FROM clientes WHERE user_id = target`.
+  6. `DELETE FROM messages WHERE sender_id = target`.
+  7. Obtener `conversation_ids` de `conversation_participants` donde `user_id = target`.
+  8. `DELETE FROM conversation_participants WHERE user_id = target`.
+  9. Para cada conversación afectada: si ya no quedan participantes, borrar `messages` huérfanos y la `conversation`.
+  10. `DELETE FROM notificaciones WHERE user_id = target`.
+  11. `DELETE FROM user_roles WHERE user_id = target`.
+  12. `DELETE FROM profiles WHERE id = target`.
+  13. `admin.auth.admin.deleteUser(target)`.
+  14. Insertar `audit_logs` con accion `purge_usuario` y resumen de filas borradas.
+- Devuelve resumen por usuario.
 
-## Solución propuesta
+### 2. Desplegar e invocar
+- Desplegar `purge-users` con `supabase--deploy_edge_functions`.
+- Llamar con `supabase--curl_edge_functions` (autenticado como super_admin) pasando los 7 `user_ids`.
+- Validar respuesta y mostrar resumen al usuario.
 
-### A) Edge function `delete-user` — permitir borrado en cascada controlado
+### 3. Limpieza
+- Eliminar `supabase/functions/purge-users/index.ts` del codebase.
+- Llamar `supabase--delete_edge_functions(["purge-users"])` para retirar la función desplegada.
+- Verificar con `SELECT count(*) FROM profiles` que queda solo 1 perfil.
 
-Reescribir la lógica para que un **super_admin pueda eliminar cualquier usuario** (excepto a sí mismo y a otros super_admin), haciendo limpieza segura:
+## Salvaguardas
+- Hardcodear server-side la lista de IDs a borrar dentro del body validado, y **rechazar** cualquier request que intente borrar `9ea7d930-f7ef-46e6-ae0f-8ab73d04be58` (csolizmo).
+- Verificar que el caller es `super_admin` antes de cualquier operación.
+- Auditar cada borrado en `audit_logs`.
 
-1. Mantener las protecciones esenciales:
-   - No puede eliminarse a sí mismo.
-   - No puede eliminar a otro `super_admin`.
-2. **Quitar** los bloqueos 409 por pedidos/clientes con historial.
-3. Limpieza ordenada antes de borrar el usuario:
-   - `UPDATE pedidos SET vendedor_id = NULL WHERE vendedor_id = target` (preservar histórico de ventas, solo desligarlo).
-   - Para los `clientes` cuyo `user_id = target`:
-     - Si tienen pedidos → solo `UPDATE clientes SET user_id = NULL, activo = false` (preservar la ficha y todo el histórico de pedidos del negocio).
-     - Si no tienen pedidos → `DELETE` de `clientes`.
-   - `DELETE` de `messages` enviados por el usuario y `conversation_participants` donde participe (para no romper RLS de chats).
-   - `DELETE` de `user_roles`, `notificaciones`, `profiles` del usuario.
-   - `auth.admin.deleteUser(target)`.
-4. Registrar en `audit_logs` con detalle (cuántos pedidos quedaron desligados, cuántos clientes preservados, etc.) para trazabilidad.
-5. Devolver siempre JSON con `{ ok: true, summary: {...} }` o `{ error: "..." }` y status apropiado.
+## Archivos afectados
+- **Crear** `supabase/functions/purge-users/index.ts` (temporal)
+- **Eliminar** después `supabase/functions/purge-users/index.ts`
 
-### B) Frontend `src/pages/admin/Usuarios.tsx` — leer el error real
-
-Cambiar el manejo del `invoke` para parsear el cuerpo de la respuesta aun cuando llega como error HTTP:
-
-```ts
-const { data, error } = await supabase.functions.invoke("delete-user", { body: { user_id } });
-if (error) {
-  // Intentar leer el body de la FunctionsHttpError
-  let msg = error.message;
-  try {
-    const ctx: any = (error as any).context;
-    if (ctx?.json) msg = (await ctx.json()).error ?? msg;
-    else if (ctx?.body) {
-      const parsed = JSON.parse(await new Response(ctx.body).text());
-      msg = parsed.error ?? msg;
-    }
-  } catch {}
-  return toast.error(msg);
-}
-if (data?.error) return toast.error(data.error);
-toast.success("Usuario eliminado");
-```
-
-Así, si en el futuro algún caso devuelve un mensaje de negocio, el super_admin verá el texto correcto en lugar del genérico de Supabase.
-
-### C) Confirmación más explícita en el diálogo
-
-Ampliar el `AlertDialogDescription` para advertir al super_admin que:
-- Los pedidos donde figuraba como vendedor quedarán **sin vendedor asignado** pero conservados.
-- Las fichas de cliente con historial quedarán **desligadas y desactivadas**, no eliminadas, para preservar el histórico contable.
-- El resto (rol, perfil, notificaciones, mensajes) se elimina.
-
-## Archivos a modificar
-
-- `supabase/functions/delete-user/index.ts` — nueva lógica de cascada controlada.
-- `src/pages/admin/Usuarios.tsx` — parseo robusto del error y texto del diálogo.
-
-## Lo que NO se cambia
-
-- No se tocan policies RLS ni el esquema de la base (todo se hace con el service role dentro de la edge function).
-- No se altera `Clientes.tsx` ni el flujo de conversión que ya quedó funcionando.
+No se toca `delete-user` ni código de UI.

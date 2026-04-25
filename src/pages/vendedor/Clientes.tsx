@@ -116,10 +116,13 @@ export default function VendedorClientes() {
     if (!user) return;
     if (empresa.trim().length < 2) return toast.error("Empresa requerida");
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
+    const emailTrim = email.trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
     setSaving(true);
 
     const payload = {
       empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
+      email: emailTrim || null,
       direccion: direccion.trim() || null, latitud, longitud,
       lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
     };

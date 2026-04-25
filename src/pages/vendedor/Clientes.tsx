@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2, Pencil } from "lucide-react";
+import { MapPin, Plus, MessageCircle, Loader2, Pencil, Package } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
+import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;

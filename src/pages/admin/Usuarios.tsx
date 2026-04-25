@@ -40,7 +40,7 @@ export default function AdminUsuarios() {
   const load = async () => {
     setLoading(true);
     const [{ data: profs }, { data: ur }] = await Promise.all([
-      supabase.from("profiles").select("id,full_name,email").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id,full_name,email,phone").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
     ]);
     const byUser = new Map<string, AppRole[]>();

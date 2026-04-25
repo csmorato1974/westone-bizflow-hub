@@ -213,6 +213,7 @@ export default function VendedorClientes() {
                     </div>
                   </div>
                   <p className="text-sm">📞 {c.celular}</p>
+                  {c.email && <p className="text-xs text-muted-foreground truncate">✉️ {c.email}</p>}
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>

@@ -25,6 +25,7 @@ export function AppSidebar() {
 
   const generalItems: NavItem[] = [
     { title: "Dashboard", url: "/app", icon: LayoutDashboard },
+    { title: "Chat", url: "/app/chat", icon: MessageCircle },
   ];
 
   const vendedorItems: NavItem[] = hasRole("vendedor")

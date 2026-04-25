@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, Minus, Plus, Trash2 } from "lucide-react";
+import { Loader2, Minus, Plus, Trash2, Image as ImageIcon } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { fillTemplate, waLink } from "@/lib/whatsapp";
+import { productImageUrl } from "@/lib/productImage";
 
-interface Producto { id: string; nombre: string; sku: string; precio: number; presentaciones: string[] | null; }
+interface Producto { id: string; nombre: string; sku: string; precio: number; presentaciones: string[] | null; imagen_url: string | null; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; }
 
 export default function NuevoPedido() {
@@ -36,11 +37,11 @@ export default function NuevoPedido() {
       if (!c.lista_precio_id) { toast.error("Cliente sin lista de precios asignada"); setLoading(false); return; }
       const { data: items } = await supabase
         .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,presentaciones,activo)")
+        .select("precio, productos!inner(id,nombre,sku,presentaciones,activo,imagen_url)")
         .eq("lista_id", c.lista_precio_id);
       const prods: Producto[] = (items ?? [])
         .filter((i: any) => i.productos?.activo)
-        .map((i: any) => ({ id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku, precio: Number(i.precio), presentaciones: i.productos.presentaciones }));
+        .map((i: any) => ({ id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku, precio: Number(i.precio), presentaciones: i.productos.presentaciones, imagen_url: i.productos.imagen_url ?? null }));
       setProductos(prods);
       setLoading(false);
     })();
@@ -109,8 +110,15 @@ export default function NuevoPedido() {
         <div className="grid gap-2 sm:grid-cols-2 max-h-[60vh] overflow-y-auto pr-2">
           {filtered.map((p) => (
             <Card key={p.id}>
-              <CardContent className="p-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0 border">
+                  {p.imagen_url ? (
+                    <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold truncate">{p.nombre}</p>
                   <p className="text-xs text-muted-foreground">{p.sku} · Bs {p.precio.toFixed(2)}</p>
                 </div>

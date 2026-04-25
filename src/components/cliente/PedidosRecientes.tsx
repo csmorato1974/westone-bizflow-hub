@@ -23,18 +23,19 @@ interface Pedido {
   pedido_items: Item[];
 }
 
-export function PedidosRecientes({ clienteId }: { clienteId: string }) {
+export function PedidosRecientes({ clienteId, limit = 5, hideViewAll = false, title = "Mis pedidos recientes" }: { clienteId: string; limit?: number; hideViewAll?: boolean; title?: string }) {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("pedidos")
       .select("id,numero,estado,total,created_at,pedido_items(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku))")
       .eq("cliente_id", clienteId)
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(limit);
+    if (error) console.error("[PedidosRecientes] error:", error);
     setPedidos((data as any) ?? []);
     setLoading(false);
   };

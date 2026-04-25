@@ -11,8 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
+import { productImageUrl } from "@/lib/productImage";
+import { Image as ImageIcon } from "lucide-react";
 
-interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; }
+interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; imagen_url: string | null; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; max: number; }
 
 const LINEA_LABEL: Record<string, string> = {
@@ -44,7 +46,7 @@ export default function ClienteCatalogo() {
       if (!c.lista_precio_id) { setLoading(false); return; }
       const { data: items } = await supabase
         .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,stock(cantidad))")
+        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,imagen_url,stock(cantidad))")
         .eq("lista_id", c.lista_precio_id);
       const prods: Producto[] = (items ?? [])
         .filter((i: any) => i.productos?.activo)
@@ -52,6 +54,7 @@ export default function ClienteCatalogo() {
           id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku,
           descripcion: i.productos.descripcion, ficha_tecnica: i.productos.ficha_tecnica,
           presentaciones: i.productos.presentaciones, linea: i.productos.linea,
+          imagen_url: i.productos.imagen_url ?? null,
           precio: Number(i.precio),
           stock: Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : 0,
         }));
@@ -126,7 +129,14 @@ export default function ClienteCatalogo() {
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto pr-2">
           {filtered.map((p) => (
-            <Card key={p.id} className="hover:border-brand transition-colors">
+            <Card key={p.id} className="hover:border-brand transition-colors overflow-hidden">
+              <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
+                {p.imagen_url ? (
+                  <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-cover" loading="lazy" />
+                ) : (
+                  <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                )}
+              </div>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -162,7 +172,7 @@ export default function ClienteCatalogo() {
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.producto_id)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center">{c.cantidad}</span>
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max })}><Plus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", descripcion: null, ficha_tecnica: {}, presentaciones: null, linea: "", precio: c.precio, stock: c.max, imagen_url: null })}><Plus className="h-3 w-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.producto_id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>

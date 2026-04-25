@@ -480,6 +480,22 @@ export default function AdminClientes() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!pedidosCliente} onOpenChange={(o) => { if (!o) setPedidosCliente(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">Pedidos de {pedidosCliente?.empresa}</DialogTitle>
+          </DialogHeader>
+          {pedidosCliente && (
+            <PedidosRecientes
+              clienteId={pedidosCliente.id}
+              limit={20}
+              hideViewAll
+              title="Historial de pedidos"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

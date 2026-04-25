@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Pencil, Search } from "lucide-react";
+import { Loader2, MapPin, Pencil, Search, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Cliente {
   id: string;
@@ -25,15 +37,19 @@ interface Cliente {
   activo: boolean;
   vendedor_id: string | null;
   lista_precio_id: string | null;
+  user_id: string | null;
 }
 interface User { id: string; full_name: string | null; email: string | null; }
 
 export default function AdminClientes() {
+  const { hasRole } = useAuth();
+  const isSuper = hasRole("super_admin");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [open, setOpen] = useState(false);
@@ -151,6 +167,37 @@ export default function AdminClientes() {
     load();
   };
 
+  const deleteCliente = async (c: Cliente) => {
+    setDeletingId(c.id);
+    // check pedidos
+    const { count } = await supabase
+      .from("pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("cliente_id", c.id);
+    if ((count ?? 0) > 0) {
+      setDeletingId(null);
+      return toast.error("El cliente tiene pedidos. Desactívalo en lugar de eliminarlo.");
+    }
+
+    if (c.user_id) {
+      // delete linked auth user via edge function (also cascades clientes row)
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: c.user_id },
+      });
+      setDeletingId(null);
+      if (error) return toast.error(error.message);
+      if (data?.error) return toast.error(data.error);
+      await logAudit("eliminar_cliente", "clientes", c.id, { empresa: c.empresa, with_user: true });
+    } else {
+      const { error } = await supabase.from("clientes").delete().eq("id", c.id);
+      setDeletingId(null);
+      if (error) return toast.error(error.message);
+      await logAudit("eliminar_cliente", "clientes", c.id, { empresa: c.empresa, with_user: false });
+    }
+    toast.success("Cliente eliminado");
+    load();
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -198,9 +245,36 @@ export default function AdminClientes() {
                   <div className="space-y-2 text-sm">
                     <p><span className="text-muted-foreground">Vendedor:</span> {c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : "Sin asignar"}</p>
                     <p><span className="text-muted-foreground">Lista:</span> {c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : "—"}</p>
-                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                      <Pencil className="h-3 w-3" /> Editar
-                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
+                        <Pencil className="h-3 w-3" /> Editar
+                      </Button>
+                      {isSuper && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive" disabled={deletingId === c.id}>
+                              {deletingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                              Eliminar
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Eliminar cliente?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Se eliminará permanentemente <strong>{c.empresa}</strong>
+                                {c.user_id ? " y su cuenta de acceso asociada" : ""}. Si tiene pedidos, la eliminación será bloqueada.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteCliente(c)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

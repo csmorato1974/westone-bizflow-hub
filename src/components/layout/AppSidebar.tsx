@@ -47,7 +47,6 @@ export function AppSidebar() {
 
   const adminItems: NavItem[] = isAdmin
     ? [
-        { title: "Usuarios", url: "/app/admin/usuarios", icon: Shield },
         { title: "Clientes", url: "/app/admin/clientes", icon: Users },
         { title: "Productos", url: "/app/admin/productos", icon: Package },
         { title: "Listas de Precios", url: "/app/admin/listas-precios", icon: ListOrdered },
@@ -56,6 +55,12 @@ export function AppSidebar() {
         { title: "WhatsApp", url: "/app/admin/whatsapp", icon: MessageCircle },
         { title: "Auditoría", url: "/app/admin/auditoria", icon: FileText },
       ]
+    : [];
+
+  const superAdminItems: NavItem[] = isSuper
+    ? [{ title: "Usuarios", url: "/app/admin/usuarios", icon: Shield }]
+    : isAdmin
+    ? [{ title: "Usuarios", url: "/app/admin/usuarios", icon: Shield }]
     : [];
 
   const renderGroup = (label: string, items: NavItem[]) => {

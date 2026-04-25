@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 
 interface Pedido {
   id: string; numero: number; estado: string; total: number; created_at: string; vendedor_id: string | null;
-  pedido_items: { cantidad: number; precio_unitario: number; productos: { nombre: string } | null }[];
+  pedido_items: { cantidad: number; precio_unitario: number; presentacion: string | null; productos: { nombre: string } | null }[];
 }
 
 export default function ClienteMisPedidos() {
@@ -20,7 +20,7 @@ export default function ClienteMisPedidos() {
     (async () => {
       if (!user) return;
       const { data } = await supabase.from("pedidos")
-        .select("id,numero,estado,total,created_at,vendedor_id,pedido_items(cantidad,precio_unitario,productos(nombre))")
+        .select("id,numero,estado,total,created_at,vendedor_id,pedido_items(cantidad,precio_unitario,presentacion,productos(nombre))")
         .order("created_at", { ascending: false });
       const list = (data as any) ?? [];
       setPedidos(list);
@@ -64,7 +64,7 @@ export default function ClienteMisPedidos() {
                 <div className="border-t pt-2 text-sm space-y-1">
                   {p.pedido_items?.map((it, idx) => (
                     <div key={idx} className="flex justify-between">
-                      <span>{it.cantidad}× {it.productos?.nombre}</span>
+                      <span>{it.cantidad}× {it.productos?.nombre}{it.presentacion && <span className="text-muted-foreground"> ({it.presentacion})</span>}</span>
                       <span className="text-muted-foreground">Bs {(it.cantidad * Number(it.precio_unitario)).toFixed(2)}</span>
                     </div>
                   ))}

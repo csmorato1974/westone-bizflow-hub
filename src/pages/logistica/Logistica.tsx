@@ -11,7 +11,7 @@ import { logAudit } from "@/lib/audit";
 interface Pedido {
   id: string; numero: number; estado: string; total: number; notas: string | null; created_at: string;
   clientes: { empresa: string; contacto: string; celular: string; direccion: string | null; latitud: number | null; longitud: number | null } | null;
-  pedido_items: { cantidad: number; productos: { nombre: string; sku: string } | null }[];
+  pedido_items: { cantidad: number; presentacion: string | null; productos: { nombre: string; sku: string } | null }[];
 }
 
 export default function Logistica() {
@@ -23,7 +23,7 @@ export default function Logistica() {
     setLoading(true);
     const [{ data }, { data: t }] = await Promise.all([
       supabase.from("pedidos")
-        .select("id,numero,estado,total,notas,created_at,clientes(empresa,contacto,celular,direccion,latitud,longitud),pedido_items(cantidad,productos(nombre,sku))")
+        .select("id,numero,estado,total,notas,created_at,clientes(empresa,contacto,celular,direccion,latitud,longitud),pedido_items(cantidad,presentacion,productos(nombre,sku))")
         .in("estado", ["listo_despacho", "en_ruta"])
         .order("created_at", { ascending: true }),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "en_ruta").maybeSingle(),
@@ -70,7 +70,7 @@ export default function Logistica() {
                   </div>}
                   <div className="text-sm bg-muted rounded p-2 space-y-1 max-h-32 overflow-y-auto">
                     {p.pedido_items?.map((it, i) => (
-                      <div key={i} className="flex justify-between"><span>{it.cantidad}× {it.productos?.nombre}</span><span className="text-xs text-muted-foreground">{it.productos?.sku}</span></div>
+                      <div key={i} className="flex justify-between"><span>{it.cantidad}× {it.productos?.nombre}{it.presentacion && <span className="text-muted-foreground"> ({it.presentacion})</span>}</span><span className="text-xs text-muted-foreground">{it.productos?.sku}</span></div>
                     ))}
                   </div>
                   {p.notas && <p className="text-xs italic text-muted-foreground">Notas: {p.notas}</p>}

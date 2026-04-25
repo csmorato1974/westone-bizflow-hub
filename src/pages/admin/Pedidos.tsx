@@ -14,7 +14,7 @@ const ESTADOS = ["borrador", "enviado", "aprobado", "listo_despacho", "en_ruta",
 interface Pedido {
   id: string; numero: number; estado: string; total: number; created_at: string;
   clientes: { empresa: string; contacto: string; celular: string; direccion: string | null } | null;
-  pedido_items: { cantidad: number; productos: { nombre: string } | null }[];
+  pedido_items: { cantidad: number; presentacion: string | null; productos: { nombre: string } | null }[];
 }
 
 export default function AdminPedidos() {
@@ -27,7 +27,7 @@ export default function AdminPedidos() {
     setLoading(true);
     const [{ data }, { data: t }] = await Promise.all([
       supabase.from("pedidos")
-        .select("id,numero,estado,total,created_at,clientes(empresa,contacto,celular,direccion),pedido_items(cantidad,productos(nombre))")
+        .select("id,numero,estado,total,created_at,clientes(empresa,contacto,celular,direccion),pedido_items(cantidad,presentacion,productos(nombre))")
         .order("created_at", { ascending: false }),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "listo_despacho").maybeSingle(),
     ]);
@@ -83,7 +83,7 @@ export default function AdminPedidos() {
                     </div>
                   </div>
                   <div className="text-sm bg-muted rounded p-2 space-y-1 max-h-32 overflow-y-auto">
-                    {p.pedido_items?.map((it, i) => <div key={i}>{it.cantidad}× {it.productos?.nombre}</div>)}
+                    {p.pedido_items?.map((it, i) => <div key={i}>{it.cantidad}× {it.productos?.nombre}{it.presentacion && <span className="text-muted-foreground"> ({it.presentacion})</span>}</div>)}
                   </div>
                   <div className="flex gap-2 pt-2 border-t flex-wrap items-center">
                     <Select value={p.estado} onValueChange={(v) => setEstado(p, v)}>

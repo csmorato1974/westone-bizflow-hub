@@ -87,7 +87,7 @@ export default function VendedorClientes() {
   };
 
   const reset = () => {
-    setEmpresa(""); setContacto(""); setCelular(""); setDireccion("");
+    setEmpresa(""); setContacto(""); setCelular(""); setEmail(""); setDireccion("");
     setLat(null); setLng(null); setListaPrecio(""); setNotas("");
     setEditingId(null);
   };
@@ -97,6 +97,7 @@ export default function VendedorClientes() {
     setEmpresa(c.empresa);
     setContacto(c.contacto);
     setCelular(c.celular);
+    setEmail(c.email ?? "");
     setDireccion(c.direccion ?? "");
     setLat(c.latitud);
     setLng(c.longitud);

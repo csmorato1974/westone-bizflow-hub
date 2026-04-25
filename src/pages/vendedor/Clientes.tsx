@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2, Pencil } from "lucide-react";
+import { MapPin, Plus, MessageCircle, Loader2, Pencil, Package } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
+import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
@@ -33,6 +34,7 @@ export default function VendedorClientes() {
   const [saving, setSaving] = useState(false);
   const [welcomeTpl, setWelcomeTpl] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pedidosCliente, setPedidosCliente] = useState<Cliente | null>(null);
 
   const [empresa, setEmpresa] = useState("");
   const [contacto, setContacto] = useState("");
@@ -233,6 +235,9 @@ export default function VendedorClientes() {
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPedidosCliente(c)}>
+                      <Package className="h-3 w-3" /> Ver pedidos
+                    </Button>
                     <Button asChild size="sm" variant="outline">
                       <a href={waLink(c.celular, msg)} target="_blank" rel="noopener noreferrer">
                         <MessageCircle className="h-3 w-3" /> Bienvenida
@@ -249,6 +254,24 @@ export default function VendedorClientes() {
           })}
         </div>
       )}
+
+      <Dialog open={!!pedidosCliente} onOpenChange={(o) => !o && setPedidosCliente(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">
+              Pedidos de {pedidosCliente?.empresa}
+            </DialogTitle>
+          </DialogHeader>
+          {pedidosCliente && (
+            <PedidosRecientes
+              clienteId={pedidosCliente.id}
+              limit={20}
+              hideViewAll
+              title="Historial de pedidos"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

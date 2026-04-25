@@ -41,7 +41,8 @@ interface Cliente {
   lista_precio_id: string | null;
   user_id: string | null;
 }
-interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; }
+type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
+interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; roles?: AppRole[]; }
 
 type FormMode = "edit" | "create-from-user";
 
@@ -51,6 +52,8 @@ export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
   const [clienteUsers, setClienteUsers] = useState<User[]>([]);
+  const [allProfiles, setAllProfiles] = useState<User[]>([]);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

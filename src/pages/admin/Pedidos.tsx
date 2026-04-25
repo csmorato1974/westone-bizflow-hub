@@ -27,7 +27,7 @@ export default function AdminPedidos() {
     setLoading(true);
     const [{ data }, { data: t }] = await Promise.all([
       supabase.from("pedidos")
-        .select("id,numero,estado,total,created_at,clientes(empresa,contacto,celular,direccion),pedido_items(cantidad,presentacion,productos(nombre))")
+        .select("id,numero,estado,total,created_at,clientes(empresa,contacto,celular,direccion),pedido_items!pedido_items_pedido_id_fkey(cantidad,presentacion,productos(nombre))")
         .order("created_at", { ascending: false }),
       supabase.from("whatsapp_templates").select("mensaje").eq("clave", "listo_despacho").maybeSingle(),
     ]);

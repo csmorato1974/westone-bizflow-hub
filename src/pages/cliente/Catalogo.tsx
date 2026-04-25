@@ -12,7 +12,7 @@ import { Loader2, Plus, Minus, Trash2, ShoppingCart, Info } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 
-interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; }
+interface Producto { id: string; nombre: string; sku: string; descripcion: string | null; ficha_tecnica: any; presentaciones: string[] | null; linea: string; precio: number; stock: number; imagen_url: string | null; }
 interface CartItem { producto_id: string; nombre: string; precio: number; cantidad: number; max: number; }
 
 const LINEA_LABEL: Record<string, string> = {

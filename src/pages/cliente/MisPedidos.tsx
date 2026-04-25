@@ -126,8 +126,9 @@ export default function ClienteMisPedidos() {
         <div className="grid gap-3">
           {filtered.map((p) => {
             const itemsCount = p.pedido_items?.reduce((acc, it) => acc + Number(it.cantidad), 0) ?? 0;
+            const isOpen = expandedId === p.id;
             return (
-              <Card key={p.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setSelected(p)}>
+              <Card key={p.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
@@ -141,25 +142,81 @@ export default function ClienteMisPedidos() {
                       )}
                       <p className="text-xs text-muted-foreground">{itemsCount} unidad(es) · {p.pedido_items?.length ?? 0} ítem(s)</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <EstadoBadge estado={p.estado} />
                       <span className="industrial-title text-lg">Bs {Number(p.total).toFixed(2)}</span>
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSelected(p); }}>
-                        <Eye className="h-4 w-4 mr-1" /> Ver detalle
+                      <Button size="sm" variant="ghost" onClick={() => setExpandedId(isOpen ? null : p.id)}>
+                        {isOpen ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+                        {isOpen ? "Ocultar" : "Ver detalle"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setSelected(p)}>
+                        <Eye className="h-4 w-4 mr-1" /> Imprimir
                       </Button>
                     </div>
                   </div>
-                  <div className="border-t pt-2 text-sm space-y-1">
-                    {p.pedido_items?.slice(0, 3).map((it, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{it.cantidad}× {it.productos?.nombre}{it.presentacion && <span className="text-muted-foreground"> ({it.presentacion})</span>}</span>
-                        <span className="text-muted-foreground">Bs {(it.cantidad * Number(it.precio_unitario)).toFixed(2)}</span>
+
+                  <Collapsible open={isOpen}>
+                    <CollapsibleContent>
+                      <div className="border-t pt-3 space-y-3">
+                        <div className="border rounded-md overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Producto</TableHead>
+                                <TableHead>Presentación</TableHead>
+                                <TableHead className="text-right">Cantidad</TableHead>
+                                <TableHead className="text-right">P. Unit.</TableHead>
+                                <TableHead className="text-right">Subtotal</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {p.pedido_items?.map((it, idx) => {
+                                const subtotal = Number(it.subtotal ?? Number(it.cantidad) * Number(it.precio_unitario));
+                                return (
+                                  <TableRow key={idx}>
+                                    <TableCell>
+                                      <div className="font-medium">{it.productos?.nombre ?? "—"}</div>
+                                      {it.productos?.sku && <div className="text-xs text-muted-foreground">SKU: {it.productos.sku}</div>}
+                                    </TableCell>
+                                    <TableCell>{it.presentacion ?? "—"}</TableCell>
+                                    <TableCell className="text-right">{it.cantidad}</TableCell>
+                                    <TableCell className="text-right">Bs {Number(it.precio_unitario).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">Bs {subtotal.toFixed(2)}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                            <TableFooter>
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-right font-semibold">Total</TableCell>
+                                <TableCell className="text-right industrial-title">Bs {Number(p.total).toFixed(2)}</TableCell>
+                              </TableRow>
+                            </TableFooter>
+                          </Table>
+                        </div>
+                        {p.notas && (
+                          <div className="text-sm">
+                            <p className="text-xs uppercase text-muted-foreground mb-1">Notas</p>
+                            <p className="bg-muted/40 rounded p-2">{p.notas}</p>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {(p.pedido_items?.length ?? 0) > 3 && (
-                      <p className="text-xs text-muted-foreground">+{(p.pedido_items?.length ?? 0) - 3} ítem(s) más…</p>
-                    )}
-                  </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {!isOpen && (
+                    <div className="border-t pt-2 text-sm space-y-1">
+                      {p.pedido_items?.slice(0, 3).map((it, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span>{it.cantidad}× {it.productos?.nombre}{it.presentacion && <span className="text-muted-foreground"> ({it.presentacion})</span>}</span>
+                          <span className="text-muted-foreground">Bs {(it.cantidad * Number(it.precio_unitario)).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {(p.pedido_items?.length ?? 0) > 3 && (
+                        <p className="text-xs text-muted-foreground">+{(p.pedido_items?.length ?? 0) - 3} ítem(s) más…</p>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

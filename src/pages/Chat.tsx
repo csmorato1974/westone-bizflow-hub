@@ -205,27 +205,30 @@ export default function Chat() {
     })();
   }, [activeId, user?.id]);
 
-  // Realtime: nuevos mensajes
+  // Realtime: nuevos mensajes (suscripción estable, no depende de activeId)
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel("chat-messages")
+      .channel(`chat-messages-${user.id}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const msg = payload.new as Message;
-          if (msg.conversation_id === activeId) {
-            setMessages((prev) => [...prev, msg]);
+          const currentActive = activeIdRef.current;
+          if (msg.conversation_id === currentActive) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
             setTimeout(() => {
               scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
             }, 50);
-            // marcar como leído
             if (msg.sender_id !== user.id) {
               supabase
                 .from("conversation_participants")
                 .update({ last_read_at: new Date().toISOString() })
-                .eq("conversation_id", activeId)
+                .eq("conversation_id", currentActive)
                 .eq("user_id", user.id);
             }
           } else if (msg.sender_id !== user.id) {
@@ -244,22 +247,37 @@ export default function Chat() {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, activeId]);
+  }, [user?.id]);
 
   const send = async () => {
     if (!user || !activeId || !text.trim()) return;
+    const contenido = text.trim();
+    const convId = activeId;
+    setText(""); // limpiar de inmediato
     setSending(true);
-    const { error } = await supabase.from("messages").insert({
-      conversation_id: activeId,
-      sender_id: user.id,
-      contenido: text.trim(),
-    });
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: convId,
+        sender_id: user.id,
+        contenido,
+      })
+      .select()
+      .single();
     setSending(false);
-    if (error) {
-      toast.error("No se pudo enviar el mensaje");
+    if (error || !data) {
+      toast.error(`No se pudo enviar el mensaje${error?.message ? `: ${error.message}` : ""}`);
+      setText(contenido); // restaurar texto
       return;
     }
-    setText("");
+    // Inserción optimista (con dedupe por id si Realtime también la entrega)
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === (data as Message).id)) return prev;
+      return [...prev, data as Message];
+    });
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }, 50);
   };
 
   const filteredConvs = useMemo(() => {

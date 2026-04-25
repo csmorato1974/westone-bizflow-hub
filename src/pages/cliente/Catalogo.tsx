@@ -44,7 +44,7 @@ export default function ClienteCatalogo() {
       if (!c.lista_precio_id) { setLoading(false); return; }
       const { data: items } = await supabase
         .from("lista_precio_items")
-        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,stock(cantidad))")
+        .select("precio, productos!inner(id,nombre,sku,descripcion,ficha_tecnica,presentaciones,linea,activo,imagen_url,stock(cantidad))")
         .eq("lista_id", c.lista_precio_id);
       const prods: Producto[] = (items ?? [])
         .filter((i: any) => i.productos?.activo)
@@ -52,6 +52,7 @@ export default function ClienteCatalogo() {
           id: i.productos.id, nombre: i.productos.nombre, sku: i.productos.sku,
           descripcion: i.productos.descripcion, ficha_tecnica: i.productos.ficha_tecnica,
           presentaciones: i.productos.presentaciones, linea: i.productos.linea,
+          imagen_url: i.productos.imagen_url ?? null,
           precio: Number(i.precio),
           stock: Array.isArray(i.productos.stock) && i.productos.stock[0] ? i.productos.stock[0].cantidad : 0,
         }));

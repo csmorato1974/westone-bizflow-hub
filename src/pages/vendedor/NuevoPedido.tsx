@@ -137,7 +137,7 @@ export default function NuevoPedido() {
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => dec(c.producto_id)}><Minus className="h-3 w-3" /></Button>
                   <span className="w-6 text-center">{c.cantidad}</span>
-                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", precio: c.precio, presentaciones: null })}><Plus className="h-3 w-3" /></Button>
+                  <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => add({ id: c.producto_id, nombre: c.nombre, sku: "", precio: c.precio, presentaciones: null, imagen_url: null })}><Plus className="h-3 w-3" /></Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => rm(c.producto_id)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               </div>

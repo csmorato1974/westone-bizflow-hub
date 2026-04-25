@@ -123,10 +123,16 @@ export default function ClienteMisPedidos() {
         <Card>
           <CardContent className="p-8 text-center space-y-3">
             <Package className="h-10 w-10 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">
-              {pedidos.length === 0 ? "Aún no tienes pedidos." : "No hay pedidos que coincidan con el filtro."}
-            </p>
-            {pedidos.length === 0 && (
+            {hasClienteRecord === false ? (
+              <p className="text-muted-foreground">
+                Tu cuenta aún no está vinculada a una ficha de cliente. Contacta al administrador para que cree tu ficha y puedas hacer pedidos.
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                {pedidos.length === 0 ? "Aún no tienes pedidos." : "No hay pedidos que coincidan con el filtro."}
+              </p>
+            )}
+            {pedidos.length === 0 && hasClienteRecord !== false && (
               <Button asChild variant="outline"><Link to="/app/catalogo">Explorar catálogo</Link></Button>
             )}
           </CardContent>

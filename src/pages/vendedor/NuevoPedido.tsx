@@ -39,8 +39,16 @@ export default function NuevoPedido() {
       if (!c.lista_precio_id) { toast.error("Cliente sin lista de precios asignada"); setLoading(false); return; }
       const { data: items } = await supabase
         .from("lista_precio_variante_items")
-        .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,variante_stock(cantidad),productos!inner(id,nombre,sku,activo,imagen_url))")
+        .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,productos!inner(id,nombre,sku,activo,imagen_url))")
         .eq("lista_id", c.lista_precio_id);
+
+      const varianteIds = (items ?? []).map((row: any) => row.producto_variantes?.id).filter(Boolean) as string[];
+      const stockMap = new Map<string, number>();
+      if (varianteIds.length > 0) {
+        const { data: stockRows } = await supabase
+          .from("variante_stock").select("variante_id,cantidad").in("variante_id", varianteIds);
+        (stockRows ?? []).forEach((s: any) => stockMap.set(s.variante_id, s.cantidad ?? 0));
+      }
 
       const map = new Map<string, Producto>();
       (items ?? []).forEach((row: any) => {
@@ -48,10 +56,9 @@ export default function NuevoPedido() {
         const p = v?.productos;
         if (!v || !p || !p.activo || !v.activa) return;
         if (!map.has(p.id)) map.set(p.id, { id: p.id, nombre: p.nombre, sku: p.sku, imagen_url: p.imagen_url ?? null, variantes: [] });
-        const stockArr = Array.isArray(v.variante_stock) ? v.variante_stock : [];
         map.get(p.id)!.variantes.push({
           id: v.id, presentacion: v.presentacion, precio: Number(row.precio),
-          stock: stockArr[0]?.cantidad ?? 0,
+          stock: stockMap.get(v.id) ?? 0,
         });
       });
       const list = Array.from(map.values())

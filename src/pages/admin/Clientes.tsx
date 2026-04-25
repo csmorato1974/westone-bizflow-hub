@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Pencil, Search, Trash2, UserPlus } from "lucide-react";
+import { Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
+import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 
 interface Cliente {
   id: string;
@@ -54,6 +55,7 @@ export default function AdminClientes() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");
@@ -368,6 +370,9 @@ export default function AdminClientes() {
                           )}
                         </div>
                         <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" variant="outline" onClick={() => setPedidosCliente({ id: c.id, empresa: c.empresa })}>
+                            <Package className="h-3 w-3" /> Ver pedidos
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                             <Pencil className="h-3 w-3" /> Editar
                           </Button>
@@ -473,6 +478,22 @@ export default function AdminClientes() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!pedidosCliente} onOpenChange={(o) => { if (!o) setPedidosCliente(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">Pedidos de {pedidosCliente?.empresa}</DialogTitle>
+          </DialogHeader>
+          {pedidosCliente && (
+            <PedidosRecientes
+              clienteId={pedidosCliente.id}
+              limit={20}
+              hideViewAll
+              title="Historial de pedidos"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

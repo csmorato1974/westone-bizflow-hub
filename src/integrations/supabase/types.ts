@@ -153,6 +153,42 @@ export type Database = {
           },
         ]
       }
+      lista_precio_variante_items: {
+        Row: {
+          id: string
+          lista_id: string
+          precio: number
+          variante_id: string
+        }
+        Insert: {
+          id?: string
+          lista_id: string
+          precio: number
+          variante_id: string
+        }
+        Update: {
+          id?: string
+          lista_id?: string
+          precio?: number
+          variante_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lista_precio_variante_items_lista_id_fkey"
+            columns: ["lista_id"]
+            isOneToOne: false
+            referencedRelation: "listas_precios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lista_precio_variante_items_variante_id_fkey"
+            columns: ["variante_id"]
+            isOneToOne: false
+            referencedRelation: "producto_variantes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listas_precios: {
         Row: {
           activa: boolean
@@ -216,24 +252,30 @@ export type Database = {
           id: string
           pedido_id: string
           precio_unitario: number
+          presentacion: string | null
           producto_id: string
           subtotal: number | null
+          variante_id: string | null
         }
         Insert: {
           cantidad: number
           id?: string
           pedido_id: string
           precio_unitario: number
+          presentacion?: string | null
           producto_id: string
           subtotal?: number | null
+          variante_id?: string | null
         }
         Update: {
           cantidad?: number
           id?: string
           pedido_id?: string
           precio_unitario?: number
+          presentacion?: string | null
           producto_id?: string
           subtotal?: number | null
+          variante_id?: string | null
         }
         Relationships: [
           {
@@ -248,6 +290,13 @@ export type Database = {
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_items_variante_id_fkey"
+            columns: ["variante_id"]
+            isOneToOne: false
+            referencedRelation: "producto_variantes"
             referencedColumns: ["id"]
           },
           {
@@ -309,6 +358,47 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      producto_variantes: {
+        Row: {
+          activa: boolean
+          created_at: string
+          id: string
+          orden: number
+          presentacion: string
+          producto_id: string
+          sku_variante: string | null
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean
+          created_at?: string
+          id?: string
+          orden?: number
+          presentacion: string
+          producto_id: string
+          sku_variante?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean
+          created_at?: string
+          id?: string
+          orden?: number
+          presentacion?: string
+          producto_id?: string
+          sku_variante?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producto_variantes_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
             referencedColumns: ["id"]
           },
         ]
@@ -431,6 +521,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      variante_stock: {
+        Row: {
+          cantidad: number
+          id: string
+          updated_at: string
+          variante_id: string
+        }
+        Insert: {
+          cantidad?: number
+          id?: string
+          updated_at?: string
+          variante_id: string
+        }
+        Update: {
+          cantidad?: number
+          id?: string
+          updated_at?: string
+          variante_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "variante_stock_variante_id_fkey"
+            columns: ["variante_id"]
+            isOneToOne: true
+            referencedRelation: "producto_variantes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_templates: {
         Row: {

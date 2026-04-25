@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +47,7 @@ export default function AdminClientes() {
   const isSuper = hasRole("super_admin");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
+  const [clienteUsers, setClienteUsers] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -67,6 +69,7 @@ export default function AdminClientes() {
   const [activo, setActivo] = useState(true);
   const [vendedorId, setVendedorId] = useState<string>("");
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
+  const [userId, setUserId] = useState<string>("");
 
   const load = async () => {
     setLoading(true);
@@ -77,7 +80,9 @@ export default function AdminClientes() {
       supabase.from("profiles").select("id,full_name,email"),
     ]);
     const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
+    const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
     setVendedores((profs ?? []).filter((p) => vIds.has(p.id)));
+    setClienteUsers((profs ?? []).filter((p) => cIds.has(p.id)));
     setListas(lp ?? []);
     setClientes((cs ?? []) as Cliente[]);
     setLoading(false);
@@ -94,6 +99,17 @@ export default function AdminClientes() {
     listas.forEach((l) => m.set(l.id, l.nombre));
     return m;
   }, [listas]);
+  const clienteUserMap = useMemo(() => {
+    const m = new Map<string, string>();
+    clienteUsers.forEach((u) => m.set(u.id, u.full_name ?? u.email ?? "—"));
+    return m;
+  }, [clienteUsers]);
+  // user_ids ya enlazados a otra ficha (excluir del selector salvo el actual)
+  const linkedUserIds = useMemo(() => {
+    const s = new Set<string>();
+    clientes.forEach((c) => { if (c.user_id) s.add(c.user_id); });
+    return s;
+  }, [clientes]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -117,6 +133,7 @@ export default function AdminClientes() {
     setActivo(c.activo);
     setVendedorId(c.vendedor_id ?? "");
     setListaPrecioId(c.lista_precio_id ?? "");
+    setUserId(c.user_id ?? "");
     setOpen(true);
   };
 
@@ -146,6 +163,7 @@ export default function AdminClientes() {
       activo,
       vendedor_id: vendedorId || null,
       lista_precio_id: listaPrecioId || null,
+      user_id: userId || null,
     };
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);
     setSaving(false);
@@ -159,6 +177,10 @@ export default function AdminClientes() {
     if (editing.lista_precio_id !== patch.lista_precio_id) {
       changes.lista_anterior = editing.lista_precio_id;
       changes.lista_nueva = patch.lista_precio_id;
+    }
+    if (editing.user_id !== patch.user_id) {
+      changes.cuenta_anterior = editing.user_id;
+      changes.cuenta_nueva = patch.user_id;
     }
     await logAudit("editar_cliente_admin", "clientes", editing.id, changes);
     toast.success("Cliente actualizado");
@@ -245,6 +267,17 @@ export default function AdminClientes() {
                   <div className="space-y-2 text-sm">
                     <p><span className="text-muted-foreground">Vendedor:</span> {c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : "Sin asignar"}</p>
                     <p><span className="text-muted-foreground">Lista:</span> {c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : "—"}</p>
+                    <div>
+                      {c.user_id ? (
+                        <Badge variant="outline" className="border-success text-success">
+                          🔗 Cuenta vinculada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
+                          Sin cuenta de acceso
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex gap-2 flex-wrap">
                       <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                         <Pencil className="h-3 w-3" /> Editar
@@ -313,6 +346,25 @@ export default function AdminClientes() {
                   {listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Cuenta de acceso vinculada</Label>
+              <Select value={userId || "__none__"} onValueChange={(v) => setUserId(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Sin cuenta vinculada" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sin cuenta vinculada —</SelectItem>
+                  {clienteUsers
+                    .filter((u) => u.id === userId || !linkedUserIds.has(u.id))
+                    .map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {(u.full_name ?? u.email ?? u.id)}{u.email && u.full_name ? ` · ${u.email}` : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Lista de usuarios registrados con rol cliente. Vincular permite acceder al catálogo y crear pedidos.
+              </p>
             </div>
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
             <div className="flex items-center gap-2">

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { MapPin, Plus, MessageCircle, Loader2, Pencil } from "lucide-react";
 import { logAudit } from "@/lib/audit";
@@ -19,7 +20,9 @@ interface Cliente {
   email: string | null;
   direccion: string | null; latitud: number | null; longitud: number | null;
   lista_precio_id: string | null; notas: string | null;
+  user_id: string | null;
 }
+interface ClienteUser { id: string; full_name: string | null; email: string | null; }
 
 export default function VendedorClientes() {
   const { user } = useAuth();
@@ -215,6 +218,17 @@ export default function VendedorClientes() {
                   <p className="text-sm">📞 {c.celular}</p>
                   {c.email && <p className="text-xs text-muted-foreground truncate">✉️ {c.email}</p>}
                   {c.direccion && <p className="text-xs text-muted-foreground line-clamp-2">📍 {c.direccion}</p>}
+                  <div>
+                    {c.user_id ? (
+                      <Badge variant="outline" className="border-success text-success text-xs">
+                        🔗 Cuenta vinculada
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-muted-foreground text-muted-foreground text-xs">
+                        Sin cuenta de acceso
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar

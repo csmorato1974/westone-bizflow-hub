@@ -50,6 +50,7 @@ const App = () => (
             <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>
               <Route index element={<Dashboard />} />
               <Route path="perfil" element={<Perfil />} />
+              <Route path="chat" element={<Chat />} />
 
               <Route path="clientes" element={<RequireAuth roles={["vendedor"]}><VendedorClientes /></RequireAuth>} />
               <Route path="pedidos" element={<RequireAuth roles={["vendedor"]}><VendedorPedidos /></RequireAuth>} />

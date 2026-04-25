@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,23 +7,27 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Pencil, Image as ImageIcon, Upload, Trash2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Image as ImageIcon, Upload, Trash2, Package } from "lucide-react";
 import { toast } from "sonner";
 import { uploadProductImage, deleteProductImage, productImageUrl } from "@/lib/productImage";
 
 const LINEAS = ["refrigerante", "anticongelante", "heavy_duty", "def", "limpieza"];
 
 interface P { id: string; sku: string; nombre: string; linea: string; descripcion: string | null; presentaciones: string[] | null; activo: boolean; imagen_url: string | null; }
+interface Variante { id: string; producto_id: string; presentacion: string; sku_variante: string | null; activa: boolean; orden: number; }
 
 export default function AdminProductos() {
   const [items, setItems] = useState<P[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<P | null>(null);
-  const [form, setForm] = useState({ sku: "", nombre: "", linea: "refrigerante", descripcion: "", presentaciones: "", activo: true });
+  const [form, setForm] = useState({ sku: "", nombre: "", linea: "refrigerante", descripcion: "", activo: true });
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingTarget, setPendingTarget] = useState<string | null>(null);
+  const [variantes, setVariantes] = useState<Variante[]>([]);
+  const [newVar, setNewVar] = useState({ presentacion: "", sku_variante: "" });
+  const [savingVar, setSavingVar] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -33,15 +37,34 @@ export default function AdminProductos() {
   };
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditing(null); setForm({ sku: "", nombre: "", linea: "refrigerante", descripcion: "", presentaciones: "", activo: true }); setOpen(true); };
-  const openEdit = (p: P) => { setEditing(p); setForm({ sku: p.sku, nombre: p.nombre, linea: p.linea, descripcion: p.descripcion ?? "", presentaciones: (p.presentaciones ?? []).join(","), activo: p.activo }); setOpen(true); };
+  const loadVariantes = useCallback(async (productoId: string) => {
+    const { data } = await supabase
+      .from("producto_variantes")
+      .select("id,producto_id,presentacion,sku_variante,activa,orden")
+      .eq("producto_id", productoId)
+      .order("orden", { ascending: true })
+      .order("presentacion", { ascending: true });
+    setVariantes(data ?? []);
+  }, []);
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({ sku: "", nombre: "", linea: "refrigerante", descripcion: "", activo: true });
+    setVariantes([]);
+    setOpen(true);
+  };
+  const openEdit = (p: P) => {
+    setEditing(p);
+    setForm({ sku: p.sku, nombre: p.nombre, linea: p.linea, descripcion: p.descripcion ?? "", activo: p.activo });
+    loadVariantes(p.id);
+    setOpen(true);
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
       sku: form.sku.trim(), nombre: form.nombre.trim(), linea: form.linea as any,
       descripcion: form.descripcion.trim() || null,
-      presentaciones: form.presentaciones.split(",").map((s) => s.trim()).filter(Boolean),
       activo: form.activo,
     };
     const { error } = editing
@@ -88,6 +111,42 @@ export default function AdminProductos() {
     }
   };
 
+  const addVariante = async () => {
+    if (!editing || !newVar.presentacion.trim()) return;
+    setSavingVar(true);
+    const { data, error } = await supabase
+      .from("producto_variantes")
+      .insert({ producto_id: editing.id, presentacion: newVar.presentacion.trim(), sku_variante: newVar.sku_variante.trim() || null, orden: variantes.length })
+      .select()
+      .single();
+    if (error) { setSavingVar(false); return toast.error(error.message); }
+    // Crear stock 0
+    await supabase.from("variante_stock").insert({ variante_id: data.id, cantidad: 0 });
+    setNewVar({ presentacion: "", sku_variante: "" });
+    setSavingVar(false);
+    toast.success("Presentación agregada");
+    loadVariantes(editing.id);
+  };
+
+  const toggleVariante = async (v: Variante) => {
+    const { error } = await supabase.from("producto_variantes").update({ activa: !v.activa }).eq("id", v.id);
+    if (error) return toast.error(error.message);
+    if (editing) loadVariantes(editing.id);
+  };
+
+  const deleteVariante = async (v: Variante) => {
+    if (!confirm(`¿Eliminar la presentación "${v.presentacion}"? Si tiene pedidos o precios asociados, se desactivará en su lugar.`)) return;
+    const { error } = await supabase.from("producto_variantes").delete().eq("id", v.id);
+    if (error) {
+      // probablemente FK; desactivar
+      await supabase.from("producto_variantes").update({ activa: false }).eq("id", v.id);
+      toast.info("Presentación desactivada (tenía datos asociados)");
+    } else {
+      toast.success("Eliminada");
+    }
+    if (editing) loadVariantes(editing.id);
+  };
+
   return (
     <div className="space-y-4">
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFile} />
@@ -129,7 +188,7 @@ export default function AdminProductos() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
           <DialogHeader><DialogTitle>{editing ? "Editar" : "Nuevo"} producto</DialogTitle></DialogHeader>
           <form onSubmit={save} className="space-y-3">
             <div><Label>SKU</Label><Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required maxLength={50} /></div>
@@ -140,8 +199,33 @@ export default function AdminProductos() {
               </Select>
             </div>
             <div><Label>Descripción</Label><Textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} maxLength={500} /></div>
-            <div><Label>Presentaciones (separadas por coma)</Label><Input value={form.presentaciones} onChange={(e) => setForm({ ...form, presentaciones: e.target.value })} placeholder="1L,4L,20L" /></div>
             <div className="flex items-center gap-2"><input type="checkbox" id="activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} /><Label htmlFor="activo">Activo</Label></div>
+
+            {editing && (
+              <div className="space-y-2 border-t pt-3">
+                <Label className="flex items-center gap-2"><Package className="h-4 w-4" /> Presentaciones (variantes)</Label>
+                <p className="text-xs text-muted-foreground">Cada presentación tiene su propio stock y precio en cada lista.</p>
+                <div className="space-y-1">
+                  {variantes.map((v) => (
+                    <div key={v.id} className="flex items-center gap-2 border rounded px-2 py-1.5 text-sm">
+                      <span className={`font-semibold flex-1 ${!v.activa && "line-through text-muted-foreground"}`}>{v.presentacion}</span>
+                      {v.sku_variante && <span className="text-xs font-mono text-muted-foreground">{v.sku_variante}</span>}
+                      <Button type="button" size="sm" variant="outline" onClick={() => toggleVariante(v)}>{v.activa ? "Desactivar" : "Activar"}</Button>
+                      <Button type="button" size="icon" variant="ghost" onClick={() => deleteVariante(v)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                    </div>
+                  ))}
+                  {variantes.length === 0 && <p className="text-xs text-muted-foreground">Sin presentaciones.</p>}
+                </div>
+                <div className="flex gap-2 items-end pt-2">
+                  <div className="flex-1"><Label className="text-xs">Presentación</Label><Input placeholder="ej. 1L, 4L, 20L" value={newVar.presentacion} onChange={(e) => setNewVar({ ...newVar, presentacion: e.target.value })} /></div>
+                  <div className="w-32"><Label className="text-xs">SKU (opcional)</Label><Input value={newVar.sku_variante} onChange={(e) => setNewVar({ ...newVar, sku_variante: e.target.value })} /></div>
+                  <Button type="button" onClick={addVariante} disabled={savingVar || !newVar.presentacion.trim()} className="bg-brand text-brand-foreground">
+                    {savingVar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {editing && (
               <div className="space-y-2 border-t pt-3">
                 <Label>Imagen del producto</Label>

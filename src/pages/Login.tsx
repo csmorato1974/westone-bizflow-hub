@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { user, loading, signIn, signUp } = useAuth();
@@ -16,6 +16,8 @@ export default function Login() {
   const location = useLocation();
   const from = (location.state as { from?: Location })?.from?.pathname ?? "/app";
   const [busy, setBusy] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showSPwd, setShowSPwd] = useState(false);
 
   // login
   const [email, setEmail] = useState("");
@@ -78,8 +80,19 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Contraseña</Label>
-                  <Input id="password" type="password" required value={password}
-                    onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+                  <div className="relative">
+                    <Input id="password" type={showPwd ? "text" : "password"} required value={password}
+                      onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwd((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                      aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      tabIndex={-1}
+                    >
+                      {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" disabled={busy} className="w-full bg-primary text-brand hover:bg-primary/90 font-semibold uppercase tracking-wide">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
@@ -100,8 +113,19 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="spwd">Contraseña (mín. 8 caracteres)</Label>
-                  <Input id="spwd" type="password" required minLength={8} value={sPwd}
-                    onChange={(e) => setSPwd(e.target.value)} autoComplete="new-password" />
+                  <div className="relative">
+                    <Input id="spwd" type={showSPwd ? "text" : "password"} required minLength={8} value={sPwd}
+                      onChange={(e) => setSPwd(e.target.value)} autoComplete="new-password" className="pr-10" />
+                    <button
+                      type="button"
+                      onClick={() => setShowSPwd((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                      aria-label={showSPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      tabIndex={-1}
+                    >
+                      {showSPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" disabled={busy} className="w-full bg-brand text-brand-foreground hover:bg-brand-dark font-semibold uppercase tracking-wide">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear cuenta"}

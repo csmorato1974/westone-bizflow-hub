@@ -46,6 +46,7 @@ export default function AdminClientes() {
   const isSuper = hasRole("super_admin");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
+  const [clienteUsers, setClienteUsers] = useState<User[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -67,6 +68,7 @@ export default function AdminClientes() {
   const [activo, setActivo] = useState(true);
   const [vendedorId, setVendedorId] = useState<string>("");
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
+  const [userId, setUserId] = useState<string>("");
 
   const load = async () => {
     setLoading(true);
@@ -77,7 +79,9 @@ export default function AdminClientes() {
       supabase.from("profiles").select("id,full_name,email"),
     ]);
     const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
+    const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
     setVendedores((profs ?? []).filter((p) => vIds.has(p.id)));
+    setClienteUsers((profs ?? []).filter((p) => cIds.has(p.id)));
     setListas(lp ?? []);
     setClientes((cs ?? []) as Cliente[]);
     setLoading(false);

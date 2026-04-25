@@ -140,6 +140,7 @@ export default function AdminUsuarios() {
                   <div>
                     <p className="font-semibold">{r.full_name ?? "(sin nombre)"}</p>
                     <p className="text-xs text-muted-foreground">{r.email}</p>
+                    {r.phone && <p className="text-xs text-muted-foreground">{r.phone}</p>}
                   </div>
                   <div className="flex gap-2 items-center flex-wrap">
                     {r.roles.map((rl) => (
@@ -150,6 +151,35 @@ export default function AdminUsuarios() {
                     ))}
                     {r.roles.length === 0 && <span className="text-xs text-muted-foreground">Sin roles</span>}
                   </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {r.phone ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      asChild
+                      className="gap-1"
+                    >
+                      <a
+                        href={waLink(r.phone, `Hola ${r.full_name ?? ""}, te contacto desde Westone.`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <MessageCircle className="h-4 w-4" /> WhatsApp
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled className="gap-1">
+                      <MessageCircle className="h-4 w-4" /> Sin teléfono
+                    </Button>
+                  )}
+                  {r.email && (
+                    <Button size="sm" variant="outline" asChild className="gap-1">
+                      <a href={`mailto:${r.email}`}>
+                        <Mail className="h-4 w-4" /> Email
+                      </a>
+                    </Button>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <Select value={adding[r.id] ?? ""} onValueChange={(v) => setAdding({ ...adding, [r.id]: v as AppRole })}>

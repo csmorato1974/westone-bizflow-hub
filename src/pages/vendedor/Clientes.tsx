@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { MapPin, Plus, MessageCircle, Loader2, Pencil } from "lucide-react";
 import { logAudit } from "@/lib/audit";
@@ -19,7 +20,9 @@ interface Cliente {
   email: string | null;
   direccion: string | null; latitud: number | null; longitud: number | null;
   lista_precio_id: string | null; notas: string | null;
+  user_id: string | null;
 }
+interface ClienteUser { id: string; full_name: string | null; email: string | null; }
 
 export default function VendedorClientes() {
   const { user } = useAuth();

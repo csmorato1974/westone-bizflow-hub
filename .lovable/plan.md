@@ -1,61 +1,86 @@
 ## Objetivo
-Eliminar todos los perfiles del sistema **excepto** el super_admin `csolizmo@gmail.com` (id `9ea7d930-f7ef-46e6-ae0f-8ab73d04be58`), con borrado total de su rastro (pedidos, items, clientes, mensajes, conversaciones huérfanas, notificaciones, roles, perfil y cuenta auth).
 
-## Perfiles a eliminar (7)
-| Email | ID | Rol |
-|---|---|---|
-| andinochuck@gmail.com | 511978ef-f45d-44d3-a8d4-db6bddd2e490 | cliente |
-| csmorat@yahoo.es | 654986ba-4520-469b-9bcc-2ef978ad5e83 | cliente |
-| csmorato@hotmail.com | c1ac10f3-d672-4f31-94e4-7288619bfb42 | cliente |
-| csmorato@hotmail.es | 10dc9a19-425e-4a5a-ba42-b64cfe52a2bb | vendedor |
-| kniazyouk@gmail.com | a24ad277-9c42-4054-9081-51754df20d8e | admin |
-| lykon.tex@gmail.com | 3b5a3a40-07f4-48f9-8846-21674fa3d568 | vendedor |
-| vinculovirtualvv@gmail.com | 9c5de27b-12e2-45c1-9598-ac2a8a189798 | cliente |
+Impedir que un usuario con rol `admin` (no `super_admin`) pueda modificar de cualquier manera la cuenta de un `super_admin`. Solo otro `super_admin` debería poder tocarla.
 
-## Estrategia
-La edge function `delete-user` actual **preserva el histórico** (desliga vendedor de pedidos, desactiva clientes con pedidos). El usuario pidió **borrado total**, así que necesito crear una edge function temporal de uso único `purge-users` que sí cascade-elimine todo, sin tocar la lógica conservadora de `delete-user` (que sigue siendo la correcta para el día a día).
+## Diagnóstico actual
 
-## Pasos
+En `src/pages/admin/Usuarios.tsx`:
+- El botón **Eliminar** ya está protegido con `isSuper && !r.roles.includes("super_admin")`. ✅
+- Pero un admin normal todavía puede:
+  - Quitar roles de un super_admin (botón ❌ en cada badge).
+  - Agregar nuevos roles a un super_admin (selector "Agregar rol…" + "Asignar").
+  - Cambiar/quitar el propio rol `super_admin`.
 
-### 1. Crear edge function temporal `purge-users`
-Archivo: `supabase/functions/purge-users/index.ts`
+A nivel de base de datos, la policy `roles_admin_manage` sobre `user_roles` permite **a cualquier admin** ejecutar INSERT/UPDATE/DELETE sobre roles de cualquier usuario, incluido un super_admin. Esto es un riesgo de escalada/bloqueo: un admin podría degradar al super_admin desde la consola o con una llamada directa al API.
 
-- Solo invocable por `super_admin`.
-- Recibe `{ user_ids: string[] }`.
-- Para cada `user_id`:
-  1. Obtener `cliente_ids` de `clientes` donde `user_id = target`.
-  2. Obtener `pedido_ids` de `pedidos` donde `cliente_id IN cliente_ids` **OR** `vendedor_id = target` **OR** `creado_por = target`.
-  3. `DELETE FROM pedido_items WHERE pedido_id IN pedido_ids`.
-  4. `DELETE FROM pedidos WHERE id IN pedido_ids`.
-  5. `DELETE FROM clientes WHERE user_id = target`.
-  6. `DELETE FROM messages WHERE sender_id = target`.
-  7. Obtener `conversation_ids` de `conversation_participants` donde `user_id = target`.
-  8. `DELETE FROM conversation_participants WHERE user_id = target`.
-  9. Para cada conversación afectada: si ya no quedan participantes, borrar `messages` huérfanos y la `conversation`.
-  10. `DELETE FROM notificaciones WHERE user_id = target`.
-  11. `DELETE FROM user_roles WHERE user_id = target`.
-  12. `DELETE FROM profiles WHERE id = target`.
-  13. `admin.auth.admin.deleteUser(target)`.
-  14. Insertar `audit_logs` con accion `purge_usuario` y resumen de filas borradas.
-- Devuelve resumen por usuario.
+También conviene revisar `profiles_admin_all` (admin puede actualizar el perfil del super_admin) y `delete-user` edge function (ya bloquea borrar super_admin, según el resumen previo).
 
-### 2. Desplegar e invocar
-- Desplegar `purge-users` con `supabase--deploy_edge_functions`.
-- Llamar con `supabase--curl_edge_functions` (autenticado como super_admin) pasando los 7 `user_ids`.
-- Validar respuesta y mostrar resumen al usuario.
+## Plan de cambios
 
-### 3. Limpieza
-- Eliminar `supabase/functions/purge-users/index.ts` del codebase.
-- Llamar `supabase--delete_edge_functions(["purge-users"])` para retirar la función desplegada.
-- Verificar con `SELECT count(*) FROM profiles` que queda solo 1 perfil.
+### 1. Frontend — `src/pages/admin/Usuarios.tsx`
+- Calcular por fila `const isTargetSuper = r.roles.includes("super_admin");`
+- Si `isTargetSuper && !isSuper` (es decir, soy admin pero no super):
+  - Ocultar el botón ❌ de cada badge de rol.
+  - Ocultar el bloque inferior con `Select` "Agregar rol…" + botón "Asignar".
+  - Mantener visibles los botones de WhatsApp / Email (solo contacto, no editan).
+- Como salvaguarda extra, también ocultar la opción `super_admin` dentro del `<Select>` "Agregar rol…" cuando `!isSuper`, para que un admin no pueda promover a nadie a super_admin.
 
-## Salvaguardas
-- Hardcodear server-side la lista de IDs a borrar dentro del body validado, y **rechazar** cualquier request que intente borrar `9ea7d930-f7ef-46e6-ae0f-8ab73d04be58` (csolizmo).
-- Verificar que el caller es `super_admin` antes de cualquier operación.
-- Auditar cada borrado en `audit_logs`.
+### 2. Backend — Migración SQL para reforzar la regla
+Reemplazar la policy `roles_admin_manage` por dos policies más estrictas en `public.user_roles`:
+
+```sql
+DROP POLICY IF EXISTS roles_admin_manage ON public.user_roles;
+
+-- super_admin puede gestionar todos los roles
+CREATE POLICY roles_super_admin_manage ON public.user_roles
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'super_admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
+
+-- admin puede gestionar roles, pero NO los de un super_admin
+-- y NO puede asignar el rol super_admin a nadie
+CREATE POLICY roles_admin_manage_non_super ON public.user_roles
+  FOR ALL TO authenticated
+  USING (
+    public.has_role(auth.uid(), 'admin')
+    AND NOT public.has_role(user_id, 'super_admin')
+  )
+  WITH CHECK (
+    public.has_role(auth.uid(), 'admin')
+    AND role <> 'super_admin'
+    AND NOT public.has_role(user_id, 'super_admin')
+  );
+```
+
+Y endurecer también `profiles_admin_all` para que un admin no pueda editar el perfil de un super_admin:
+
+```sql
+DROP POLICY IF EXISTS profiles_admin_all ON public.profiles;
+
+CREATE POLICY profiles_super_admin_all ON public.profiles
+  FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'super_admin'))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
+
+CREATE POLICY profiles_admin_non_super ON public.profiles
+  FOR ALL TO authenticated
+  USING (
+    public.is_admin(auth.uid())
+    AND NOT public.has_role(id, 'super_admin')
+  )
+  WITH CHECK (
+    public.is_admin(auth.uid())
+    AND NOT public.has_role(id, 'super_admin')
+  );
+```
+
+(Las policies `profiles_self_select` y `profiles_self_update` ya permiten al propio super_admin verse y editarse a sí mismo, así que no se rompe nada.)
+
+### 3. Verificación post-implementación
+- Loguearse como admin → la tarjeta del super_admin se muestra solo con info y contactos, sin botones para tocar roles.
+- Intento manual vía consola con `supabase.from('user_roles').delete()....` sobre un super_admin → falla por RLS.
+- Loguearse como super_admin → puede seguir gestionando todo, incluido a otros super_admin.
 
 ## Archivos afectados
-- **Crear** `supabase/functions/purge-users/index.ts` (temporal)
-- **Eliminar** después `supabase/functions/purge-users/index.ts`
-
-No se toca `delete-user` ni código de UI.
+- `src/pages/admin/Usuarios.tsx` (UI)
+- Nueva migración en `supabase/migrations/` (RLS sobre `user_roles` y `profiles`)

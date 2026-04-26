@@ -155,7 +155,10 @@ export default function AdminUsuarios() {
           <p className="text-xs text-muted-foreground">
             Mostrando {filteredRows.length} de {rows.length} usuarios
           </p>
-          {filteredRows.map((r) => (
+          {filteredRows.map((r) => {
+            const isTargetSuper = r.roles.includes("super_admin");
+            const canEditRoles = !isTargetSuper || isSuper;
+            return (
             <Card key={r.id}>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -168,10 +171,15 @@ export default function AdminUsuarios() {
                     {r.roles.map((rl) => (
                       <Badge key={rl} className="bg-brand text-brand-foreground gap-1">
                         {rl}
-                        <button onClick={() => removeRole(r.id, rl)} aria-label="quitar"><X className="h-3 w-3" /></button>
+                        {canEditRoles && (
+                          <button onClick={() => removeRole(r.id, rl)} aria-label="quitar"><X className="h-3 w-3" /></button>
+                        )}
                       </Badge>
                     ))}
                     {r.roles.length === 0 && <span className="text-xs text-muted-foreground">Sin roles</span>}
+                    {isTargetSuper && !isSuper && (
+                      <span className="text-[10px] text-muted-foreground italic">Protegido</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -203,11 +211,15 @@ export default function AdminUsuarios() {
                     </Button>
                   )}
                 </div>
+                {canEditRoles && (
                 <div className="flex gap-2 pt-2 border-t flex-wrap">
                   <Select value={adding[r.id] ?? ""} onValueChange={(v) => setAdding({ ...adding, [r.id]: v as AppRole })}>
                     <SelectTrigger className="max-w-xs"><SelectValue placeholder="Agregar rol…" /></SelectTrigger>
                     <SelectContent>
-                      {ROLES.filter((rl) => !r.roles.includes(rl)).map((rl) => <SelectItem key={rl} value={rl}>{rl}</SelectItem>)}
+                      {ROLES
+                        .filter((rl) => !r.roles.includes(rl))
+                        .filter((rl) => isSuper || rl !== "super_admin")
+                        .map((rl) => <SelectItem key={rl} value={rl}>{rl}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Button size="sm" disabled={!adding[r.id]} onClick={() => { addRole(r.id, adding[r.id]); setAdding({ ...adding, [r.id]: undefined as any }); }} className="bg-primary text-brand">

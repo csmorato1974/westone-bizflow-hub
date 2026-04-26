@@ -258,9 +258,11 @@ export default function AdminUsuarios() {
                     </AlertDialog>
                   )}
                 </div>
+                )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

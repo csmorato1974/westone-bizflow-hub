@@ -217,7 +217,7 @@ export default function AdminProductos() {
                   {variantes.length === 0 && <p className="text-xs text-muted-foreground">Sin presentaciones.</p>}
                 </div>
                 <div className="flex gap-2 items-end pt-2">
-                  <div className="flex-1"><Label className="text-xs">Presentación</Label><Input placeholder="ej. 1L, 4L, 20L" value={newVar.presentacion} onChange={(e) => setNewVar({ ...newVar, presentacion: e.target.value })} /></div>
+                  <div className="flex-1"><Label className="text-xs">Presentación</Label><Input placeholder="ej. 1L, 5L, 20L" value={newVar.presentacion} onChange={(e) => setNewVar({ ...newVar, presentacion: e.target.value })} /></div>
                   <div className="w-32"><Label className="text-xs">SKU (opcional)</Label><Input value={newVar.sku_variante} onChange={(e) => setNewVar({ ...newVar, sku_variante: e.target.value })} /></div>
                   <Button type="button" onClick={addVariante} disabled={savingVar || !newVar.presentacion.trim()} className="bg-brand text-brand-foreground">
                     {savingVar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

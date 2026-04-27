@@ -210,7 +210,12 @@ export default function AdminUsuarios() {
             const isTargetSuper = r.roles.includes("super_admin");
             const canEditRoles = !isTargetSuper || isSuper;
             return (
-            <Card key={r.id}>
+            <div
+              key={r.id}
+              ref={(el) => { rowRefs.current[r.id] = el; }}
+              className={`transition-shadow rounded-lg ${highlightedId === r.id ? "ring-2 ring-brand ring-offset-2 ring-offset-background" : ""}`}
+            >
+            <Card>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>

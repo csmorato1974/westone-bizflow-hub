@@ -60,6 +60,10 @@ export default function AdminClientes() {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
+  const [searchParams] = useSearchParams();
+  const focusClienteId = searchParams.get("focus");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");

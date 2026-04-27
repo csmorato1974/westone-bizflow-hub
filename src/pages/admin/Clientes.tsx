@@ -121,6 +121,18 @@ export default function AdminClientes() {
     };
   }, []);
 
+  // Si llegamos con ?focus=, scrollear y resaltar la ficha
+  useEffect(() => {
+    if (!focusClienteId || loading || clientes.length === 0) return;
+    const el = rowRefs.current[focusClienteId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(focusClienteId);
+      const t = setTimeout(() => setHighlightedId(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [focusClienteId, loading, clientes.length]);
+
   const vendedorMap = useMemo(() => {
     const m = new Map<string, string>();
     vendedores.forEach((v) => m.set(v.id, v.full_name ?? v.email ?? "—"));

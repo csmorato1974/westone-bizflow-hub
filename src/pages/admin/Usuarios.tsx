@@ -46,8 +46,11 @@ export default function AdminUsuarios() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const initialFilter = (searchParams.get("filter") as FilterValue | null) ?? "all";
+  const focusUserId = searchParams.get("focus");
   const [filterRole, setFilterRole] = useState<FilterValue>(initialFilter);
   const [search, setSearch] = useState("");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const load = async () => {
     setLoading(true);

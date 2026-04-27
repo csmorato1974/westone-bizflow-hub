@@ -1,67 +1,71 @@
-# Plan: Badge de perfiles pendientes en el Dashboard
+# Plan: Corregir badge de perfiles pendientes (no aparece nada)
 
-## Resumen
-Agregar un círculo rojo con el número de perfiles nuevos pendientes (usuarios sin rol asignado) sobre el cuadro de "Clientes" en el Dashboard, visible solo para admin y super_admin. Al hacer click, redirige a la gestión de usuarios filtrados por "sin rol".
+## Diagnóstico
 
-## Cambios a realizar
+Revisé los datos reales en la base de datos:
 
-### 1. Frontend — `src/pages/Dashboard.tsx`
+| Perfil | Roles asignados |
+|---|---|
+| Yago Franco | cliente |
+| Gringa | cliente |
+| Calberto Solmo | vendedor |
+| Alberto Morato | admin, vendedor |
+| Sergio Morón | logistica, admin, vendedor |
+| carlos soliz | super_admin |
 
-**Lógica nueva:**
-- Agregar query adicional para contar perfiles sin rol asignado:
-  - Obtener `count` de `profiles` y `count` de `user_roles` con `user_id` distintos
-  - Calcular `pendientesPerfiles = totalProfiles - usuariosConRol`
-  - Alternativa más precisa: traer `profiles.id` y `user_roles.user_id`, calcular en cliente quiénes no tienen ningún rol
-- Solo ejecutar este conteo si `isAdmin` es true
+**El badge no aparece porque el cálculo actual ("usuarios sin ningún rol") siempre da 0.** El trigger `handle_new_user` asigna automáticamente el rol `cliente` a TODO usuario recién registrado, así que jamás existe un usuario realmente "sin rol".
 
-**UI del badge:**
-- En el cuadro "Clientes" agregar un badge tipo "pop up" en la esquina superior derecha:
-  - Círculo rojo (`bg-destructive`) con número blanco
-  - Animación sutil (`animate-pulse`) para llamar la atención
-  - Posición absoluta sobre la Card
-  - Solo se muestra si `pendientesPerfiles > 0` y el usuario es admin/super_admin
-- El cuadro "Clientes" debe redirigir (cuando hay pendientes y es admin) a `/app/admin/usuarios` en lugar de `/app/admin/clientes` — o mantener el cuadro de Clientes y agregar un tooltip/click separado al badge
+Los perfiles que en la práctica **están pendientes de configurar** son los que tienen únicamente el rol `cliente` por defecto (auto-asignado) y aún no han sido vinculados a una ficha real en la tabla `clientes` (lo que el admin debe completar). En este momento serían: **Yago Franco** y **Gringa** → el badge debería mostrar **2**.
 
-**Decisión de navegación:**
-- Mantener el cuadro de "Clientes" enlazando a su destino actual
-- El badge rojo será un elemento clickeable independiente que navega a `/app/admin/usuarios?filter=sin_rol`
+## Cambio a realizar
 
-### 2. Frontend — `src/pages/admin/Usuarios.tsx`
+### `src/pages/Dashboard.tsx`
 
-**Soporte para query param:**
-- Leer `?filter=sin_rol` desde la URL al montar el componente
-- Si está presente, inicializar `filterRole` con `"sin_rol"` para mostrar directamente los pendientes
+Cambiar la lógica del conteo de pendientes para incluir tres casos como "pendiente de configurar":
 
-## Notas técnicas
+1. Perfil **sin ningún rol** asignado (caso defensivo).
+2. Perfil cuyo **único rol es `cliente`** (auto-asignado) **y** no tiene una ficha vinculada en la tabla `clientes` (`clientes.user_id`).
 
-**Conteo de pendientes (consulta sugerida):**
-```typescript
-// Obtener IDs de profiles y user_ids con rol
-const [{ data: profs }, { data: roles }] = await Promise.all([
+Esto identifica correctamente los perfiles recién registrados que el admin debe terminar de configurar (asignarle un rol distinto, o vincularlo a una ficha de cliente real).
+
+**Nueva lógica (pseudocódigo):**
+
+```ts
+const [{ data: profs }, { data: roles }, { data: clientesRows }] = await Promise.all([
   supabase.from("profiles").select("id"),
-  supabase.from("user_roles").select("user_id"),
+  supabase.from("user_roles").select("user_id, role"),
+  supabase.from("clientes").select("user_id"),
 ]);
-const conRol = new Set((roles ?? []).map(r => r.user_id));
-const pendientes = (profs ?? []).filter(p => !conRol.has(p.id)).length;
+
+const rolesByUser = new Map<string, string[]>();
+(roles ?? []).forEach((r) => {
+  const arr = rolesByUser.get(r.user_id) ?? [];
+  arr.push(r.role);
+  rolesByUser.set(r.user_id, arr);
+});
+const clientesVinculados = new Set(
+  (clientesRows ?? []).map((c) => c.user_id).filter(Boolean)
+);
+
+const sinConfigurar = (profs ?? []).filter((p) => {
+  const rls = rolesByUser.get(p.id) ?? [];
+  if (rls.length === 0) return true;
+  if (rls.length === 1 && rls[0] === "cliente" && !clientesVinculados.has(p.id)) return true;
+  return false;
+}).length;
+
+setPerfilesPendientes(sinConfigurar);
 ```
 
-**Componente del badge (esquema visual):**
-```tsx
-{isAdmin && pendientes > 0 && (
-  <Link 
-    to="/app/admin/usuarios?filter=sin_rol"
-    className="absolute -top-2 -right-2 z-10"
-  >
-    <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-bold px-1.5 shadow-lg animate-pulse ring-2 ring-background">
-      {pendientes}
-    </span>
-  </Link>
-)}
-```
+El resto de la UI del badge (círculo rojo pulsante en la esquina del cuadro Clientes, navegación a `/app/admin/usuarios?filter=sin_rol`) ya está implementada y se mantiene igual.
 
-- El contenedor del cuadro debe tener `position: relative` para que el badge se posicione correctamente
-- El badge usa `z-10` para estar por encima del Link de la Card
+### `src/pages/admin/Usuarios.tsx` (ajuste menor)
+
+Como ahora el filtro `sin_rol` no representa exactamente lo mismo que muestra el badge, se mantiene el comportamiento actual del filtro pero el badge llevará a una vista útil. Opcionalmente, se podría agregar un filtro nuevo "Pendientes de configurar" pero no es estrictamente necesario para resolver el problema reportado.
+
+## Resultado esperado
+
+Tras el cambio, en el Dashboard del super_admin/admin se verá un círculo rojo con el número **2** en la esquina superior derecha del cuadro **Clientes**, correspondiente a Yago Franco y Gringa que aún tienen solo el rol `cliente` por defecto y no han sido vinculados a una ficha en la tabla `clientes`.
 
 ## Archivos modificados
-- `src/pages/Dashboard.tsx` — agregar contador y badge visual
-- `src/pages/admin/Usuarios.tsx` — soportar query param `?filter=sin_rol`
+- `src/pages/Dashboard.tsx` — corregir lógica de conteo de perfiles pendientes

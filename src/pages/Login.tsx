@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { toast } from "sonner";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, MailCheck } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
   const { user, loading, signIn, signUp } = useAuth();
@@ -18,6 +19,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showSPwd, setShowSPwd] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   // login
   const [email, setEmail] = useState("");
@@ -47,8 +49,12 @@ export default function Login() {
     setBusy(true);
     const { error } = await signUp(sEmail, sPwd, sName);
     setBusy(false);
-    if (error) toast.error(error);
-    else toast.success("Cuenta creada. Un administrador debe asignarte un rol para acceder.");
+    if (error) {
+      toast.error(error);
+    } else {
+      setSignupSuccess(true);
+      toast.success("Cuenta creada. Revisa tu email para verificarla.");
+    }
   };
 
   return (
@@ -101,6 +107,20 @@ export default function Login() {
             </TabsContent>
 
             <TabsContent value="signup">
+              <Alert className="mb-4 border-primary/40 bg-primary/5">
+                <MailCheck className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-xs leading-relaxed">
+                  <strong className="text-foreground">Importante:</strong> Tras crear tu cuenta recibirás un <strong>email de verificación</strong>. Debes confirmarlo desde tu bandeja de entrada para poder acceder. Revisa también la carpeta de spam.
+                </AlertDescription>
+              </Alert>
+              {signupSuccess && (
+                <Alert className="mb-4 border-green-500/40 bg-green-500/10">
+                  <MailCheck className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-xs leading-relaxed">
+                    <strong className="text-foreground">¡Cuenta creada!</strong> Te enviamos un correo de verificación a <strong>{sEmail}</strong>. Confírmalo para activar el acceso.
+                  </AlertDescription>
+                </Alert>
+              )}
               <form onSubmit={onSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="sname">Nombre completo</Label>

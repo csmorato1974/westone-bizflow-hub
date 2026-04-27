@@ -524,6 +524,7 @@ export default function AdminClientes() {
                       </div>
                     </CardContent>
                   </Card>
+                  </div>
                 );
               })}
             </div>

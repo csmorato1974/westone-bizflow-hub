@@ -8,18 +8,34 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-type Motivo = "sin_rol" | "sin_ficha" | "sin_direccion" | "sin_lista" | "sin_vendedor";
+type Motivo =
+  | "sin_rol"
+  | "sin_ficha"
+  | "sin_lista"
+  | "sin_vendedor"
+  | "ficha_sin_usuario"
+  | "sin_direccion";
 
 const MOTIVO_LABEL: Record<Motivo, string> = {
   sin_rol: "Sin rol asignado",
   sin_ficha: "Sin ficha de cliente vinculada",
-  sin_direccion: "Sin dirección",
   sin_lista: "Sin lista de precios",
   sin_vendedor: "Sin vendedor asignado",
+  ficha_sin_usuario: "Ficha sin usuario vinculado",
+  sin_direccion: "Sin dirección",
 };
 
+// Solo estos motivos disparan la alerta roja. "sin_direccion" es informativo.
+const MOTIVOS_CRITICOS: Motivo[] = [
+  "sin_rol",
+  "sin_ficha",
+  "sin_lista",
+  "sin_vendedor",
+  "ficha_sin_usuario",
+];
+
 interface PerfilPendiente {
-  user_id: string;
+  user_id: string | null; // null cuando es una ficha huérfana sin usuario
   cliente_id: string | null;
   full_name: string | null;
   email: string | null;

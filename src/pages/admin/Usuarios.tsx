@@ -168,12 +168,13 @@ export default function AdminUsuarios() {
               className="pl-9"
             />
           </div>
-          <Select value={filterRole} onValueChange={(v) => setFilterRole(v as AppRole | "all" | "sin_rol")}>
+          <Select value={filterRole} onValueChange={(v) => setFilterRole(v as FilterValue)}>
             <SelectTrigger className="md:w-64">
               <SelectValue placeholder="Filtrar por categoría" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos ({rows.length})</SelectItem>
+              <SelectItem value="pendientes">Pendientes de configurar ({pendientesCount})</SelectItem>
               {ROLES.map((rl) => (
                 <SelectItem key={rl} value={rl}>
                   {rl} ({counts[rl] ?? 0})

@@ -82,7 +82,7 @@ export default function Dashboard() {
           await Promise.all([
             supabase.from("profiles").select("id, full_name, email"),
             supabase.from("user_roles").select("user_id, role"),
-            supabase.from("clientes").select("id, user_id, direccion, lista_precio_id, vendedor_id"),
+            supabase.from("clientes").select("id, user_id, direccion, lista_precio_id, vendedor_id, empresa, contacto, email"),
           ]);
         if (e1 || e2 || e3) throw (e1 || e2 || e3);
 

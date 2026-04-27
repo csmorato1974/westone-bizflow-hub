@@ -49,8 +49,12 @@ export default function Login() {
     setBusy(true);
     const { error } = await signUp(sEmail, sPwd, sName);
     setBusy(false);
-    if (error) toast.error(error);
-    else toast.success("Cuenta creada. Un administrador debe asignarte un rol para acceder.");
+    if (error) {
+      toast.error(error);
+    } else {
+      setSignupSuccess(true);
+      toast.success("Cuenta creada. Revisa tu email para verificarla.");
+    }
   };
 
   return (

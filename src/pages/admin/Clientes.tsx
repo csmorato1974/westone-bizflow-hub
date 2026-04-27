@@ -451,7 +451,12 @@ export default function AdminClientes() {
               {filtered.map((c) => {
                 const maps = mapsLink(c.latitud, c.longitud);
                 return (
-                  <Card key={c.id} className={!c.activo ? "opacity-60" : ""}>
+                  <div
+                    key={c.id}
+                    ref={(el) => { rowRefs.current[c.id] = el; }}
+                    className={`transition-shadow rounded-lg ${highlightedId === c.id ? "ring-2 ring-brand ring-offset-2 ring-offset-background" : ""}`}
+                  >
+                  <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <p className="industrial-title text-lg">{c.empresa}</p>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,8 +46,11 @@ export default function AdminUsuarios() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const initialFilter = (searchParams.get("filter") as FilterValue | null) ?? "all";
+  const focusUserId = searchParams.get("focus");
   const [filterRole, setFilterRole] = useState<FilterValue>(initialFilter);
   const [search, setSearch] = useState("");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const load = async () => {
     setLoading(true);
@@ -73,6 +76,18 @@ export default function AdminUsuarios() {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  // Si llegamos con ?focus=, hacer scroll y resaltar la fila tras cargar
+  useEffect(() => {
+    if (!focusUserId || loading || rows.length === 0) return;
+    const el = rowRefs.current[focusUserId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(focusUserId);
+      const t = setTimeout(() => setHighlightedId(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [focusUserId, loading, rows.length]);
 
   const addRole = async (userId: string, role: AppRole) => {
     const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
@@ -195,7 +210,12 @@ export default function AdminUsuarios() {
             const isTargetSuper = r.roles.includes("super_admin");
             const canEditRoles = !isTargetSuper || isSuper;
             return (
-            <Card key={r.id}>
+            <div
+              key={r.id}
+              ref={(el) => { rowRefs.current[r.id] = el; }}
+              className={`transition-shadow rounded-lg ${highlightedId === r.id ? "ring-2 ring-brand ring-offset-2 ring-offset-background" : ""}`}
+            >
+            <Card>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -297,6 +317,7 @@ export default function AdminUsuarios() {
                 )}
               </CardContent>
             </Card>
+            </div>
             );
           })}
         </div>

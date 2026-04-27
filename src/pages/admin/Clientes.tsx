@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus } from "lucide-react";
@@ -59,6 +60,10 @@ export default function AdminClientes() {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
+  const [searchParams] = useSearchParams();
+  const focusClienteId = searchParams.get("focus");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");
@@ -115,6 +120,18 @@ export default function AdminClientes() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Si llegamos con ?focus=, scrollear y resaltar la ficha
+  useEffect(() => {
+    if (!focusClienteId || loading || clientes.length === 0) return;
+    const el = rowRefs.current[focusClienteId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(focusClienteId);
+      const t = setTimeout(() => setHighlightedId(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [focusClienteId, loading, clientes.length]);
 
   const vendedorMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -434,7 +451,12 @@ export default function AdminClientes() {
               {filtered.map((c) => {
                 const maps = mapsLink(c.latitud, c.longitud);
                 return (
-                  <Card key={c.id} className={!c.activo ? "opacity-60" : ""}>
+                  <div
+                    key={c.id}
+                    ref={(el) => { rowRefs.current[c.id] = el; }}
+                    className={`transition-shadow rounded-lg ${highlightedId === c.id ? "ring-2 ring-brand ring-offset-2 ring-offset-background" : ""}`}
+                  >
+                  <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <p className="industrial-title text-lg">{c.empresa}</p>
@@ -502,6 +524,7 @@ export default function AdminClientes() {
                       </div>
                     </CardContent>
                   </Card>
+                  </div>
                 );
               })}
             </div>

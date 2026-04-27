@@ -258,7 +258,7 @@ export default function Dashboard() {
             </div>
             <div className="max-h-[320px] overflow-y-auto divide-y">
               {pendientes.perfiles.map((p) => (
-                <div key={p.user_id} className="p-3 space-y-2">
+                <div key={p.user_id ?? `cli-${p.cliente_id}`} className="p-3 space-y-2">
                   <div>
                     <p className="text-sm font-medium leading-tight">
                       {p.full_name ?? "(sin nombre)"}
@@ -268,15 +268,22 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {p.motivos.map((m) => (
-                      <Badge
-                        key={m}
-                        variant="outline"
-                        className="text-[10px] border-destructive/40 text-destructive bg-destructive/5 px-1.5 py-0"
-                      >
-                        {MOTIVO_LABEL[m]}
-                      </Badge>
-                    ))}
+                    {p.motivos.map((m) => {
+                      const esCritico = MOTIVOS_CRITICOS.includes(m);
+                      return (
+                        <Badge
+                          key={m}
+                          variant="outline"
+                          className={
+                            esCritico
+                              ? "text-[10px] border-destructive/40 text-destructive bg-destructive/5 px-1.5 py-0"
+                              : "text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0"
+                          }
+                        >
+                          {MOTIVO_LABEL[m]}
+                        </Badge>
+                      );
+                    })}
                   </div>
                   <Button
                     size="sm"

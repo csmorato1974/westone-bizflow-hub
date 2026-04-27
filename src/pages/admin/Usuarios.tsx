@@ -121,9 +121,19 @@ export default function AdminUsuarios() {
     load();
   };
 
+  const esPendiente = (r: Row) => {
+    if (r.roles.length === 0) return true;
+    if (r.roles.length === 1 && r.roles[0] === "cliente") {
+      if (!r.tieneFicha) return true;
+      if (r.fichaCompleta === false) return true;
+    }
+    return false;
+  };
+
   const filteredRows = rows.filter((r) => {
     if (filterRole === "sin_rol" && r.roles.length !== 0) return false;
-    if (filterRole !== "all" && filterRole !== "sin_rol" && !r.roles.includes(filterRole)) return false;
+    if (filterRole === "pendientes" && !esPendiente(r)) return false;
+    if (filterRole !== "all" && filterRole !== "sin_rol" && filterRole !== "pendientes" && !r.roles.includes(filterRole)) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       const name = (r.full_name ?? "").toLowerCase();
@@ -138,6 +148,7 @@ export default function AdminUsuarios() {
     return acc;
   }, {});
   const sinRolCount = rows.filter((r) => r.roles.length === 0).length;
+  const pendientesCount = rows.filter(esPendiente).length;
 
   return (
     <div className="space-y-4">

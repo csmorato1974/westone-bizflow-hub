@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,9 @@ export default function AdminUsuarios() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<Record<string, AppRole>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [filterRole, setFilterRole] = useState<AppRole | "all" | "sin_rol">("all");
+  const [searchParams] = useSearchParams();
+  const initialFilter = (searchParams.get("filter") as AppRole | "all" | "sin_rol" | null) ?? "all";
+  const [filterRole, setFilterRole] = useState<AppRole | "all" | "sin_rol">(initialFilter);
   const [search, setSearch] = useState("");
 
   const load = async () => {

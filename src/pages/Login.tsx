@@ -107,6 +107,20 @@ export default function Login() {
             </TabsContent>
 
             <TabsContent value="signup">
+              <Alert className="mb-4 border-primary/40 bg-primary/5">
+                <MailCheck className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-xs leading-relaxed">
+                  <strong className="text-foreground">Importante:</strong> Tras crear tu cuenta recibirás un <strong>email de verificación</strong>. Debes confirmarlo desde tu bandeja de entrada para poder acceder. Revisa también la carpeta de spam.
+                </AlertDescription>
+              </Alert>
+              {signupSuccess && (
+                <Alert className="mb-4 border-green-500/40 bg-green-500/10">
+                  <MailCheck className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-xs leading-relaxed">
+                    <strong className="text-foreground">¡Cuenta creada!</strong> Te enviamos un correo de verificación a <strong>{sEmail}</strong>. Confírmalo para activar el acceso.
+                  </AlertDescription>
+                </Alert>
+              )}
               <form onSubmit={onSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="sname">Nombre completo</Label>

@@ -8,18 +8,34 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-type Motivo = "sin_rol" | "sin_ficha" | "sin_direccion" | "sin_lista" | "sin_vendedor";
+type Motivo =
+  | "sin_rol"
+  | "sin_ficha"
+  | "sin_lista"
+  | "sin_vendedor"
+  | "ficha_sin_usuario"
+  | "sin_direccion";
 
 const MOTIVO_LABEL: Record<Motivo, string> = {
   sin_rol: "Sin rol asignado",
   sin_ficha: "Sin ficha de cliente vinculada",
-  sin_direccion: "Sin dirección",
   sin_lista: "Sin lista de precios",
   sin_vendedor: "Sin vendedor asignado",
+  ficha_sin_usuario: "Ficha sin usuario vinculado",
+  sin_direccion: "Sin dirección",
 };
 
+// Solo estos motivos disparan la alerta roja. "sin_direccion" es informativo.
+const MOTIVOS_CRITICOS: Motivo[] = [
+  "sin_rol",
+  "sin_ficha",
+  "sin_lista",
+  "sin_vendedor",
+  "ficha_sin_usuario",
+];
+
 interface PerfilPendiente {
-  user_id: string;
+  user_id: string | null; // null cuando es una ficha huérfana sin usuario
   cliente_id: string | null;
   full_name: string | null;
   email: string | null;
@@ -66,7 +82,7 @@ export default function Dashboard() {
           await Promise.all([
             supabase.from("profiles").select("id, full_name, email"),
             supabase.from("user_roles").select("user_id, role"),
-            supabase.from("clientes").select("id, user_id, direccion, lista_precio_id, vendedor_id"),
+            supabase.from("clientes").select("id, user_id, direccion, lista_precio_id, vendedor_id, empresa, contacto, email"),
           ]);
         if (e1 || e2 || e3) throw (e1 || e2 || e3);
 
@@ -83,6 +99,8 @@ export default function Dashboard() {
         });
 
         const perfiles: PerfilPendiente[] = [];
+
+        // 1) Perfiles (usuarios) con problemas de configuración
         (profs ?? []).forEach((p: any) => {
           const rls = rolesByUser.get(p.id) ?? [];
           const motivos: Motivo[] = [];
@@ -94,13 +112,16 @@ export default function Dashboard() {
             if (!ficha) {
               motivos.push("sin_ficha");
             } else {
-              if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
               if (!ficha.lista_precio_id) motivos.push("sin_lista");
               if (!ficha.vendedor_id) motivos.push("sin_vendedor");
+              // Dirección es informativa, no crítica
+              if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
             }
           }
 
-          if (motivos.length > 0) {
+          // Solo se incluye si tiene al menos un motivo crítico
+          const tieneCritico = motivos.some((m) => MOTIVOS_CRITICOS.includes(m));
+          if (tieneCritico) {
             const ficha = clientesByUser.get(p.id);
             perfiles.push({
               user_id: p.id,
@@ -108,6 +129,19 @@ export default function Dashboard() {
               full_name: p.full_name,
               email: p.email,
               motivos,
+            });
+          }
+        });
+
+        // 2) Fichas de clientes huérfanas (sin user_id vinculado)
+        (clientesRows ?? []).forEach((c: any) => {
+          if (!c.user_id) {
+            perfiles.push({
+              user_id: null,
+              cliente_id: c.id,
+              full_name: (c as any).empresa ?? (c as any).contacto ?? "(ficha sin usuario)",
+              email: (c as any).email ?? null,
+              motivos: ["ficha_sin_usuario"],
             });
           }
         });
@@ -149,14 +183,22 @@ export default function Dashboard() {
 
   const irAResolver = (perfil: PerfilPendiente) => {
     setPopoverOpen(false);
-    // Si el problema es de ficha comercial y existe ficha → ir a Clientes con focus
+    // Ficha huérfana o motivos comerciales con ficha existente → ir a Clientes
     const necesitaClientes =
       perfil.cliente_id &&
-      perfil.motivos.some((m) => m === "sin_direccion" || m === "sin_lista" || m === "sin_vendedor");
+      perfil.motivos.some(
+        (m) =>
+          m === "sin_lista" ||
+          m === "sin_vendedor" ||
+          m === "sin_direccion" ||
+          m === "ficha_sin_usuario",
+      );
     if (necesitaClientes) {
       navigate(`/app/admin/clientes?focus=${perfil.cliente_id}`);
-    } else {
+    } else if (perfil.user_id) {
       navigate(`/app/admin/usuarios?focus=${perfil.user_id}`);
+    } else {
+      navigate(`/app/admin/clientes`);
     }
   };
 
@@ -216,7 +258,7 @@ export default function Dashboard() {
             </div>
             <div className="max-h-[320px] overflow-y-auto divide-y">
               {pendientes.perfiles.map((p) => (
-                <div key={p.user_id} className="p-3 space-y-2">
+                <div key={p.user_id ?? `cli-${p.cliente_id}`} className="p-3 space-y-2">
                   <div>
                     <p className="text-sm font-medium leading-tight">
                       {p.full_name ?? "(sin nombre)"}
@@ -226,15 +268,22 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {p.motivos.map((m) => (
-                      <Badge
-                        key={m}
-                        variant="outline"
-                        className="text-[10px] border-destructive/40 text-destructive bg-destructive/5 px-1.5 py-0"
-                      >
-                        {MOTIVO_LABEL[m]}
-                      </Badge>
-                    ))}
+                    {p.motivos.map((m) => {
+                      const esCritico = MOTIVOS_CRITICOS.includes(m);
+                      return (
+                        <Badge
+                          key={m}
+                          variant="outline"
+                          className={
+                            esCritico
+                              ? "text-[10px] border-destructive/40 text-destructive bg-destructive/5 px-1.5 py-0"
+                              : "text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0"
+                          }
+                        >
+                          {MOTIVO_LABEL[m]}
+                        </Badge>
+                      );
+                    })}
                   </div>
                   <Button
                     size="sm"

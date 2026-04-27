@@ -188,9 +188,10 @@ export default function Dashboard() {
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="absolute -top-2 -right-2 z-10"
+              className="absolute -top-2 -right-2 z-20"
               aria-label={`${pendientes.perfiles.length} perfiles pendientes de configurar`}
-              onClick={(e) => e.preventDefault()}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
             >
               <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-bold px-2 shadow-lg animate-pulse ring-2 ring-background cursor-pointer">
                 {pendientes.perfiles.length}

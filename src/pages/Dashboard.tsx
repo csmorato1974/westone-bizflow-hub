@@ -23,15 +23,33 @@ export default function Dashboard() {
       ]);
       setStats({ clientes: clientes ?? 0, pedidos: pedidos ?? 0, pendientes: pendientes ?? 0, despachos: despachos ?? 0 });
 
-      // Conteo de perfiles sin rol asignado (solo admin/super_admin)
+      // Conteo de perfiles pendientes de configurar (solo admin/super_admin).
+      // Un perfil está "pendiente" si:
+      //  (a) no tiene ningún rol asignado, o
+      //  (b) solo tiene el rol 'cliente' por defecto (auto-asignado por el trigger)
+      //      y aún no fue vinculado a una ficha en la tabla 'clientes'.
       if (isAdmin) {
-        const [{ data: profs }, { data: roles }] = await Promise.all([
+        const [{ data: profs }, { data: roles }, { data: clientesRows }] = await Promise.all([
           supabase.from("profiles").select("id"),
-          supabase.from("user_roles").select("user_id"),
+          supabase.from("user_roles").select("user_id, role"),
+          supabase.from("clientes").select("user_id"),
         ]);
-        const conRol = new Set((roles ?? []).map((r: any) => r.user_id));
-        const sinRol = (profs ?? []).filter((p: any) => !conRol.has(p.id)).length;
-        setPerfilesPendientes(sinRol);
+        const rolesByUser = new Map<string, string[]>();
+        (roles ?? []).forEach((r: any) => {
+          const arr = rolesByUser.get(r.user_id) ?? [];
+          arr.push(r.role);
+          rolesByUser.set(r.user_id, arr);
+        });
+        const clientesVinculados = new Set(
+          (clientesRows ?? []).map((c: any) => c.user_id).filter(Boolean)
+        );
+        const sinConfigurar = (profs ?? []).filter((p: any) => {
+          const rls = rolesByUser.get(p.id) ?? [];
+          if (rls.length === 0) return true;
+          if (rls.length === 1 && rls[0] === "cliente" && !clientesVinculados.has(p.id)) return true;
+          return false;
+        }).length;
+        setPerfilesPendientes(sinConfigurar);
       }
     })();
   }, [user, isAdmin]);

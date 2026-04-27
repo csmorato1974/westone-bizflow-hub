@@ -1,71 +1,57 @@
-# Plan: Corregir badge de perfiles pendientes (no aparece nada)
-
 ## Diagnóstico
 
-Revisé los datos reales en la base de datos:
+Verifiqué los datos en la base. Con la definición actual, el conteo de pendientes es **0** y por eso el badge no se muestra:
 
-| Perfil | Roles asignados |
-|---|---|
-| Yago Franco | cliente |
-| Gringa | cliente |
-| Calberto Solmo | vendedor |
-| Alberto Morato | admin, vendedor |
-| Sergio Morón | logistica, admin, vendedor |
-| carlos soliz | super_admin |
+| Usuario | Roles | Ficha en `clientes` | ¿Pendiente hoy? |
+|---|---|---|---|
+| Yago Franco | cliente | Sí | No |
+| Gringa | cliente | Sí | No |
+| Calberto Solmo | vendedor | — | No |
+| Alberto Morato | vendedor, admin | — | No |
+| Sergio Morón | vendedor, admin, logística | — | No |
+| Carlos Soliz | super_admin | — | No |
 
-**El badge no aparece porque el cálculo actual ("usuarios sin ningún rol") siempre da 0.** El trigger `handle_new_user` asigna automáticamente el rol `cliente` a TODO usuario recién registrado, así que jamás existe un usuario realmente "sin rol".
+Es decir: la lógica funciona, pero **no hay candidatos** porque todos los `cliente` ya fueron vinculados. El badge se oculta correctamente cuando es 0.
 
-Los perfiles que en la práctica **están pendientes de configurar** son los que tienen únicamente el rol `cliente` por defecto (auto-asignado) y aún no han sido vinculados a una ficha real en la tabla `clientes` (lo que el admin debe completar). En este momento serían: **Yago Franco** y **Gringa** → el badge debería mostrar **2**.
+Para que la funcionalidad sea útil y siempre verificable, propongo cambios.
 
-## Cambio a realizar
+## Cambios
 
-### `src/pages/Dashboard.tsx`
+### 1. Nueva definición de "perfil pendiente" (`src/pages/Dashboard.tsx`)
 
-Cambiar la lógica del conteo de pendientes para incluir tres casos como "pendiente de configurar":
+Un perfil cuenta como **pendiente de configurar** si cumple **cualquiera** de:
 
-1. Perfil **sin ningún rol** asignado (caso defensivo).
-2. Perfil cuyo **único rol es `cliente`** (auto-asignado) **y** no tiene una ficha vinculada en la tabla `clientes` (`clientes.user_id`).
+- **A.** No tiene ningún rol asignado (caso defensivo).
+- **B.** Tiene únicamente el rol `cliente` por defecto **y** no está vinculado a una ficha en `clientes` (`clientes.user_id`).
+- **C.** Tiene únicamente el rol `cliente` **y** sí está vinculado, pero su ficha en `clientes` está incompleta — definimos "incompleta" como: falta `direccion` o falta `lista_precio_id` o falta `vendedor_id`.
 
-Esto identifica correctamente los perfiles recién registrados que el admin debe terminar de configurar (asignarle un rol distinto, o vincularlo a una ficha de cliente real).
+El caso **C** es el que hará visible el badge ya mismo con los datos actuales (Yago y Gringa están vinculados pero su ficha puede no tener todos los campos comerciales).
 
-**Nueva lógica (pseudocódigo):**
+### 2. Realtime
 
-```ts
-const [{ data: profs }, { data: roles }, { data: clientesRows }] = await Promise.all([
-  supabase.from("profiles").select("id"),
-  supabase.from("user_roles").select("user_id, role"),
-  supabase.from("clientes").select("user_id"),
-]);
+Suscribirme a cambios en `profiles`, `user_roles` y `clientes` para recalcular el contador automáticamente cuando se crea un usuario nuevo o se completa su configuración. Cleanup del canal al desmontar.
 
-const rolesByUser = new Map<string, string[]>();
-(roles ?? []).forEach((r) => {
-  const arr = rolesByUser.get(r.user_id) ?? [];
-  arr.push(r.role);
-  rolesByUser.set(r.user_id, arr);
-});
-const clientesVinculados = new Set(
-  (clientesRows ?? []).map((c) => c.user_id).filter(Boolean)
-);
+### 3. Indicador siempre visible para admin
 
-const sinConfigurar = (profs ?? []).filter((p) => {
-  const rls = rolesByUser.get(p.id) ?? [];
-  if (rls.length === 0) return true;
-  if (rls.length === 1 && rls[0] === "cliente" && !clientesVinculados.has(p.id)) return true;
-  return false;
-}).length;
+- Si `perfilesPendientes > 0` → badge rojo pulsante con el número (como hoy).
+- Si `perfilesPendientes === 0` → pequeño punto verde discreto en la esquina del cuadro Clientes con tooltip "Sin perfiles pendientes". Esto le da retroalimentación al admin de que el indicador está vivo y no roto.
 
-setPerfilesPendientes(sinConfigurar);
-```
+### 4. Fallback ante error de consulta
 
-El resto de la UI del badge (círculo rojo pulsante en la esquina del cuadro Clientes, navegación a `/app/admin/usuarios?filter=sin_rol`) ya está implementada y se mantiene igual.
+Envolver las consultas de pendientes en try/catch. Si falla, mostrar un badge gris con "!" y tooltip "No se pudo verificar pendientes" en vez de quedar invisible. Loggear el error en consola.
 
-### `src/pages/admin/Usuarios.tsx` (ajuste menor)
+### 5. Filtro en Usuarios
 
-Como ahora el filtro `sin_rol` no representa exactamente lo mismo que muestra el badge, se mantiene el comportamiento actual del filtro pero el badge llevará a una vista útil. Opcionalmente, se podría agregar un filtro nuevo "Pendientes de configurar" pero no es estrictamente necesario para resolver el problema reportado.
+Mantener el comportamiento actual de `?filter=sin_rol` y agregar soporte para `?filter=pendientes` que muestre todos los perfiles que cumplen la nueva definición (A+B+C). Esto requiere extender el filtrado en `src/pages/admin/Usuarios.tsx` cargando además los `clientes` para evaluar el caso C.
+
+## Detalles técnicos
+
+- `Dashboard.tsx`: extraer la lógica de cálculo a una función `calcularPendientes()` reutilizable por el efecto inicial y el handler de realtime.
+- Consulta `clientes` ampliada a `select('user_id, direccion, lista_precio_id, vendedor_id')`.
+- Canal realtime: `supabase.channel('dashboard-pendientes').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, recalcular).on(... 'user_roles' ...).on(... 'clientes' ...).subscribe()`.
+- Asegurar realtime en las tablas con `ALTER PUBLICATION supabase_realtime ADD TABLE ...` mediante migración (solo si no están ya en la publicación).
+- Tooltip con `title=""` nativo para no agregar dependencias.
 
 ## Resultado esperado
 
-Tras el cambio, en el Dashboard del super_admin/admin se verá un círculo rojo con el número **2** en la esquina superior derecha del cuadro **Clientes**, correspondiente a Yago Franco y Gringa que aún tienen solo el rol `cliente` por defecto y no han sido vinculados a una ficha en la tabla `clientes`.
-
-## Archivos modificados
-- `src/pages/Dashboard.tsx` — corregir lógica de conteo de perfiles pendientes
+Con los datos actuales el badge debería mostrar **2** (Yago y Gringa, asumiendo fichas comerciales incompletas). Si están completas, mostrará el punto verde de "todo al día". Cualquier usuario nuevo aparecerá reflejado al instante sin recargar.

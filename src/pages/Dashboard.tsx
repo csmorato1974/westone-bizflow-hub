@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<{ clientes: number; pedidos: number; pendientes: number; despachos: number }>({
     clientes: 0, pedidos: 0, pendientes: 0, despachos: 0,
   });
+  const [perfilesPendientes, setPerfilesPendientes] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -21,14 +22,25 @@ export default function Dashboard() {
         supabase.from("pedidos").select("*", { count: "exact", head: true }).in("estado", ["listo_despacho", "en_ruta"]),
       ]);
       setStats({ clientes: clientes ?? 0, pedidos: pedidos ?? 0, pendientes: pendientes ?? 0, despachos: despachos ?? 0 });
+
+      // Conteo de perfiles sin rol asignado (solo admin/super_admin)
+      if (isAdmin) {
+        const [{ data: profs }, { data: roles }] = await Promise.all([
+          supabase.from("profiles").select("id"),
+          supabase.from("user_roles").select("user_id"),
+        ]);
+        const conRol = new Set((roles ?? []).map((r: any) => r.user_id));
+        const sinRol = (profs ?? []).filter((p: any) => !conRol.has(p.id)).length;
+        setPerfilesPendientes(sinRol);
+      }
     })();
-  }, [user]);
+  }, [user, isAdmin]);
 
   const cards = [
-    { label: "Clientes", value: stats.clientes, icon: Users, link: hasRole("vendedor") ? "/app/clientes" : "/app/admin/clientes", show: isAdmin || hasRole("vendedor") },
-    { label: "Pedidos", value: stats.pedidos, icon: ShoppingCart, link: hasRole("cliente") ? "/app/mis-pedidos" : hasRole("vendedor") ? "/app/pedidos" : "/app/admin/pedidos", show: true },
-    { label: "Por aprobar", value: stats.pendientes, icon: Package, link: "/app/admin/pedidos", show: isAdmin },
-    { label: "En despacho", value: stats.despachos, icon: Truck, link: "/app/logistica", show: isAdmin || hasRole("logistica") },
+    { label: "Clientes", value: stats.clientes, icon: Users, link: hasRole("vendedor") ? "/app/clientes" : "/app/admin/clientes", show: isAdmin || hasRole("vendedor"), badge: isAdmin ? perfilesPendientes : 0 },
+    { label: "Pedidos", value: stats.pedidos, icon: ShoppingCart, link: hasRole("cliente") ? "/app/mis-pedidos" : hasRole("vendedor") ? "/app/pedidos" : "/app/admin/pedidos", show: true, badge: 0 },
+    { label: "Por aprobar", value: stats.pendientes, icon: Package, link: "/app/admin/pedidos", show: isAdmin, badge: 0 },
+    { label: "En despacho", value: stats.despachos, icon: Truck, link: "/app/logistica", show: isAdmin || hasRole("logistica"), badge: 0 },
   ];
 
   return (
@@ -39,17 +51,30 @@ export default function Dashboard() {
       </div>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.filter(c => c.show).map((c) => (
-          <Link key={c.label} to={c.link}>
-            <Card className="hover:border-brand transition-colors cursor-pointer h-full">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{c.label}</CardTitle>
-                <c.icon className="h-5 w-5 text-brand" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-display font-bold">{c.value}</div>
-              </CardContent>
-            </Card>
-          </Link>
+          <div key={c.label} className="relative">
+            <Link to={c.link}>
+              <Card className="hover:border-brand transition-colors cursor-pointer h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{c.label}</CardTitle>
+                  <c.icon className="h-5 w-5 text-brand" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-display font-bold">{c.value}</div>
+                </CardContent>
+              </Card>
+            </Link>
+            {c.badge > 0 && (
+              <Link
+                to="/app/admin/usuarios?filter=sin_rol"
+                className="absolute -top-2 -right-2 z-10"
+                title={`${c.badge} perfil(es) nuevo(s) pendiente(s) de configurar`}
+              >
+                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-bold px-2 shadow-lg animate-pulse ring-2 ring-background">
+                  {c.badge}
+                </span>
+              </Link>
+            )}
+          </div>
         ))}
       </div>
     </div>

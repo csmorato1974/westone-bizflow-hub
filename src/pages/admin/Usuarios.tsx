@@ -77,6 +77,18 @@ export default function AdminUsuarios() {
   };
   useEffect(() => { load(); }, []);
 
+  // Si llegamos con ?focus=, hacer scroll y resaltar la fila tras cargar
+  useEffect(() => {
+    if (!focusUserId || loading || rows.length === 0) return;
+    const el = rowRefs.current[focusUserId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(focusUserId);
+      const t = setTimeout(() => setHighlightedId(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [focusUserId, loading, rows.length]);
+
   const addRole = async (userId: string, role: AppRole) => {
     const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
     if (error) return toast.error(error.message);

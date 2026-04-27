@@ -99,6 +99,8 @@ export default function Dashboard() {
         });
 
         const perfiles: PerfilPendiente[] = [];
+
+        // 1) Perfiles (usuarios) con problemas de configuración
         (profs ?? []).forEach((p: any) => {
           const rls = rolesByUser.get(p.id) ?? [];
           const motivos: Motivo[] = [];
@@ -110,13 +112,16 @@ export default function Dashboard() {
             if (!ficha) {
               motivos.push("sin_ficha");
             } else {
-              if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
               if (!ficha.lista_precio_id) motivos.push("sin_lista");
               if (!ficha.vendedor_id) motivos.push("sin_vendedor");
+              // Dirección es informativa, no crítica
+              if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
             }
           }
 
-          if (motivos.length > 0) {
+          // Solo se incluye si tiene al menos un motivo crítico
+          const tieneCritico = motivos.some((m) => MOTIVOS_CRITICOS.includes(m));
+          if (tieneCritico) {
             const ficha = clientesByUser.get(p.id);
             perfiles.push({
               user_id: p.id,
@@ -124,6 +129,19 @@ export default function Dashboard() {
               full_name: p.full_name,
               email: p.email,
               motivos,
+            });
+          }
+        });
+
+        // 2) Fichas de clientes huérfanas (sin user_id vinculado)
+        (clientesRows ?? []).forEach((c: any) => {
+          if (!c.user_id) {
+            perfiles.push({
+              user_id: null,
+              cliente_id: c.id,
+              full_name: (c as any).empresa ?? (c as any).contacto ?? "(ficha sin usuario)",
+              email: (c as any).email ?? null,
+              motivos: ["ficha_sin_usuario"],
             });
           }
         });

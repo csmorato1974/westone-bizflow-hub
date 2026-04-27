@@ -19,6 +19,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showSPwd, setShowSPwd] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   // login
   const [email, setEmail] = useState("");

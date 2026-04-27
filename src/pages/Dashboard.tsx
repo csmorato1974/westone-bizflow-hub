@@ -183,14 +183,22 @@ export default function Dashboard() {
 
   const irAResolver = (perfil: PerfilPendiente) => {
     setPopoverOpen(false);
-    // Si el problema es de ficha comercial y existe ficha → ir a Clientes con focus
+    // Ficha huérfana o motivos comerciales con ficha existente → ir a Clientes
     const necesitaClientes =
       perfil.cliente_id &&
-      perfil.motivos.some((m) => m === "sin_direccion" || m === "sin_lista" || m === "sin_vendedor");
+      perfil.motivos.some(
+        (m) =>
+          m === "sin_lista" ||
+          m === "sin_vendedor" ||
+          m === "sin_direccion" ||
+          m === "ficha_sin_usuario",
+      );
     if (necesitaClientes) {
       navigate(`/app/admin/clientes?focus=${perfil.cliente_id}`);
-    } else {
+    } else if (perfil.user_id) {
       navigate(`/app/admin/usuarios?focus=${perfil.user_id}`);
+    } else {
+      navigate(`/app/admin/clientes`);
     }
   };
 

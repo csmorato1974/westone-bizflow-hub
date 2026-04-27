@@ -24,9 +24,18 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
+type FilterValue = AppRole | "all" | "sin_rol" | "pendientes";
 const ROLES: AppRole[] = ["super_admin", "admin", "vendedor", "logistica", "cliente"];
 
-interface Row { id: string; full_name: string | null; email: string | null; phone: string | null; roles: AppRole[]; }
+interface Row {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  roles: AppRole[];
+  fichaCompleta: boolean | null; // null = no aplica (no es solo cliente); true/false = estado de la ficha
+  tieneFicha: boolean;
+}
 
 export default function AdminUsuarios() {
   const { user, hasRole } = useAuth();
@@ -36,19 +45,31 @@ export default function AdminUsuarios() {
   const [adding, setAdding] = useState<Record<string, AppRole>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
-  const initialFilter = (searchParams.get("filter") as AppRole | "all" | "sin_rol" | null) ?? "all";
-  const [filterRole, setFilterRole] = useState<AppRole | "all" | "sin_rol">(initialFilter);
+  const initialFilter = (searchParams.get("filter") as FilterValue | null) ?? "all";
+  const [filterRole, setFilterRole] = useState<FilterValue>(initialFilter);
   const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);
-    const [{ data: profs }, { data: ur }] = await Promise.all([
+    const [{ data: profs }, { data: ur }, { data: cls }] = await Promise.all([
       supabase.from("profiles").select("id,full_name,email,phone").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
+      supabase.from("clientes").select("user_id,direccion,lista_precio_id,vendedor_id"),
     ]);
     const byUser = new Map<string, AppRole[]>();
     (ur ?? []).forEach((r: any) => { const a = byUser.get(r.user_id) ?? []; a.push(r.role); byUser.set(r.user_id, a); });
-    setRows((profs ?? []).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] })));
+    const fichaByUser = new Map<string, { direccion: string | null; lista_precio_id: string | null; vendedor_id: string | null }>();
+    (cls ?? []).forEach((c: any) => { if (c.user_id) fichaByUser.set(c.user_id, c); });
+
+    setRows((profs ?? []).map((p: any) => {
+      const roles = byUser.get(p.id) ?? [];
+      const ficha = fichaByUser.get(p.id);
+      const soloCliente = roles.length === 1 && roles[0] === "cliente";
+      const fichaCompleta = soloCliente && ficha
+        ? Boolean(ficha.direccion && ficha.lista_precio_id && ficha.vendedor_id)
+        : null;
+      return { ...p, roles, tieneFicha: !!ficha, fichaCompleta };
+    }));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);

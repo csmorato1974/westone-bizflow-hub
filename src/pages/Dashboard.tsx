@@ -47,6 +47,37 @@ type PendientesState =
   | { status: "ok"; perfiles: PerfilPendiente[] }
   | { status: "error" };
 
+const getMotivosPendientes = ({
+  roles,
+  ficha,
+}: {
+  roles: string[];
+  ficha?: {
+    lista_precio_id: string | null;
+    vendedor_id: string | null;
+    direccion: string | null;
+  } | null;
+}): Motivo[] => {
+  const motivos: Motivo[] = [];
+
+  if (roles.length === 0) {
+    motivos.push("sin_rol");
+    return motivos;
+  }
+
+  if (roles.length === 1 && roles[0] === "cliente") {
+    if (!ficha) {
+      motivos.push("sin_ficha");
+      return motivos;
+    }
+    if (!ficha.lista_precio_id) motivos.push("sin_lista");
+    if (!ficha.vendedor_id) motivos.push("sin_vendedor");
+    if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
+  }
+
+  return motivos;
+};
+
 export default function Dashboard() {
   const { isAdmin, hasRole, user } = useAuth();
   const navigate = useNavigate();
@@ -103,26 +134,12 @@ export default function Dashboard() {
         // 1) Perfiles (usuarios) con problemas de configuración
         (profs ?? []).forEach((p: any) => {
           const rls = rolesByUser.get(p.id) ?? [];
-          const motivos: Motivo[] = [];
-
-          if (rls.length === 0) {
-            motivos.push("sin_rol");
-          } else if (rls.length === 1 && rls[0] === "cliente") {
-            const ficha = clientesByUser.get(p.id);
-            if (!ficha) {
-              motivos.push("sin_ficha");
-            } else {
-              if (!ficha.lista_precio_id) motivos.push("sin_lista");
-              if (!ficha.vendedor_id) motivos.push("sin_vendedor");
-              // Dirección es informativa, no crítica
-              if (!ficha.direccion || !ficha.direccion.trim()) motivos.push("sin_direccion");
-            }
-          }
+          const ficha = clientesByUser.get(p.id);
+          const motivos = getMotivosPendientes({ roles: rls, ficha });
 
           // Solo se incluye si tiene al menos un motivo crítico
           const tieneCritico = motivos.some((m) => MOTIVOS_CRITICOS.includes(m));
           if (tieneCritico) {
-            const ficha = clientesByUser.get(p.id);
             perfiles.push({
               user_id: p.id,
               cliente_id: ficha?.id ?? null,
@@ -226,91 +243,89 @@ export default function Dashboard() {
     }
     if (pendientes.perfiles.length > 0) {
       return (
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="absolute -top-2 -right-2 z-20"
-              aria-label={`${pendientes.perfiles.length} perfiles pendientes de configurar`}
-              onPointerDown={(e) => { e.stopPropagation(); }}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            >
-              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs font-bold px-2 shadow-lg animate-pulse ring-2 ring-background cursor-pointer">
-                {pendientes.perfiles.length}
-              </span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            className="w-[360px] p-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start gap-2 border-b p-3">
-              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold leading-tight">
-                  {pendientes.perfiles.length} perfil{pendientes.perfiles.length === 1 ? "" : "es"} requiere{pendientes.perfiles.length === 1 ? "" : "n"} configuración
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cuentas nuevas o fichas incompletas
-                </p>
-              </div>
-            </div>
-            <div className="max-h-[320px] overflow-y-auto divide-y">
-              {pendientes.perfiles.map((p) => (
-                <div key={p.user_id ?? `cli-${p.cliente_id}`} className="p-3 space-y-2">
-                  <div>
-                    <p className="text-sm font-medium leading-tight">
-                      {p.full_name ?? "(sin nombre)"}
-                    </p>
-                    {p.email && (
-                      <p className="text-[11px] text-muted-foreground truncate">{p.email}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {p.motivos.map((m) => {
-                      const esCritico = MOTIVOS_CRITICOS.includes(m);
-                      return (
-                        <Badge
-                          key={m}
-                          variant="outline"
-                          className={
-                            esCritico
-                              ? "text-[10px] border-destructive/40 text-destructive bg-destructive/5 px-1.5 py-0"
-                              : "text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0"
-                          }
-                        >
-                          {MOTIVO_LABEL[m]}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1 w-full justify-center"
-                    onClick={() => irAResolver(p)}
-                  >
-                    Configurar <ArrowRight className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <div className="border-t p-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs w-full justify-center"
-                onClick={() => {
-                  setPopoverOpen(false);
-                  navigate("/app/admin/usuarios?filter=pendientes");
-                }}
+        <div className="absolute -top-2 -right-2 z-20" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex h-7 min-w-7 items-center justify-center rounded-full bg-destructive px-2 text-xs font-bold text-destructive-foreground shadow-lg ring-2 ring-background animate-pulse"
+                aria-label={`${pendientes.perfiles.length} perfiles pendientes de configurar`}
               >
-                Ver todos en Usuarios
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+                {pendientes.perfiles.length}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-[360px] p-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-2 border-b p-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div>
+                  <p className="text-sm font-semibold leading-tight">
+                    {pendientes.perfiles.length} perfil{pendientes.perfiles.length === 1 ? "" : "es"} requiere{pendientes.perfiles.length === 1 ? "" : "n"} configuración
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Cuentas nuevas o fichas incompletas
+                  </p>
+                </div>
+              </div>
+              <div className="max-h-[320px] divide-y overflow-y-auto">
+                {pendientes.perfiles.map((p) => (
+                  <div key={p.user_id ?? `cli-${p.cliente_id}`} className="space-y-2 p-3">
+                    <div>
+                      <p className="text-sm font-medium leading-tight">
+                        {p.full_name ?? "(sin nombre)"}
+                      </p>
+                      {p.email && (
+                        <p className="truncate text-[11px] text-muted-foreground">{p.email}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {p.motivos.map((m) => {
+                        const esCritico = MOTIVOS_CRITICOS.includes(m);
+                        return (
+                          <Badge
+                            key={m}
+                            variant="outline"
+                            className={
+                              esCritico
+                                ? "bg-destructive/5 px-1.5 py-0 text-[10px] text-destructive border-destructive/40"
+                                : "bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-700 dark:text-amber-400 border-amber-500/40"
+                            }
+                          >
+                            {MOTIVO_LABEL[m]}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 w-full justify-center gap-1 text-xs"
+                      onClick={() => irAResolver(p)}
+                    >
+                      Configurar <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t p-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-full justify-center text-xs"
+                  onClick={() => {
+                    setPopoverOpen(false);
+                    navigate("/app/admin/usuarios?filter=pendientes");
+                  }}
+                >
+                  Ver todos en Usuarios
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       );
     }
     // count === 0 → indicador discreto verde

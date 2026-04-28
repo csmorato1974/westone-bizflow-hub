@@ -33,7 +33,7 @@ interface Row {
   email: string | null;
   phone: string | null;
   roles: AppRole[];
-  fichaCompleta: boolean | null; // null = no aplica (no es solo cliente); true/false = estado de la ficha
+  fichaCompleta: boolean | null; // null = no aplica (no es solo cliente); true/false = estado crítico de la ficha
   tieneFicha: boolean;
 }
 
@@ -69,7 +69,7 @@ export default function AdminUsuarios() {
       const ficha = fichaByUser.get(p.id);
       const soloCliente = roles.length === 1 && roles[0] === "cliente";
       const fichaCompleta = soloCliente && ficha
-        ? Boolean(ficha.direccion && ficha.lista_precio_id && ficha.vendedor_id)
+        ? Boolean(ficha.lista_precio_id && ficha.vendedor_id)
         : null;
       return { ...p, roles, tieneFicha: !!ficha, fichaCompleta };
     }));

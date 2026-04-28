@@ -1,54 +1,70 @@
-# Corrección de la alerta de perfiles pendientes
+# Plan para corregir la alerta de configuración pendiente
 
-## Diagnóstico (confirmado en BD)
+## Diagnóstico confirmado
 
-Yago Franco aparece como pendiente porque su ficha tiene:
-- `vendedor_id`: ✅ asignado (Sergio Morón)
-- `lista_precio_id`: ✅ asignada
-- `direccion`: ❌ **NULL** ← único motivo que dispara la alerta
+La falla actual tiene dos causas separadas:
 
-El sistema **sí funciona**, pero el criterio actual trata la dirección como obligatoria, cuando en la práctica es un dato secundario que se completa luego de la asignación inicial.
+1. En el dashboard, el cálculo ya no debería seguir marcando a Yago Franco: en la base de datos tiene rol `cliente`, ficha vinculada, lista de precios, vendedor y dirección. Hoy el único pendiente real detectado por esa lógica es una ficha huérfana: `Coco Gas`.
+2. La experiencia sigue viéndose “mal” porque hay inconsistencia entre pantallas:
+   - `Dashboard.tsx` ya trata `sin_direccion` como informativo.
+   - `Usuarios.tsx` todavía usa `fichaCompleta = direccion + lista + vendedor`, así que sigue mostrando pendientes con la lógica vieja.
+3. Además, el popover del dashboard sigue arrojando warnings de refs con Radix, lo que puede romper o volver inestable la interacción.
 
-## Cambios
+## Qué voy a corregir
 
-### 1. Reclasificar motivos en `src/pages/Dashboard.tsx`
+### 1. Unificar la definición de “pendiente”
+Crear una sola regla de negocio y aplicarla en ambas vistas:
 
-Dividir los motivos en dos niveles:
+**Crítico (sí dispara alerta):**
+- sin rol
+- cliente sin ficha
+- cliente sin lista de precios
+- cliente sin vendedor
+- ficha sin usuario vinculado
 
-**Críticos** (disparan la alerta roja parpadeante):
-- `sin_rol` — usuario sin ningún rol
-- `sin_ficha` — rol cliente sin registro en `clientes`
-- `sin_lista` — cliente sin lista de precios
-- `sin_vendedor` — cliente sin vendedor asignado
+**Informativo (no dispara alerta por sí solo):**
+- sin dirección
 
-**Opcionales / informativos** (NO disparan alerta, pero se muestran como advertencia ámbar dentro del popover si el perfil ya tiene otro motivo crítico):
-- `sin_direccion` — dato comercial complementario
+Resultado esperado:
+- Yago Franco no debe aparecer como pendiente.
+- Un cliente nuevo sin lista o sin vendedor sí debe aparecer.
+- Una ficha huérfana sí debe aparecer.
+- Un cliente al que solo le falta dirección no debe activar la alerta roja.
 
-### 2. Lógica de filtrado
+### 2. Corregir `src/pages/admin/Usuarios.tsx`
+Actualizar `esPendiente` y `fichaCompleta` para que dejen de considerar la dirección como requisito crítico.
 
-```ts
-const CRITICOS: Motivo[] = ["sin_rol", "sin_ficha", "sin_lista", "sin_vendedor"];
-const tieneCritico = motivos.some(m => CRITICOS.includes(m));
-if (tieneCritico) perfiles.push({ ..., motivos });
-```
+También ajustaré el filtro `?filter=pendientes` para que muestre exactamente los mismos casos que el dashboard.
 
-Resultado esperado tras el fix:
-- **Yago Franco** → desaparece de la alerta (ya tiene rol, ficha, lista y vendedor).
-- **Calberto Solmo / Alberto Morato** → siguen sin marcar (vendedores, no requieren ficha).
-- Cualquier cliente nuevo sin lista o sin vendedor → sigue alertando como crítico.
+### 3. Corregir el popover del dashboard
+Reestructurar el trigger de la alerta para evitar conflictos con Radix y con el `<Link>` de la tarjeta.
 
-### 3. Detectar también fichas huérfanas (`clientes.user_id IS NULL`)
+Objetivo:
+- que el badge abra el popover de forma estable,
+- que no navegue accidentalmente al hacer click,
+- que desaparezcan los warnings de refs en consola.
 
-Hay una ficha `4e70949e…` con `user_id` nulo (sin login vinculado). Añadir un motivo `ficha_sin_usuario` y listarlas en el popover bajo una sección "Fichas sin usuario" con botón "Vincular" → `/app/admin/clientes?focus={cliente_id}`. Estas SÍ son críticas porque no podrán ingresar al sistema.
+### 4. Mantener la navegación contextual
+Conservar el comportamiento actual de resolución:
+- problemas de ficha/comerciales → `Clientes`
+- problemas de rol/usuario → `Usuarios`
 
-### 4. Visual del popover
-
-- Badges rojos para motivos críticos.
-- Badge ámbar pequeño "Sin dirección" cuando aplique, sólo como info adicional.
-- Si un perfil sólo tiene motivos opcionales → no aparece en el popover.
+Pero con la lógica ya corregida para que los destinos coincidan con lo que realmente falta configurar.
 
 ## Archivos a modificar
 
-- `src/pages/Dashboard.tsx` — reclasificación de motivos, filtrado por críticos, query adicional de fichas huérfanas, badges diferenciados.
+- `src/pages/Dashboard.tsx`
+- `src/pages/admin/Usuarios.tsx`
 
-No se requieren migraciones de BD.
+## Detalles técnicos
+
+- Extraeré o replicaré una lógica consistente de evaluación de motivos para evitar divergencias entre pantallas.
+- Revisaré el uso de `PopoverTrigger asChild` y la ubicación del badge respecto al `Link` de la card para asegurar compatibilidad con refs y eventos.
+- No se requieren cambios de base de datos ni migraciones.
+
+## Validación esperada
+
+Después del ajuste:
+- la alerta del dashboard solo contará pendientes críticos reales,
+- el filtro “Pendientes de configurar” en Usuarios mostrará el mismo conjunto,
+- el popover abrirá correctamente sin warnings de refs.

@@ -132,6 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        requestPasswordReset,
+        updatePassword,
         hasRole,
         isAdmin,
         refreshRoles,

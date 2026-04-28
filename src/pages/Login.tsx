@@ -71,6 +71,16 @@ export default function Login() {
     }
   };
 
+  const onResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetBusy(true);
+    const { error } = await requestPasswordReset(resetEmail);
+    setResetBusy(false);
+    if (error) return toast.error(error);
+    setResetSent(true);
+    toast.success("Te enviamos un enlace de recuperación");
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-dark p-4">
       <div className="mb-8">

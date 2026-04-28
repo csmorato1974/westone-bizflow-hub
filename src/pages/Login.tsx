@@ -124,6 +124,15 @@ export default function Login() {
                     </button>
                   </div>
                 </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setResetEmail(email); setResetSent(false); setResetOpen(true); }}
+                    className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
                 <Button type="submit" disabled={busy} className="w-full bg-primary text-brand hover:bg-primary/90 font-semibold uppercase tracking-wide">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
                 </Button>

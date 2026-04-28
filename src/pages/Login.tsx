@@ -195,6 +195,48 @@ export default function Login() {
       <p className="mt-6 text-xs text-brand/50 text-center">
         Acceso restringido · Plataforma B2B Westone Performance
       </p>
+
+      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) setResetSent(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recuperar contraseña</DialogTitle>
+            <DialogDescription>
+              Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+            </DialogDescription>
+          </DialogHeader>
+          {resetSent ? (
+            <Alert className="border-green-500/40 bg-green-500/10">
+              <MailCheck className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-xs leading-relaxed">
+                Te enviamos un enlace a <strong>{resetEmail}</strong>. Revisa tu bandeja de entrada y la carpeta de spam. El enlace expira en poco tiempo por seguridad.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <form onSubmit={onResetRequest} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="tu@email.com"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={resetBusy}>
+                  {resetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar enlace"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -46,6 +46,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/no-autorizado" element={<Unauthorized />} />
 
             <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>

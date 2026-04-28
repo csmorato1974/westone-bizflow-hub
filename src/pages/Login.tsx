@@ -37,6 +37,12 @@ export default function Login() {
   const [sPwd, setSPwd] = useState("");
   const [sName, setSName] = useState("");
 
+  // reset password
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+
   if (!loading && user) return <Navigate to={from} replace />;
 
   const onLogin = async (e: React.FormEvent) => {

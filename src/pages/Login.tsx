@@ -20,7 +20,7 @@ import { Loader2, Eye, EyeOff, MailCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, requestPasswordReset } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: Location })?.from?.pathname ?? "/app";

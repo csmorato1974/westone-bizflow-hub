@@ -1,70 +1,41 @@
-# Plan para corregir la alerta de configuración pendiente
+## Objetivo
 
-## Diagnóstico confirmado
+Permitir a los usuarios recuperar su contraseña cuando la han olvidado, mediante un enlace enviado por email.
 
-La falla actual tiene dos causas separadas:
+## Flujo de usuario
 
-1. En el dashboard, el cálculo ya no debería seguir marcando a Yago Franco: en la base de datos tiene rol `cliente`, ficha vinculada, lista de precios, vendedor y dirección. Hoy el único pendiente real detectado por esa lógica es una ficha huérfana: `Coco Gas`.
-2. La experiencia sigue viéndose “mal” porque hay inconsistencia entre pantallas:
-   - `Dashboard.tsx` ya trata `sin_direccion` como informativo.
-   - `Usuarios.tsx` todavía usa `fichaCompleta = direccion + lista + vendedor`, así que sigue mostrando pendientes con la lógica vieja.
-3. Además, el popover del dashboard sigue arrojando warnings de refs con Radix, lo que puede romper o volver inestable la interacción.
+1. En `/login`, el usuario hace clic en **"¿Olvidaste tu contraseña?"** (debajo del campo de contraseña).
+2. Se abre un diálogo donde ingresa su email y recibe un correo con un enlace de recuperación.
+3. Al hacer clic en el enlace, llega a `/reset-password` (ruta pública).
+4. Allí establece su nueva contraseña (mínimo 8 caracteres, con confirmación).
+5. Tras guardar, queda autenticado y se redirige a `/app`.
 
-## Qué voy a corregir
+## Cambios técnicos
 
-### 1. Unificar la definición de “pendiente”
-Crear una sola regla de negocio y aplicarla en ambas vistas:
+### 1. `src/contexts/AuthContext.tsx`
+Agregar dos métodos al contexto:
+- `requestPasswordReset(email)` → llama a `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${window.location.origin}/reset-password })`.
+- `updatePassword(newPassword)` → llama a `supabase.auth.updateUser({ password })`.
 
-**Crítico (sí dispara alerta):**
-- sin rol
-- cliente sin ficha
-- cliente sin lista de precios
-- cliente sin vendedor
-- ficha sin usuario vinculado
+### 2. `src/pages/Login.tsx`
+- Agregar enlace **"¿Olvidaste tu contraseña?"** debajo del campo de contraseña en la pestaña "Iniciar sesión".
+- Implementar un `Dialog` con un input de email y botón "Enviar enlace de recuperación".
+- Mostrar confirmación visual (Alert verde) cuando el correo se envía correctamente, indicando que revisen su bandeja de entrada y spam.
 
-**Informativo (no dispara alerta por sí solo):**
-- sin dirección
+### 3. Nueva página `src/pages/ResetPassword.tsx`
+- Ruta pública (sin `RequireAuth`).
+- Detecta el token de recuperación desde el hash de la URL (Supabase lo procesa automáticamente al cargar mediante `onAuthStateChange` con evento `PASSWORD_RECOVERY`).
+- Muestra formulario con: nueva contraseña, confirmar contraseña, ambos con toggle mostrar/ocultar.
+- Validaciones: mínimo 8 caracteres, ambas coinciden.
+- Al guardar exitosamente: toast de éxito y redirección a `/app`.
+- Si no hay sesión de recuperación válida (acceso directo a la URL): mostrar mensaje y enlace para volver al login.
+- Estilo coherente con `Login.tsx` (mismo logo Westone, gradient, Card industrial).
 
-Resultado esperado:
-- Yago Franco no debe aparecer como pendiente.
-- Un cliente nuevo sin lista o sin vendedor sí debe aparecer.
-- Una ficha huérfana sí debe aparecer.
-- Un cliente al que solo le falta dirección no debe activar la alerta roja.
+### 4. `src/App.tsx`
+- Importar `ResetPassword` y agregar la ruta pública: `<Route path="/reset-password" element={<ResetPassword />} />`.
 
-### 2. Corregir `src/pages/admin/Usuarios.tsx`
-Actualizar `esPendiente` y `fichaCompleta` para que dejen de considerar la dirección como requisito crítico.
+## Notas
 
-También ajustaré el filtro `?filter=pendientes` para que muestre exactamente los mismos casos que el dashboard.
-
-### 3. Corregir el popover del dashboard
-Reestructurar el trigger de la alerta para evitar conflictos con Radix y con el `<Link>` de la tarjeta.
-
-Objetivo:
-- que el badge abra el popover de forma estable,
-- que no navegue accidentalmente al hacer click,
-- que desaparezcan los warnings de refs en consola.
-
-### 4. Mantener la navegación contextual
-Conservar el comportamiento actual de resolución:
-- problemas de ficha/comerciales → `Clientes`
-- problemas de rol/usuario → `Usuarios`
-
-Pero con la lógica ya corregida para que los destinos coincidan con lo que realmente falta configurar.
-
-## Archivos a modificar
-
-- `src/pages/Dashboard.tsx`
-- `src/pages/admin/Usuarios.tsx`
-
-## Detalles técnicos
-
-- Extraeré o replicaré una lógica consistente de evaluación de motivos para evitar divergencias entre pantallas.
-- Revisaré el uso de `PopoverTrigger asChild` y la ubicación del badge respecto al `Link` de la card para asegurar compatibilidad con refs y eventos.
-- No se requieren cambios de base de datos ni migraciones.
-
-## Validación esperada
-
-Después del ajuste:
-- la alerta del dashboard solo contará pendientes críticos reales,
-- el filtro “Pendientes de configurar” en Usuarios mostrará el mismo conjunto,
-- el popover abrirá correctamente sin warnings de refs.
+- Lovable Cloud envía los correos de recuperación automáticamente con plantillas por defecto. No es necesario configurar dominio de email ni plantillas personalizadas para que funcione (eso queda como mejora opcional posterior si se desea branding propio).
+- La ruta `/reset-password` debe ser pública para evitar que `RequireAuth` la bloquee antes de que el usuario complete el cambio.
+- El listener de `onAuthStateChange` ya existente en `AuthContext` capturará el evento `PASSWORD_RECOVERY` correctamente sin cambios adicionales.

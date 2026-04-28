@@ -6,13 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff, MailCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, requestPasswordReset } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: Location })?.from?.pathname ?? "/app";
@@ -28,6 +36,12 @@ export default function Login() {
   const [sEmail, setSEmail] = useState("");
   const [sPwd, setSPwd] = useState("");
   const [sName, setSName] = useState("");
+
+  // reset password
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
 
   if (!loading && user) return <Navigate to={from} replace />;
 
@@ -55,6 +69,16 @@ export default function Login() {
       setSignupSuccess(true);
       toast.success("Cuenta creada. Revisa tu email para verificarla.");
     }
+  };
+
+  const onResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetBusy(true);
+    const { error } = await requestPasswordReset(resetEmail);
+    setResetBusy(false);
+    if (error) return toast.error(error);
+    setResetSent(true);
+    toast.success("Te enviamos un enlace de recuperación");
   };
 
   return (
@@ -99,6 +123,15 @@ export default function Login() {
                       {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setResetEmail(email); setResetSent(false); setResetOpen(true); }}
+                    className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
                 </div>
                 <Button type="submit" disabled={busy} className="w-full bg-primary text-brand hover:bg-primary/90 font-semibold uppercase tracking-wide">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
@@ -162,6 +195,48 @@ export default function Login() {
       <p className="mt-6 text-xs text-brand/50 text-center">
         Acceso restringido · Plataforma B2B Westone Performance
       </p>
+
+      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) setResetSent(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recuperar contraseña</DialogTitle>
+            <DialogDescription>
+              Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+            </DialogDescription>
+          </DialogHeader>
+          {resetSent ? (
+            <Alert className="border-green-500/40 bg-green-500/10">
+              <MailCheck className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-xs leading-relaxed">
+                Te enviamos un enlace a <strong>{resetEmail}</strong>. Revisa tu bandeja de entrada y la carpeta de spam. El enlace expira en poco tiempo por seguridad.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <form onSubmit={onResetRequest} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="tu@email.com"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={resetBusy}>
+                  {resetBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar enlace"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

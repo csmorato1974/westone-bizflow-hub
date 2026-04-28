@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
@@ -45,6 +46,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/no-autorizado" element={<Unauthorized />} />
 
             <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>

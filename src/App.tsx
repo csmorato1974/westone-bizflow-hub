@@ -33,6 +33,7 @@ import AdminStock from "./pages/admin/Stock";
 import AdminPedidos from "./pages/admin/Pedidos";
 import AdminWhatsapp from "./pages/admin/Whatsapp";
 import AdminAuditoria from "./pages/admin/Auditoria";
+import AdminImportarClientes from "./pages/admin/ImportarClientes";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="admin/pedidos" element={<RequireAuth roles={["admin","super_admin"]}><AdminPedidos /></RequireAuth>} />
               <Route path="admin/whatsapp" element={<RequireAuth roles={["admin","super_admin"]}><AdminWhatsapp /></RequireAuth>} />
               <Route path="admin/auditoria" element={<RequireAuth roles={["admin","super_admin"]}><AdminAuditoria /></RequireAuth>} />
+              <Route path="admin/importar-clientes" element={<RequireAuth roles={["super_admin"]}><AdminImportarClientes /></RequireAuth>} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

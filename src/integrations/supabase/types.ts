@@ -48,48 +48,63 @@ export type Database = {
         Row: {
           activo: boolean
           celular: string
+          ciudad: string | null
+          codigo_cliente_externo: string | null
           contacto: string
           created_at: string
           direccion: string | null
           email: string | null
+          email_provisional: boolean
           empresa: string
+          external_import_key: string | null
           id: string
           latitud: number | null
           lista_precio_id: string | null
           longitud: number | null
           notas: string | null
+          telefono_normalizado: string | null
           user_id: string | null
           vendedor_id: string | null
         }
         Insert: {
           activo?: boolean
           celular: string
+          ciudad?: string | null
+          codigo_cliente_externo?: string | null
           contacto: string
           created_at?: string
           direccion?: string | null
           email?: string | null
+          email_provisional?: boolean
           empresa: string
+          external_import_key?: string | null
           id?: string
           latitud?: number | null
           lista_precio_id?: string | null
           longitud?: number | null
           notas?: string | null
+          telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
         }
         Update: {
           activo?: boolean
           celular?: string
+          ciudad?: string | null
+          codigo_cliente_externo?: string | null
           contacto?: string
           created_at?: string
           direccion?: string | null
           email?: string | null
+          email_provisional?: boolean
           empresa?: string
+          external_import_key?: string | null
           id?: string
           latitud?: number | null
           lista_precio_id?: string | null
           longitud?: number | null
           notas?: string | null
+          telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
         }
@@ -162,6 +177,54 @@ export type Database = {
           nombre?: string | null
           tipo?: Database["public"]["Enums"]["conversation_type"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      import_batches: {
+        Row: {
+          actualizados: number
+          archivo: string | null
+          creados: number
+          created_at: string
+          detalle: Json
+          errores: number
+          id: string
+          omitidos: number
+          origen: string
+          revision: number
+          total_filas: number
+          user_id: string
+          vinculados: number
+        }
+        Insert: {
+          actualizados?: number
+          archivo?: string | null
+          creados?: number
+          created_at?: string
+          detalle?: Json
+          errores?: number
+          id?: string
+          omitidos?: number
+          origen: string
+          revision?: number
+          total_filas?: number
+          user_id: string
+          vinculados?: number
+        }
+        Update: {
+          actualizados?: number
+          archivo?: string | null
+          creados?: number
+          created_at?: string
+          detalle?: Json
+          errores?: number
+          id?: string
+          omitidos?: number
+          origen?: string
+          revision?: number
+          total_filas?: number
+          user_id?: string
+          vinculados?: number
         }
         Relationships: []
       }
@@ -527,8 +590,10 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string | null
+          email_provisional: boolean
           full_name: string | null
           id: string
+          must_change_password: boolean
           phone: string | null
           updated_at: string
         }
@@ -536,8 +601,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_provisional?: boolean
           full_name?: string | null
           id: string
+          must_change_password?: boolean
           phone?: string | null
           updated_at?: string
         }
@@ -545,8 +612,10 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_provisional?: boolean
           full_name?: string | null
           id?: string
+          must_change_password?: boolean
           phone?: string | null
           updated_at?: string
         }

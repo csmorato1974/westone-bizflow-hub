@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Truck, Shield,
-  ListOrdered, ClipboardList, Settings, MessageCircle, FileText,
+  ListOrdered, ClipboardList, Settings, MessageCircle, FileText, Upload,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -59,7 +59,10 @@ export function AppSidebar() {
     : [];
 
   const superAdminItems: NavItem[] = isSuper
-    ? [{ title: "Usuarios", url: "/app/admin/usuarios", icon: Shield }]
+    ? [
+        { title: "Usuarios", url: "/app/admin/usuarios", icon: Shield },
+        { title: "Importar clientes", url: "/app/admin/importar-clientes", icon: Upload },
+      ]
     : isAdmin
     ? [{ title: "Usuarios", url: "/app/admin/usuarios", icon: Shield }]
     : [];

@@ -115,10 +115,24 @@ export function buildProvisionalEmail(nombreNormalizado: string, telefono: strin
   return `${base}-${tel}@${PROVISIONAL_EMAIL_DOMAIN}`;
 }
 
-export function buildProvisionalPassword(telefono: string, key: string): string {
-  const base = telefono && telefono.length >= 6 ? telefono : stableHash(key).toUpperCase();
-  return `Wst-${base}-25`;
+/**
+ * Contraseña provisional CRIPTOGRÁFICAMENTE ALEATORIA.
+ * Nunca se deriva del teléfono ni de ningún dato personal: debe ser impredecible.
+ * Solo se genera en el servidor (edge function) y se entrega una única vez al super admin.
+ */
+export function buildProvisionalPassword(_telefono?: string, _key?: string): string {
+  const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const simbolos = "!@#$%*?-_";
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += alfabeto[bytes[i] % alfabeto.length];
+  const extra = new Uint8Array(2);
+  crypto.getRandomValues(extra);
+  // Garantiza complejidad: mayúscula, minúscula, dígito y símbolo.
+  return `W${out}${extra[0] % 10}${simbolos[extra[1] % simbolos.length]}`;
 }
+
 
 export function similarity(a: string, b: string): number {
   if (!a || !b) return 0;

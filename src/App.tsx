@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import CambiarPassword from "./pages/CambiarPassword";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 import Index from "./pages/Index";
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/cambiar-password" element={<RequireAuth allowPasswordChange><CambiarPassword /></RequireAuth>} />
             <Route path="/no-autorizado" element={<Unauthorized />} />
 
             <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>

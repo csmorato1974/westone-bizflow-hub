@@ -165,11 +165,10 @@ export function buildProvisionalEmail(nombreNormalizado: string, telefono: strin
   return `${base}-${tel}@${PROVISIONAL_EMAIL_DOMAIN}`;
 }
 
-/** Contraseña provisional derivada del teléfono. Temporal: debe cambiarse. */
-export function buildProvisionalPassword(telefono: string, key: string): string {
-  const base = telefono && telefono.length >= 6 ? telefono : stableHash(key).toUpperCase();
-  return `Wst-${base}-25`;
-}
+// NOTA DE SEGURIDAD: la generación de contraseñas provisionales vive exclusivamente
+// en el servidor (supabase/functions/import-clientes/rules.ts) y es aleatoria.
+// No debe existir ninguna versión de ese algoritmo en el bundle del cliente.
+
 
 /** Similitud 0..1 basada en distancia de Levenshtein normalizada. */
 export function similarity(a: string, b: string): number {

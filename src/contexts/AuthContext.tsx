@@ -1,33 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { AuthContext, type AppRole, type ProfileInfo } from "@/contexts/auth-core";
 
-export type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
-
-interface ProfileInfo {
-  full_name: string | null;
-  avatar_url: string | null;
-  must_change_password: boolean;
-}
-
-interface AuthContextValue {
-  user: User | null;
-  session: Session | null;
-  roles: AppRole[];
-  profile: ProfileInfo | null;
-  loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
-  updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
-  hasRole: (role: AppRole) => boolean;
-  isAdmin: boolean;
-  refreshRoles: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export { useAuth, AuthContext } from "@/contexts/auth-core";
+export type { AppRole, AuthContextValue, ProfileInfo } from "@/contexts/auth-core";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -152,10 +129,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

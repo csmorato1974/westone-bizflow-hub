@@ -304,6 +304,29 @@ export default function AdminClientes() {
     setOpen(true);
   };
 
+  const abrirFicha = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("focus", id);
+    setSearchParams(next, { replace: true });
+  };
+
+  // ?focus= abre la ficha real una sola vez (además de resaltar la fila)
+  useEffect(() => {
+    if (!focusClienteId || loading) return;
+    if (fichaAbiertaRef.current === focusClienteId) return;
+    const c = clientes.find((x) => x.id === focusClienteId);
+    if (!c) return;
+    fichaAbiertaRef.current = focusClienteId;
+    openEdit(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusClienteId, loading, clientes]);
+
+  useEffect(() => {
+    if (!focusClienteId) fichaAbiertaRef.current = null;
+  }, [focusClienteId]);
+
+
+
   const openCreateForUser = (u: User) => {
     setMode("create-from-user");
     setEditing(null);

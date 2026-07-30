@@ -180,6 +180,98 @@ export type Database = {
         }
         Relationships: []
       }
+      import_batch_issues: {
+        Row: {
+          batch_id: string | null
+          claves_conocidas: string[]
+          cliente_id: string | null
+          created_at: string
+          datos_corregidos: Json | null
+          datos_normalizados: Json
+          datos_originales: Json
+          estado: string
+          estado_caso: Database["public"]["Enums"]["import_issue_estado"]
+          external_import_key: string | null
+          fila: number
+          historial: Json
+          id: string
+          identidad_key: string
+          intentos: number
+          motivo: string
+          notas: string | null
+          observaciones: string[]
+          profile_id: string | null
+          resuelto_en: string | null
+          resuelto_por: string | null
+          tipo_problema: Database["public"]["Enums"]["import_issue_tipo"]
+          ultimo_intento: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          claves_conocidas?: string[]
+          cliente_id?: string | null
+          created_at?: string
+          datos_corregidos?: Json | null
+          datos_normalizados?: Json
+          datos_originales?: Json
+          estado: string
+          estado_caso?: Database["public"]["Enums"]["import_issue_estado"]
+          external_import_key?: string | null
+          fila: number
+          historial?: Json
+          id?: string
+          identidad_key: string
+          intentos?: number
+          motivo?: string
+          notas?: string | null
+          observaciones?: string[]
+          profile_id?: string | null
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          tipo_problema?: Database["public"]["Enums"]["import_issue_tipo"]
+          ultimo_intento?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          claves_conocidas?: string[]
+          cliente_id?: string | null
+          created_at?: string
+          datos_corregidos?: Json | null
+          datos_normalizados?: Json
+          datos_originales?: Json
+          estado?: string
+          estado_caso?: Database["public"]["Enums"]["import_issue_estado"]
+          external_import_key?: string | null
+          fila?: number
+          historial?: Json
+          id?: string
+          identidad_key?: string
+          intentos?: number
+          motivo?: string
+          notas?: string | null
+          observaciones?: string[]
+          profile_id?: string | null
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          tipo_problema?: Database["public"]["Enums"]["import_issue_tipo"]
+          ultimo_intento?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_batch_issues_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_batches: {
         Row: {
           actualizados: number
@@ -745,6 +837,17 @@ export type Database = {
     Enums: {
       app_role: "super_admin" | "admin" | "vendedor" | "logistica" | "cliente"
       conversation_type: "direct" | "channel"
+      import_issue_estado: "pendiente" | "reintentado" | "resuelto" | "ignorado"
+      import_issue_tipo:
+        | "error_de_formato"
+        | "datos_incompletos"
+        | "duplicado_probable"
+        | "conflicto_desde_preview"
+        | "referencia_no_encontrada"
+        | "error_auth"
+        | "error_profile"
+        | "error_cliente"
+        | "error_desconocido"
       pedido_estado:
         | "borrador"
         | "enviado"
@@ -888,6 +991,18 @@ export const Constants = {
     Enums: {
       app_role: ["super_admin", "admin", "vendedor", "logistica", "cliente"],
       conversation_type: ["direct", "channel"],
+      import_issue_estado: ["pendiente", "reintentado", "resuelto", "ignorado"],
+      import_issue_tipo: [
+        "error_de_formato",
+        "datos_incompletos",
+        "duplicado_probable",
+        "conflicto_desde_preview",
+        "referencia_no_encontrada",
+        "error_auth",
+        "error_profile",
+        "error_cliente",
+        "error_desconocido",
+      ],
       pedido_estado: [
         "borrador",
         "enviado",

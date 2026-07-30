@@ -26,6 +26,9 @@ import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
+import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";
+import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
   id: string;
@@ -38,12 +41,31 @@ interface Cliente {
   longitud: number | null;
   notas: string | null;
   activo: boolean;
+  created_at: string;
+  email_provisional: boolean | null;
   vendedor_id: string | null;
   lista_precio_id: string | null;
   user_id: string | null;
 }
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
-interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; roles?: AppRole[]; }
+interface User {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone?: string | null;
+  must_change_password?: boolean | null;
+  email_provisional?: boolean | null;
+  roles?: AppRole[];
+}
+
+const FILTROS: { key: FiltroEstado; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "vinculadas", label: "Vinculadas" },
+  { key: "provisionales", label: "Provisionales" },
+  { key: "sin_vendedor", label: "Sin vendedor" },
+  { key: "incompletas", label: "Incompletas" },
+  { key: "atencion", label: "Requieren atención" },
+];
 
 type FormMode = "edit" | "create-from-user";
 

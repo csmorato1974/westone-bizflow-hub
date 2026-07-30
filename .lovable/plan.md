@@ -1,41 +1,38 @@
-## Objetivo
+## Diagnóstico (verificado)
 
-Permitir a los usuarios recuperar su contraseña cuando la han olvidado, mediante un enlace enviado por email.
+El Dashboard **ya consulta la base de datos** (clientes, pedidos, perfiles, roles). El problema no está en el código de la página: **ninguna tabla del esquema `public` tiene permisos concedidos a los roles de la API de datos**.
 
-## Flujo de usuario
+Consultado ahora mismo:
+- La BD sí tiene datos: 268 clientes, 271 perfiles, 274 roles, 14 productos, 2 pedidos.
+- Las políticas de acceso (RLS) existen y son correctas para admin/super admin.
+- Pero la consulta de permisos devuelve **cero filas**: los roles `authenticated`, `anon` y `service_role` no tienen SELECT/INSERT/UPDATE/DELETE sobre ninguna tabla.
 
-1. En `/login`, el usuario hace clic en **"¿Olvidaste tu contraseña?"** (debajo del campo de contraseña).
-2. Se abre un diálogo donde ingresa su email y recibe un correo con un enlace de recuperación.
-3. Al hacer clic en el enlace, llega a `/reset-password` (ruta pública).
-4. Allí establece su nueva contraseña (mínimo 8 caracteres, con confirmación).
-5. Tras guardar, queda autenticado y se redirige a `/app`.
+Sin esos permisos, cada consulta desde la app devuelve un error de permiso, por lo que el Dashboard muestra 0 en todas las tarjetas y las listas quedan vacías. Esto afecta a toda la app, no solo al Dashboard.
 
-## Cambios técnicos
+## Qué haré
 
-### 1. `src/contexts/AuthContext.tsx`
-Agregar dos métodos al contexto:
-- `requestPasswordReset(email)` → llama a `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${window.location.origin}/reset-password })`.
-- `updatePassword(newPassword)` → llama a `supabase.auth.updateUser({ password })`.
+1. **Migración de permisos**: conceder, tabla por tabla del esquema `public`:
+   - `SELECT, INSERT, UPDATE, DELETE` a `authenticated` (las políticas RLS siguen filtrando qué filas ve cada rol; nadie ve de más).
+   - `ALL` a `service_role` (necesario para las funciones de servidor: importación de clientes, borrado de usuarios).
+   - **Sin** permisos a `anon`: no hay contenido público en esta app, todo requiere sesión iniciada.
 
-### 2. `src/pages/Login.tsx`
-- Agregar enlace **"¿Olvidaste tu contraseña?"** debajo del campo de contraseña en la pestaña "Iniciar sesión".
-- Implementar un `Dialog` con un input de email y botón "Enviar enlace de recuperación".
-- Mostrar confirmación visual (Alert verde) cuando el correo se envía correctamente, indicando que revisen su bandeja de entrada y spam.
+2. **Verificación posterior**:
+   - Volver a consultar el catálogo de permisos para confirmar que cada tabla quedó cubierta.
+   - Abrir la app en navegador con sesión de super admin y comprobar que el Dashboard muestra los conteos reales (clientes, pedidos, por aprobar, en despacho) y que la alerta de perfiles pendientes se calcula.
 
-### 3. Nueva página `src/pages/ResetPassword.tsx`
-- Ruta pública (sin `RequireAuth`).
-- Detecta el token de recuperación desde el hash de la URL (Supabase lo procesa automáticamente al cargar mediante `onAuthStateChange` con evento `PASSWORD_RECOVERY`).
-- Muestra formulario con: nueva contraseña, confirmar contraseña, ambos con toggle mostrar/ocultar.
-- Validaciones: mínimo 8 caracteres, ambas coinciden.
-- Al guardar exitosamente: toast de éxito y redirección a `/app`.
-- Si no hay sesión de recuperación válida (acceso directo a la URL): mostrar mensaje y enlace para volver al login.
-- Estilo coherente con `Login.tsx` (mismo logo Westone, gradient, Card industrial).
+3. **Ajuste menor en el Dashboard**: hoy, si la consulta de conteos falla, las tarjetas muestran silenciosamente `0`. Añadiré manejo de error para que, si vuelve a haber un fallo de acceso, la tarjeta muestre un indicador de error en vez de un cero engañoso.
 
-### 4. `src/App.tsx`
-- Importar `ResetPassword` y agregar la ruta pública: `<Route path="/reset-password" element={<ResetPassword />} />`.
+## Observación adicional (fuera del alcance, para tu decisión)
 
-## Notas
+Al revisar la BD detecté que **no hay ningún trigger activo**, aunque las funciones sí existen. Eso significa que ahora mismo:
+- Al registrarse un usuario nuevo no se crea automáticamente su perfil ni su rol (`handle_new_user`).
+- No se valida el precio de las líneas de pedido contra la lista asignada.
+- No se actualizan solas las marcas de tiempo ni el orden de conversaciones del chat.
 
-- Lovable Cloud envía los correos de recuperación automáticamente con plantillas por defecto. No es necesario configurar dominio de email ni plantillas personalizadas para que funcione (eso queda como mejora opcional posterior si se desea branding propio).
-- La ruta `/reset-password` debe ser pública para evitar que `RequireAuth` la bloquee antes de que el usuario complete el cambio.
-- El listener de `onAuthStateChange` ya existente en `AuthContext` capturará el evento `PASSWORD_RECOVERY` correctamente sin cambios adicionales.
+No lo incluyo en este plan porque pediste específicamente el Dashboard, pero conviene restaurarlo en un paso siguiente. Dime si lo agrego.
+
+## Detalles técnicos
+
+- Migración SQL única con un bloque `DO` que recorre las tablas base de `public` y aplica `GRANT` solo donde falte, más `GRANT ALL ... TO service_role`.
+- No se modifican políticas RLS ni el esquema: solo privilegios de la API de datos.
+- Cambio de frontend acotado a `src/pages/Dashboard.tsx` (estado de error en `cargarStats`).

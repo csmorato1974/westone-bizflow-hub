@@ -84,6 +84,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<{ clientes: number; pedidos: number; pendientes: number; despachos: number }>({
     clientes: 0, pedidos: 0, pendientes: 0, despachos: 0,
   });
+  const [statsError, setStatsError] = useState(false);
   const [pendientes, setPendientes] = useState<PendientesState>({ status: "loading" });
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -93,15 +94,24 @@ export default function Dashboard() {
     let cancelled = false;
 
     const cargarStats = async () => {
-      const [{ count: clientes }, { count: pedidos }, { count: pend }, { count: despachos }] = await Promise.all([
+      const res = await Promise.all([
         supabase.from("clientes").select("*", { count: "exact", head: true }),
         supabase.from("pedidos").select("*", { count: "exact", head: true }),
         supabase.from("pedidos").select("*", { count: "exact", head: true }).in("estado", ["enviado", "aprobado"]),
         supabase.from("pedidos").select("*", { count: "exact", head: true }).in("estado", ["listo_despacho", "en_ruta"]),
       ]);
       if (cancelled) return;
-      setStats({ clientes: clientes ?? 0, pedidos: pedidos ?? 0, pendientes: pend ?? 0, despachos: despachos ?? 0 });
+      const fallo = res.find((r) => r.error);
+      if (fallo) {
+        console.error("[Dashboard] Error cargando métricas:", fallo.error);
+        setStatsError(true);
+        return;
+      }
+      setStatsError(false);
+      const [clientes, pedidos, pend, despachos] = res.map((r) => r.count ?? 0);
+      setStats({ clientes, pedidos, pendientes: pend, despachos });
     };
+
 
     // Calcula perfiles "pendientes de configurar" con sus motivos (multimodal):
     //  - sin_rol: 0 roles
@@ -353,8 +363,16 @@ export default function Dashboard() {
                   <c.icon className="h-5 w-5 text-brand" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-display font-bold">{c.value}</div>
+                  {statsError ? (
+                    <div className="flex items-center gap-1.5 text-destructive" title="No se pudo leer el dato de la base de datos">
+                      <AlertCircle className="h-5 w-5" />
+                      <span className="text-sm font-medium">Sin datos</span>
+                    </div>
+                  ) : (
+                    <div className="text-3xl font-display font-bold">{c.value}</div>
+                  )}
                 </CardContent>
+
               </Card>
             </Link>
             {c.key === "clientes" && renderIndicadorPendientes()}

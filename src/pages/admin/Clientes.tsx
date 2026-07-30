@@ -82,10 +82,27 @@ export default function AdminClientes() {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const focusClienteId = searchParams.get("focus");
+  const view = searchParams.get("view") === "cards" ? "cards" : "list";
+  const [estadoFilter, setEstadoFilter] = useState<FiltroEstado>("todos");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const rowRefs = useRef<Record<string, HTMLElement | null>>({});
+  const fichaAbiertaRef = useRef<string | null>(null);
+
+  const setView = (v: "cards" | "list") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("view", v);
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFocus = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    if (next.has("focus")) {
+      next.delete("focus");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");

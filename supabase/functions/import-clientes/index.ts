@@ -202,7 +202,185 @@ Deno.serve(async (req) => {
       return { m, observaciones, accion };
     };
 
+    /**
+     * Aplicación de la acción decidida. Es la ÚNICA ruta de escritura: la usan
+     * tanto el commit por lotes como el reintento individual de una incidencia.
+     */
+    const ejecutarAccion = async (
+      n: NormalizedRow,
+      accion: Accion,
+      clienteTarget: string | null,
+      base: ResultRow,
+    ) => {
+      const vendedor_id = resolveVendedor(n.vendedor_asignado);
+      const lista_precio_id = resolveLista(n.lista_precio);
+
+      if (accion === "crear") {
+        const conciliado = await asegurarCuenta(admin, n, profileByEmail, base.observaciones);
+        base.user_id = conciliado.user_id;
+        base.profile_id = conciliado.user_id;
+        if (conciliado.password) base.password_provisional = conciliado.password;
+
+        // Si al conciliar apareció una ficha ya vinculada, se actualiza en vez de duplicar
+        const fichaExistente =
+          existentes.find((c) => c.user_id === conciliado.user_id) ??
+          (n.external_import_key
+            ? existentes.find((c) => c.external_import_key === n.external_import_key)
+            : undefined);
+        if (fichaExistente) {
+          await actualizarFicha(admin, fichaExistente.id, n, vendedor_id, lista_precio_id, conciliado.user_id);
+          base.cliente_id = fichaExistente.id;
+          base.accion_tomada = "actualizar";
+          base.observaciones = [
+            ...base.observaciones,
+            "La cuenta ya tenía ficha de cliente: se actualizó en lugar de crear una nueva",
+          ];
+        } else {
+          const nueva = await crearFicha(admin, n, vendedor_id, lista_precio_id, conciliado.user_id);
+          base.cliente_id = nueva;
+          base.accion_tomada = "crear";
+          existentes.push({
+            id: nueva,
+            user_id: conciliado.user_id,
+            empresa: n.empresa,
+            contacto: n.nombre,
+            celular: n.original.telefono,
+            email: n.email,
+            direccion: n.direccion,
+            ciudad: n.ciudad,
+            vendedor_id,
+            lista_precio_id,
+            telefono_normalizado: n.telefono_normalizado,
+            external_import_key: n.external_import_key,
+          });
+        }
+      } else if (accion === "actualizar" && clienteTarget) {
+        const ficha = existentes.find((c) => c.id === clienteTarget);
+        await actualizarFicha(admin, clienteTarget, n, vendedor_id, lista_precio_id, ficha?.user_id ?? null);
+        base.cliente_id = clienteTarget;
+        base.user_id = ficha?.user_id ?? null;
+        base.profile_id = ficha?.user_id ?? null;
+        base.accion_tomada = "actualizar";
+      } else if (accion === "vincular" && clienteTarget) {
+        const ficha = existentes.find((c) => c.id === clienteTarget);
+        let userId = ficha?.user_id ?? null;
+        if (!userId) {
+          const conciliado = await asegurarCuenta(admin, n, profileByEmail, base.observaciones);
+          userId = conciliado.user_id;
+          if (conciliado.password) base.password_provisional = conciliado.password;
+        }
+        await admin
+          .from("clientes")
+          .update({ user_id: userId, external_import_key: n.external_import_key })
+          .eq("id", clienteTarget);
+        base.cliente_id = clienteTarget;
+        base.user_id = userId;
+        base.profile_id = userId;
+        base.accion_tomada = "vincular";
+      } else {
+        base.accion_tomada = "ignorar";
+      }
+    };
+
     const results: ResultRow[] = [];
+
+    /* -------------------- REINTENTO DE UNA INCIDENCIA -------------------- */
+    if (mode === "retry_issue") {
+      const { data: issue } = await admin
+        .from("import_batch_issues")
+        .select("*")
+        .eq("id", issueId!)
+        .maybeSingle();
+      if (!issue) return json({ error: "La incidencia no existe" }, 404);
+
+      const n = normalizados[0];
+      const { m, observaciones } = evaluar(n);
+      const base: ResultRow = {
+        fila: issue.fila as number,
+        nombre: n.nombre,
+        empresa: n.empresa,
+        telefono_normalizado: n.telefono_normalizado,
+        email: n.email,
+        email_provisional: n.email_provisional,
+        estado: m.estado,
+        accion_propuesta: issueAccion,
+        accion_tomada: "ignorar",
+        motivo: m.motivo,
+        cambios: m.cambios,
+        observaciones,
+        external_import_key: n.external_import_key,
+        cliente_id: issueClienteId ?? m.cliente_id,
+        user_id: null,
+        profile_id: null,
+      };
+
+      let ok = true;
+      try {
+        if (issueAccion === "ignorar") {
+          base.accion_tomada = "ignorar";
+        } else {
+          await ejecutarAccion(n, issueAccion, issueClienteId ?? m.cliente_id, base);
+        }
+      } catch (e) {
+        ok = false;
+        base.estado = "error";
+        base.accion_tomada = "error";
+        base.motivo = e instanceof Error ? e.message : "Error desconocido";
+      }
+
+      const claves = new Set<string>([
+        ...((issue.claves_conocidas as string[]) ?? []),
+        ...(n.external_import_key ? [n.external_import_key] : []),
+      ]);
+      const evento = {
+        fecha: new Date().toISOString(),
+        actor: callerId,
+        accion: `reintento_${issueAccion}`,
+        resultado: ok ? "ok" : "error",
+        motivo: base.motivo,
+        cambios: base.cambios,
+      };
+
+      await admin
+        .from("import_batch_issues")
+        .update({
+          datos_corregidos: rows[0] as unknown as Record<string, unknown>,
+          datos_normalizados: n as unknown as Record<string, unknown>,
+          estado: base.estado,
+          motivo: base.motivo,
+          observaciones: base.observaciones,
+          tipo_problema: ok ? issue.tipo_problema : clasificarProblema(base.estado, base.motivo),
+          external_import_key: n.external_import_key || issue.external_import_key,
+          claves_conocidas: [...claves],
+          user_id: base.user_id ?? issue.user_id,
+          profile_id: base.profile_id ?? issue.profile_id,
+          cliente_id: base.cliente_id ?? issue.cliente_id,
+          estado_caso: ok ? "resuelto" : "reintentado",
+          intentos: ((issue.intentos as number) ?? 0) + 1,
+          ultimo_intento: new Date().toISOString(),
+          historial: [...((issue.historial as unknown[]) ?? []), evento],
+          resuelto_por: ok ? callerId : null,
+          resuelto_en: ok ? new Date().toISOString() : null,
+        })
+        .eq("id", issueId!);
+
+      await admin.from("audit_logs").insert({
+        user_id: callerId,
+        accion: ok ? "reintento_incidencia_importacion" : "reintento_incidencia_importacion_fallido",
+        entidad: "import_batch_issues",
+        entidad_id: issueId,
+        detalle: {
+          accion: issueAccion,
+          resultado: ok ? "ok" : "error",
+          motivo: base.motivo,
+          cliente_id: base.cliente_id,
+          user_id: base.user_id,
+        },
+      });
+
+      return json({ mode, ok, rules_version: RULES_VERSION, result: base });
+    }
+
 
     if (mode === "dry_run") {
       for (const n of normalizados) {

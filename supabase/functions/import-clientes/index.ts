@@ -510,12 +510,82 @@ Deno.serve(async (req) => {
       detalle: { origen, archivo, ...resumen },
     });
 
+    /* -------- Persistencia de incidencias (bandeja de revisión) -------- */
+    const rawByFila = new Map(rows.map((r) => [r.fila, r]));
+    const normByFila = new Map(normalizados.map((n) => [n.fila, n]));
+    let pendientes = 0;
+    for (const r of results) {
+      if (!requiereIncidencia(r)) continue;
+      pendientes++;
+      const n = normByFila.get(r.fila);
+      const identidad = identidadKey(r);
+      const evento = {
+        fecha: new Date().toISOString(),
+        actor: callerId,
+        accion: "importacion_lote",
+        resultado: "error",
+        motivo: r.motivo,
+        cambios: r.cambios,
+      };
+
+      // Punto 8/1: si ya existe un caso abierto para la misma identidad, se
+      // actualiza en lugar de crear un duplicado.
+      const { data: abierto } = await admin
+        .from("import_batch_issues")
+        .select("id,intentos,historial,claves_conocidas")
+        .eq("identidad_key", identidad)
+        .in("estado_caso", ["pendiente", "reintentado"])
+        .maybeSingle();
+
+      const payload = {
+        batch_id: batch?.id ?? null,
+        fila: r.fila,
+        datos_originales: (rawByFila.get(r.fila) ?? {}) as unknown as Record<string, unknown>,
+        datos_normalizados: (n ?? {}) as unknown as Record<string, unknown>,
+        estado: r.estado,
+        motivo: r.motivo,
+        observaciones: r.observaciones,
+        tipo_problema: clasificarProblema(r.estado, r.motivo, r.observaciones),
+        identidad_key: identidad,
+        external_import_key: r.external_import_key || null,
+        user_id: r.user_id,
+        profile_id: r.profile_id,
+        cliente_id: r.cliente_id,
+        estado_caso: "pendiente" as const,
+        ultimo_intento: new Date().toISOString(),
+      };
+
+      if (abierto) {
+        await admin
+          .from("import_batch_issues")
+          .update({
+            ...payload,
+            claves_conocidas: [
+              ...new Set([
+                ...((abierto.claves_conocidas as string[]) ?? []),
+                ...(r.external_import_key ? [r.external_import_key] : []),
+              ]),
+            ],
+            intentos: ((abierto.intentos as number) ?? 0) + 1,
+            historial: [...((abierto.historial as unknown[]) ?? []), evento],
+          })
+          .eq("id", abierto.id);
+      } else {
+        await admin.from("import_batch_issues").insert({
+          ...payload,
+          claves_conocidas: r.external_import_key ? [r.external_import_key] : [],
+          intentos: 1,
+          historial: [evento],
+        });
+      }
+    }
+
     return json({
       mode,
       rules_version: RULES_VERSION,
       batch_id: batch?.id ?? null,
       results,
-      resumen,
+      resumen: { ...resumen, pendientes_revision: pendientes },
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Error inesperado" }, 500);

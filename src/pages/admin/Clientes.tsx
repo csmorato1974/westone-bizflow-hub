@@ -429,6 +429,7 @@ export default function AdminClientes() {
     await logAudit("editar_cliente_admin", "clientes", editing.id, changes);
     toast.success("Cliente actualizado");
     setOpen(false);
+    clearFocus();
     setEditing(null);
     load();
   };

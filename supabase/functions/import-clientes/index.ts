@@ -100,6 +100,11 @@ Deno.serve(async (req) => {
     }
     if (rows.length === 0) return json({ error: "No hay filas para procesar" }, 400);
     if (rows.length > 1000) return json({ error: "Máximo 1000 filas por lote" }, 400);
+    // El commit crea cuentas de auth (operación lenta): se limita el tamaño del
+    // lote para no agotar el tiempo máximo de ejecución (150s). El frontend
+    // envía la importación en trozos secuenciales.
+    if (mode === "commit" && rows.length > 50)
+      return json({ error: "Máximo 50 filas por lote en la importación. Recarga la aplicación." }, 400);
 
     /* -------- Catálogos de referencia -------- */
     const [{ data: clientesData }, { data: listasData }, { data: rolesData }, { data: profilesData }] =
@@ -493,7 +498,7 @@ async function buscarUsuarioPorEmail(
   admin: ReturnType<typeof createClient>,
   email: string,
 ): Promise<string | null> {
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; page <= 5; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) return null;
     const found = data.users.find((u) => normalizeEmail(u.email) === email);

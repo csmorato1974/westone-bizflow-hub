@@ -84,12 +84,18 @@ Deno.serve(async (req) => {
     if (!isSuper) return json({ error: "Solo super_admin puede importar clientes" }, 403);
 
     const body = await req.json().catch(() => ({}));
-    const mode: "dry_run" | "commit" = body.mode === "commit" ? "commit" : "dry_run";
+    const mode: "dry_run" | "commit" | "retry_issue" =
+      body.mode === "commit" ? "commit" : body.mode === "retry_issue" ? "retry_issue" : "dry_run";
     const rows: RawRow[] = Array.isArray(body.rows) ? body.rows : [];
     const rulesVersion: string = body.rules_version ?? "";
     const decisions: Decision[] = Array.isArray(body.decisions) ? body.decisions : [];
     const origen: string = body.origen === "archivo" ? "archivo" : "pegado";
     const archivo: string | null = typeof body.archivo === "string" ? body.archivo : null;
+    const issueId: string | null = typeof body.issue_id === "string" ? body.issue_id : null;
+    const issueAccion: Accion =
+      ["crear", "actualizar", "vincular", "ignorar"].includes(body.accion) ? body.accion : "crear";
+    const issueClienteId: string | null =
+      typeof body.cliente_id === "string" ? body.cliente_id : null;
 
     if (rulesVersion !== RULES_VERSION) {
       return json(
@@ -99,8 +105,11 @@ Deno.serve(async (req) => {
         409,
       );
     }
+    if (mode === "retry_issue" && !issueId) return json({ error: "Falta issue_id" }, 400);
     if (rows.length === 0) return json({ error: "No hay filas para procesar" }, 400);
     if (rows.length > 1000) return json({ error: "Máximo 1000 filas por lote" }, 400);
+    if (mode === "retry_issue" && rows.length !== 1)
+      return json({ error: "El reintento procesa exactamente una fila" }, 400);
     // El commit crea cuentas de auth (operación lenta): se limita el tamaño del
     // lote para no agotar el tiempo máximo de ejecución (150s). El frontend
     // envía la importación en trozos secuenciales.

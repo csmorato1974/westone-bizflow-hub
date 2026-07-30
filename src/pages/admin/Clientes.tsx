@@ -211,14 +211,74 @@ export default function AdminClientes() {
     );
   }, [allProfiles, linkedUserIds, search]);
 
-  const filtered = useMemo(() => {
+  const profileMap = useMemo(() => {
+    const m = new Map<string, User>();
+    allProfiles.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [allProfiles]);
+
+  // Fuente única de datos: enriquecemos cada cliente con su estado calculado.
+  const enriched = useMemo(
+    () =>
+      clientes.map((c) => ({
+        cliente: c,
+        estado: computeEstado({
+          activo: c.activo,
+          celular: c.celular,
+          email: c.email,
+          email_provisional: c.email_provisional,
+          user_id: c.user_id,
+          vendedor_id: c.vendedor_id,
+          lista_precio_id: c.lista_precio_id,
+          perfil: c.user_id ? profileMap.get(c.user_id) ?? null : null,
+        }),
+      })),
+    [clientes, profileMap],
+  );
+
+  const metrics = useMemo(() => {
+    const m = { total: 0, vinculadas: 0, provisionales: 0, sinVendedor: 0, incompletas: 0, atencion: 0 };
+    enriched.forEach(({ estado }) => {
+      m.total++;
+      if (estado.vinculada) m.vinculadas++;
+      if (estado.emailProvisional) m.provisionales++;
+      if (estado.sinVendedor) m.sinVendedor++;
+      if (estado.incompleto || estado.vinculoRoto) m.incompletas++;
+      if (estado.requiereAtencion) m.atencion++;
+    });
+    return m;
+  }, [enriched]);
+
+  // Búsqueda + filtro por estado, compartidos por ambas vistas.
+  const visibles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return clientes;
-    return clientes.filter((c) =>
-      [c.empresa, c.contacto, c.celular, c.email ?? "", c.direccion ?? ""]
-        .some((v) => v.toLowerCase().includes(q)),
-    );
-  }, [clientes, search]);
+    return enriched.filter(({ cliente: c, estado }) => {
+      if (!matchFiltro(estado, estadoFilter)) return false;
+      if (!q) return true;
+      return [c.empresa, c.contacto, c.celular, c.email ?? "", c.direccion ?? ""].some((v) =>
+        v.toLowerCase().includes(q),
+      );
+    });
+  }, [enriched, search, estadoFilter]);
+
+  const filtered = useMemo(() => visibles.map((v) => v.cliente), [visibles]);
+
+  const tablaRows: ClienteRow[] = useMemo(
+    () =>
+      visibles.map(({ cliente: c, estado }) => ({
+        id: c.id,
+        empresa: c.empresa,
+        contacto: c.contacto,
+        celular: c.celular,
+        email: c.email,
+        activo: c.activo,
+        created_at: c.created_at,
+        vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
+        listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
+        estado,
+      })),
+    [visibles, vendedorMap, listaMap],
+  );
 
   const resetForm = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");

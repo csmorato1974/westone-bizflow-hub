@@ -455,71 +455,7 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const vendedor_id = resolveVendedor(n.vendedor_asignado);
-        const lista_precio_id = resolveLista(n.lista_precio);
-        const clienteTarget = decision.cliente_id ?? m.cliente_id;
-
-        if (decision.accion === "crear") {
-          const conciliado = await asegurarCuenta(admin, n, profileByEmail, observaciones);
-          base.user_id = conciliado.user_id;
-          base.profile_id = conciliado.user_id;
-          if (conciliado.password) base.password_provisional = conciliado.password;
-
-          // Si al conciliar apareció una ficha ya vinculada, se actualiza en vez de duplicar
-          const fichaExistente = existentes.find((c) => c.user_id === conciliado.user_id);
-          if (fichaExistente) {
-            await actualizarFicha(admin, fichaExistente.id, n, vendedor_id, lista_precio_id, conciliado.user_id);
-            base.cliente_id = fichaExistente.id;
-            base.accion_tomada = "actualizar";
-            base.observaciones = [
-              ...base.observaciones,
-              "La cuenta ya tenía ficha de cliente: se actualizó en lugar de crear una nueva",
-            ];
-          } else {
-            const nueva = await crearFicha(admin, n, vendedor_id, lista_precio_id, conciliado.user_id);
-            base.cliente_id = nueva;
-            base.accion_tomada = "crear";
-            existentes.push({
-              id: nueva,
-              user_id: conciliado.user_id,
-              empresa: n.empresa,
-              contacto: n.nombre,
-              celular: n.original.telefono,
-              email: n.email,
-              direccion: n.direccion,
-              ciudad: n.ciudad,
-              vendedor_id,
-              lista_precio_id,
-              telefono_normalizado: n.telefono_normalizado,
-              external_import_key: n.external_import_key,
-            });
-          }
-        } else if (decision.accion === "actualizar" && clienteTarget) {
-          const ficha = existentes.find((c) => c.id === clienteTarget);
-          await actualizarFicha(admin, clienteTarget, n, vendedor_id, lista_precio_id, ficha?.user_id ?? null);
-          base.cliente_id = clienteTarget;
-          base.user_id = ficha?.user_id ?? null;
-          base.profile_id = ficha?.user_id ?? null;
-          base.accion_tomada = "actualizar";
-        } else if (decision.accion === "vincular" && clienteTarget) {
-          const ficha = existentes.find((c) => c.id === clienteTarget);
-          let userId = ficha?.user_id ?? null;
-          if (!userId) {
-            const conciliado = await asegurarCuenta(admin, n, profileByEmail, observaciones);
-            userId = conciliado.user_id;
-            if (conciliado.password) base.password_provisional = conciliado.password;
-          }
-          await admin
-            .from("clientes")
-            .update({ user_id: userId, external_import_key: n.external_import_key })
-            .eq("id", clienteTarget);
-          base.cliente_id = clienteTarget;
-          base.user_id = userId;
-          base.profile_id = userId;
-          base.accion_tomada = "vincular";
-        } else {
-          base.accion_tomada = "ignorar";
-        }
+        await ejecutarAccion(n, decision.accion, decision.cliente_id ?? m.cliente_id, base);
       } catch (e) {
         base.estado = "error";
         base.accion_tomada = "error";

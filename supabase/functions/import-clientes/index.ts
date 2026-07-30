@@ -529,13 +529,45 @@ Deno.serve(async (req) => {
       };
 
       // Punto 8/1: si ya existe un caso abierto para la misma identidad, se
-      // actualiza en lugar de crear un duplicado.
-      const { data: abierto } = await admin
+      // actualiza en lugar de crear un duplicado. La búsqueda no depende solo
+      // de external_import_key: primero por clave de identidad estable y, si la
+      // clave cambió entre importaciones, por cualquiera de las claves ya
+      // conocidas del caso o por la ficha/cuenta ya asociada.
+      const SEL = "id,intentos,historial,claves_conocidas";
+      const ABIERTOS = ["pendiente", "reintentado"];
+      let abierto:
+        | { id: string; intentos: number; historial: unknown[]; claves_conocidas: string[] }
+        | null = null;
+
+      const q1 = await admin
         .from("import_batch_issues")
-        .select("id,intentos,historial,claves_conocidas")
+        .select(SEL)
         .eq("identidad_key", identidad)
-        .in("estado_caso", ["pendiente", "reintentado"])
+        .in("estado_caso", ABIERTOS)
         .maybeSingle();
+      abierto = (q1.data as typeof abierto) ?? null;
+
+      if (!abierto && r.external_import_key) {
+        const q2 = await admin
+          .from("import_batch_issues")
+          .select(SEL)
+          .contains("claves_conocidas", [r.external_import_key])
+          .in("estado_caso", ABIERTOS)
+          .limit(1)
+          .maybeSingle();
+        abierto = (q2.data as typeof abierto) ?? null;
+      }
+      if (!abierto && r.cliente_id) {
+        const q3 = await admin
+          .from("import_batch_issues")
+          .select(SEL)
+          .eq("cliente_id", r.cliente_id)
+          .in("estado_caso", ABIERTOS)
+          .limit(1)
+          .maybeSingle();
+        abierto = (q3.data as typeof abierto) ?? null;
+      }
+
 
       const payload = {
         batch_id: batch?.id ?? null,

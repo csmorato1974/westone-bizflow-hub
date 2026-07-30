@@ -473,14 +473,68 @@ export default function AdminClientes() {
         <p className="text-sm text-muted-foreground">Vista global · datos completos, asignación y edición</p>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por empresa, contacto, email, celular…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por empresa, contacto, email, celular…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="inline-flex rounded-md border p-0.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "cards" ? "default" : "ghost"}
+            onClick={() => setView("cards")}
+          >
+            <LayoutGrid className="h-4 w-4" /> Tarjetas
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "list" ? "default" : "ghost"}
+            onClick={() => setView("list")}
+          >
+            <List className="h-4 w-4" /> Lista
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {([
+          { key: "todos", label: "Total", value: metrics.total, cls: "" },
+          { key: "vinculadas", label: "Vinculadas", value: metrics.vinculadas, cls: "text-success" },
+          { key: "provisionales", label: "Provisionales", value: metrics.provisionales, cls: "text-info" },
+          { key: "sin_vendedor", label: "Sin vendedor", value: metrics.sinVendedor, cls: "text-warning" },
+          { key: "incompletas", label: "Incompletas", value: metrics.incompletas, cls: "text-warning" },
+          { key: "atencion", label: "Requieren atención", value: metrics.atencion, cls: "text-destructive" },
+        ] as { key: FiltroEstado; label: string; value: number; cls: string }[]).map((m) => (
+          <button key={m.key} type="button" onClick={() => setEstadoFilter(m.key)} className="text-left">
+            <Card className={estadoFilter === m.key ? "border-brand" : ""}>
+              <CardContent className="p-3">
+                <p className={`text-2xl font-bold ${m.cls}`}>{m.value}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">{m.label}</p>
+              </CardContent>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {FILTROS.map((f) => (
+          <Button
+            key={f.key}
+            type="button"
+            size="sm"
+            variant={estadoFilter === f.key ? "default" : "outline"}
+            onClick={() => setEstadoFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
       </div>
 
       {loading ? (

@@ -7,6 +7,7 @@ export type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "clie
 interface ProfileInfo {
   full_name: string | null;
   avatar_url: string | null;
+  must_change_password: boolean;
 }
 
 interface AuthContextValue {
@@ -43,10 +44,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, avatar_url")
+      .select("full_name, avatar_url, must_change_password")
       .eq("id", userId)
       .maybeSingle();
-    setProfile(data ? { full_name: data.full_name, avatar_url: data.avatar_url } : null);
+    setProfile(
+      data
+        ? {
+            full_name: data.full_name,
+            avatar_url: data.avatar_url,
+            must_change_password: !!data.must_change_password,
+          }
+        : null,
+    );
   };
 
   useEffect(() => {

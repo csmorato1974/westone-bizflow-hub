@@ -5,6 +5,7 @@ import {
   normalizeRow,
   normalizeEmail,
   normalizeText,
+  stableHash,
   buildProvisionalPassword,
   type ExistingCliente,
   type NormalizedRow,

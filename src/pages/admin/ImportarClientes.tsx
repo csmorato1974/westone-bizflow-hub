@@ -72,6 +72,8 @@ export default function ImportarClientes() {
   const [filtro, setFiltro] = useState<"todos" | RowEstado>("todos");
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
+
   const [incluirPasswords, setIncluirPasswords] = useState(false);
   const [verPassword, setVerPassword] = useState<Record<number, boolean>>({});
 
@@ -142,26 +144,60 @@ export default function ImportarClientes() {
       return { fila: r.fila, estado_preview: r.estado, accion, cliente_id: r.cliente_id };
     });
 
-    const { data, error } = await supabase.functions.invoke("import-clientes", {
-      body: { mode: "commit", rows, decisions, rules_version: RULES_VERSION, origen, archivo },
-    });
-    setCommitting(false);
-    if (error || (data as { error?: string })?.error) {
-      toast({
-        title: "Error al importar",
-        description: (data as { error?: string })?.error ?? error?.message ?? "Error desconocido",
-        variant: "destructive",
+    // La creación de cuentas es lenta (hash de contraseña + varias escrituras por
+    // fila). Enviamos el commit en lotes pequeños y secuenciales para no superar
+    // el límite de 150s de la edge function.
+    const CHUNK = 20;
+    const acumulado: ResultRow[] = [];
+    const resumen: Record<string, number> = {
+      creados: 0, actualizados: 0, vinculados: 0, omitidos: 0, errores: 0,
+    };
+
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunkRows = rows.slice(i, i + CHUNK);
+      const filas = new Set(chunkRows.map((r) => r.fila));
+      const chunkDecisions = decisions.filter((d) => filas.has(d.fila));
+      setProgreso({ hechas: i, total: rows.length });
+
+      const { data, error } = await supabase.functions.invoke("import-clientes", {
+        body: {
+          mode: "commit",
+          rows: chunkRows,
+          decisions: chunkDecisions,
+          rules_version: RULES_VERSION,
+          origen,
+          archivo,
+        },
       });
-      return;
+
+      if (error || (data as { error?: string })?.error) {
+        setCommitting(false);
+        setProgreso(null);
+        if (acumulado.length > 0) setCommitResults(acumulado);
+        toast({
+          title: "Error al importar",
+          description:
+            ((data as { error?: string })?.error ?? error?.message ?? "Error desconocido") +
+            (acumulado.length > 0 ? ` · Se procesaron ${acumulado.length} filas antes del error.` : ""),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      acumulado.push(...(data as { results: ResultRow[] }).results);
+      const r = (data as { resumen: Record<string, number> }).resumen;
+      Object.keys(resumen).forEach((k) => (resumen[k] += r?.[k] ?? 0));
     }
-    const res = (data as { results: ResultRow[] }).results;
-    setCommitResults(res);
-    const resumen = (data as { resumen: Record<string, number> }).resumen;
+
+    setProgreso(null);
+    setCommitting(false);
+    setCommitResults(acumulado);
     toast({
       title: "Importación finalizada",
       description: `${resumen.creados} creados · ${resumen.actualizados} actualizados · ${resumen.vinculados} vinculados · ${resumen.errores} errores`,
     });
   };
+
 
   const activos = commitResults ?? results;
 
@@ -412,6 +448,13 @@ export default function ImportarClientes() {
                   </Button>
                 </div>
               )}
+
+              {progreso && (
+                <p className="text-sm text-muted-foreground">
+                  Procesando en lotes: {progreso.hechas} de {progreso.total} filas…
+                </p>
+              )}
+
 
               <div className="flex items-center gap-2">
                 <Checkbox

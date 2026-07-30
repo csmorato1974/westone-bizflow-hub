@@ -794,3 +794,37 @@ async function actualizarFicha(
   const { error } = await admin.from("clientes").update(patch).eq("id", clienteId);
   if (error) throw new Error(`No se pudo actualizar la ficha: ${error.message}`);
 }
+
+/* ==================== Bandeja de incidencias ==================== */
+
+/** Una fila genera incidencia cuando no se aplicó correctamente o requiere decisión humana. */
+function requiereIncidencia(r: ResultRow): boolean {
+  return r.estado === "error" || r.accion_tomada === "error" || r.estado === "coincidencia_probable";
+}
+
+/**
+ * Clave de identidad estable del caso. Prioriza external_import_key y, si no
+ * existe, usa un hash de los identificadores naturales de la fila.
+ */
+function identidadKey(r: ResultRow): string {
+  if (r.external_import_key) return r.external_import_key;
+  return `fb:${stableHash([r.email ?? "", r.telefono_normalizado ?? "", r.empresa ?? "", r.nombre ?? ""].join("|"))}`;
+}
+
+/** Clasifica el problema en una taxonomía estable para poder filtrar la bandeja. */
+function clasificarProblema(estado: string, motivo: string, observaciones: string[] = []) {
+  const m = `${motivo} ${observaciones.join(" ")}`.toLowerCase();
+  if (estado === "coincidencia_probable") return "duplicado_probable";
+  if (m.includes("conflicto_por_cambio_desde_preview") || m.includes("desde la validación"))
+    return "conflicto_desde_preview";
+  if (m.includes("no se pudo crear la cuenta") || m.includes("auth") || m.includes("contraseña"))
+    return "error_auth";
+  if (m.includes("perfil") || m.includes("profile")) return "error_profile";
+  if (m.includes("ficha") || m.includes("cliente")) return "error_cliente";
+  if (m.includes("no encontrad")) return "referencia_no_encontrada";
+  if (m.includes("falta") || m.includes("obligatorio") || m.includes("vacío"))
+    return "datos_incompletos";
+  if (m.includes("teléfono") || m.includes("telefono") || m.includes("email") || m.includes("formato"))
+    return "error_de_formato";
+  return "error_desconocido";
+}

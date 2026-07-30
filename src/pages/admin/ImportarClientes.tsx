@@ -486,6 +486,8 @@ export default function ImportarClientes() {
           </Card>
         </>
       )}
+
+      <ImportIncidencias key={commitResults ? commitResults.length : "idle"} />
     </div>
   );
 }

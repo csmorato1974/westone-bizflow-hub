@@ -17,6 +17,7 @@ import {
 import {
   RULES_VERSION, TEMPLATE_CSV, parseRows, type RawRow,
 } from "@/lib/importClientes";
+import ImportIncidencias from "@/components/admin/ImportIncidencias";
 
 type RowEstado = "nuevo" | "duplicado_exacto" | "actualizable" | "coincidencia_probable" | "error";
 type Accion = "crear" | "actualizar" | "vincular" | "ignorar" | "revisar" | "error";

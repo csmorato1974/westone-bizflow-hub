@@ -369,6 +369,7 @@ export default function AdminClientes() {
     if (!v) {
       setEditing(null);
       setMode("edit");
+      clearFocus();
     }
   };
 

@@ -404,6 +404,7 @@ export default function AdminClientes() {
       await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, { empresa: patch.empresa, user_id: patch.user_id });
       toast.success("Ficha creada y vinculada");
       setOpen(false);
+      clearFocus();
       load();
       return;
     }

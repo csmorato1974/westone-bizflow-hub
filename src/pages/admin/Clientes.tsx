@@ -625,6 +625,27 @@ export default function AdminClientes() {
 
           {filtered.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
+          ) : view === "list" ? (
+            <ClientesTabla
+              rows={tablaRows}
+              isSuper={isSuper}
+              deletingId={deletingId}
+              highlightedId={highlightedId}
+              rowRef={(id, el) => { rowRefs.current[id] = el; }}
+              onFicha={abrirFicha}
+              onPedidos={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) setPedidosCliente({ id: c.id, empresa: c.empresa });
+              }}
+              onEditar={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) openEdit(c);
+              }}
+              onEliminar={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) deleteCliente(c);
+              }}
+            />
           ) : (
             <div className="grid gap-3">
               {filtered.map((c) => {

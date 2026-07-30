@@ -6,10 +6,12 @@ import { Loader2 } from "lucide-react";
 interface RequireAuthProps {
   children: ReactNode;
   roles?: AppRole[];
+  /** Solo para la propia pantalla de cambio de contraseña obligatorio. */
+  allowPasswordChange?: boolean;
 }
 
-export function RequireAuth({ children, roles }: RequireAuthProps) {
-  const { user, roles: userRoles, loading, isAdmin } = useAuth();
+export function RequireAuth({ children, roles, allowPasswordChange }: RequireAuthProps) {
+  const { user, roles: userRoles, loading, isAdmin, profile } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -24,6 +26,11 @@ export function RequireAuth({ children, roles }: RequireAuthProps) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Bloqueo total de la app hasta que se cambie la contraseña provisional.
+  if (profile?.must_change_password && !allowPasswordChange) {
+    return <Navigate to="/cambiar-password" replace />;
+  }
+
   if (roles && roles.length > 0) {
     const allowed = isAdmin || roles.some((r) => userRoles.includes(r));
     if (!allowed) {
@@ -33,3 +40,4 @@ export function RequireAuth({ children, roles }: RequireAuthProps) {
 
   return <>{children}</>;
 }
+

@@ -821,6 +821,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cliente_de_usuario: {
+        Args: { _cliente: string; _user: string }
+        Returns: boolean
+      }
+      cliente_de_vendedor: {
+        Args: { _cliente: string; _user: string }
+        Returns: boolean
+      }
+      cliente_de_vendedor_por_perfil: {
+        Args: { _profile: string; _vendedor: string }
+        Returns: boolean
+      }
+      cliente_tiene_pedido_despacho: {
+        Args: { _cliente: string }
+        Returns: boolean
+      }
+      es_vendedor_de_usuario: {
+        Args: { _user: string; _vendedor: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -831,6 +851,14 @@ export type Database = {
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_conversation_participant: {
         Args: { _conv: string; _user: string }
+        Returns: boolean
+      }
+      puede_editar_pedido: {
+        Args: { _pedido: string; _user: string }
+        Returns: boolean
+      }
+      puede_ver_pedido: {
+        Args: { _pedido: string; _user: string }
         Returns: boolean
       }
     }

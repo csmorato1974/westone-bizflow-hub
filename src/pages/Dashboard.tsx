@@ -363,8 +363,16 @@ export default function Dashboard() {
                   <c.icon className="h-5 w-5 text-brand" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-display font-bold">{c.value}</div>
+                  {statsError ? (
+                    <div className="flex items-center gap-1.5 text-destructive" title="No se pudo leer el dato de la base de datos">
+                      <AlertCircle className="h-5 w-5" />
+                      <span className="text-sm font-medium">Sin datos</span>
+                    </div>
+                  ) : (
+                    <div className="text-3xl font-display font-bold">{c.value}</div>
+                  )}
                 </CardContent>
+
               </Card>
             </Link>
             {c.key === "clientes" && renderIndicadorPendientes()}

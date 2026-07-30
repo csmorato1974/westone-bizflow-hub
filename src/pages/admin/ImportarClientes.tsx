@@ -72,6 +72,8 @@ export default function ImportarClientes() {
   const [filtro, setFiltro] = useState<"todos" | RowEstado>("todos");
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
+
   const [incluirPasswords, setIncluirPasswords] = useState(false);
   const [verPassword, setVerPassword] = useState<Record<number, boolean>>({});
 

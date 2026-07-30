@@ -659,7 +659,9 @@ export default function AdminClientes() {
                   <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <p className="industrial-title text-lg">{c.empresa}</p>
+                        <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
+                          {c.empresa}
+                        </button>
                         <p className="text-sm">{c.contacto}</p>
                         <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
                         {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}

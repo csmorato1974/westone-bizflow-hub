@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +26,9 @@ import { logAudit } from "@/lib/audit";
 import { mapsLink } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
+import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";
+import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
   id: string;
@@ -38,12 +41,31 @@ interface Cliente {
   longitud: number | null;
   notas: string | null;
   activo: boolean;
+  created_at: string;
+  email_provisional: boolean | null;
   vendedor_id: string | null;
   lista_precio_id: string | null;
   user_id: string | null;
 }
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
-interface User { id: string; full_name: string | null; email: string | null; phone?: string | null; roles?: AppRole[]; }
+interface User {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone?: string | null;
+  must_change_password?: boolean | null;
+  email_provisional?: boolean | null;
+  roles?: AppRole[];
+}
+
+const FILTROS: { key: FiltroEstado; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "vinculadas", label: "Vinculadas" },
+  { key: "provisionales", label: "Provisionales" },
+  { key: "sin_vendedor", label: "Sin vendedor" },
+  { key: "incompletas", label: "Incompletas" },
+  { key: "atencion", label: "Requieren atención" },
+];
 
 type FormMode = "edit" | "create-from-user";
 
@@ -60,10 +82,27 @@ export default function AdminClientes() {
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pedidosCliente, setPedidosCliente] = useState<{ id: string; empresa: string } | null>(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const focusClienteId = searchParams.get("focus");
+  const view = searchParams.get("view") === "cards" ? "cards" : "list";
+  const [estadoFilter, setEstadoFilter] = useState<FiltroEstado>("todos");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const rowRefs = useRef<Record<string, HTMLElement | null>>({});
+  const fichaAbiertaRef = useRef<string | null>(null);
+
+  const setView = (v: "cards" | "list") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("view", v);
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFocus = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    if (next.has("focus")) {
+      next.delete("focus");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [editing, setEditing] = useState<Cliente | null>(null);
   const [mode, setMode] = useState<FormMode>("edit");
@@ -90,7 +129,7 @@ export default function AdminClientes() {
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
-      supabase.from("profiles").select("id,full_name,email,phone"),
+      supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional"),
     ]);
     const rolesByUser = new Map<string, AppRole[]>();
     (ur ?? []).forEach((r: { user_id: string; role: string }) => {
@@ -172,14 +211,74 @@ export default function AdminClientes() {
     );
   }, [allProfiles, linkedUserIds, search]);
 
-  const filtered = useMemo(() => {
+  const profileMap = useMemo(() => {
+    const m = new Map<string, User>();
+    allProfiles.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [allProfiles]);
+
+  // Fuente única de datos: enriquecemos cada cliente con su estado calculado.
+  const enriched = useMemo(
+    () =>
+      clientes.map((c) => ({
+        cliente: c,
+        estado: computeEstado({
+          activo: c.activo,
+          celular: c.celular,
+          email: c.email,
+          email_provisional: c.email_provisional,
+          user_id: c.user_id,
+          vendedor_id: c.vendedor_id,
+          lista_precio_id: c.lista_precio_id,
+          perfil: c.user_id ? profileMap.get(c.user_id) ?? null : null,
+        }),
+      })),
+    [clientes, profileMap],
+  );
+
+  const metrics = useMemo(() => {
+    const m = { total: 0, vinculadas: 0, provisionales: 0, sinVendedor: 0, incompletas: 0, atencion: 0 };
+    enriched.forEach(({ estado }) => {
+      m.total++;
+      if (estado.vinculada) m.vinculadas++;
+      if (estado.emailProvisional) m.provisionales++;
+      if (estado.sinVendedor) m.sinVendedor++;
+      if (estado.incompleto || estado.vinculoRoto) m.incompletas++;
+      if (estado.requiereAtencion) m.atencion++;
+    });
+    return m;
+  }, [enriched]);
+
+  // Búsqueda + filtro por estado, compartidos por ambas vistas.
+  const visibles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return clientes;
-    return clientes.filter((c) =>
-      [c.empresa, c.contacto, c.celular, c.email ?? "", c.direccion ?? ""]
-        .some((v) => v.toLowerCase().includes(q)),
-    );
-  }, [clientes, search]);
+    return enriched.filter(({ cliente: c, estado }) => {
+      if (!matchFiltro(estado, estadoFilter)) return false;
+      if (!q) return true;
+      return [c.empresa, c.contacto, c.celular, c.email ?? "", c.direccion ?? ""].some((v) =>
+        v.toLowerCase().includes(q),
+      );
+    });
+  }, [enriched, search, estadoFilter]);
+
+  const filtered = useMemo(() => visibles.map((v) => v.cliente), [visibles]);
+
+  const tablaRows: ClienteRow[] = useMemo(
+    () =>
+      visibles.map(({ cliente: c, estado }) => ({
+        id: c.id,
+        empresa: c.empresa,
+        contacto: c.contacto,
+        celular: c.celular,
+        email: c.email,
+        activo: c.activo,
+        created_at: c.created_at,
+        vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
+        listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
+        estado,
+      })),
+    [visibles, vendedorMap, listaMap],
+  );
 
   const resetForm = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");
@@ -204,6 +303,29 @@ export default function AdminClientes() {
     setUserId(c.user_id ?? "");
     setOpen(true);
   };
+
+  const abrirFicha = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("focus", id);
+    setSearchParams(next, { replace: true });
+  };
+
+  // ?focus= abre la ficha real una sola vez (además de resaltar la fila)
+  useEffect(() => {
+    if (!focusClienteId || loading) return;
+    if (fichaAbiertaRef.current === focusClienteId) return;
+    const c = clientes.find((x) => x.id === focusClienteId);
+    if (!c) return;
+    fichaAbiertaRef.current = focusClienteId;
+    openEdit(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusClienteId, loading, clientes]);
+
+  useEffect(() => {
+    if (!focusClienteId) fichaAbiertaRef.current = null;
+  }, [focusClienteId]);
+
+
 
   const openCreateForUser = (u: User) => {
     setMode("create-from-user");
@@ -247,6 +369,7 @@ export default function AdminClientes() {
     if (!v) {
       setEditing(null);
       setMode("edit");
+      clearFocus();
     }
   };
 
@@ -281,6 +404,7 @@ export default function AdminClientes() {
       await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, { empresa: patch.empresa, user_id: patch.user_id });
       toast.success("Ficha creada y vinculada");
       setOpen(false);
+      clearFocus();
       load();
       return;
     }
@@ -306,6 +430,7 @@ export default function AdminClientes() {
     await logAudit("editar_cliente_admin", "clientes", editing.id, changes);
     toast.success("Cliente actualizado");
     setOpen(false);
+    clearFocus();
     setEditing(null);
     load();
   };
@@ -348,14 +473,68 @@ export default function AdminClientes() {
         <p className="text-sm text-muted-foreground">Vista global · datos completos, asignación y edición</p>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por empresa, contacto, email, celular…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por empresa, contacto, email, celular…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="inline-flex rounded-md border p-0.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "cards" ? "default" : "ghost"}
+            onClick={() => setView("cards")}
+          >
+            <LayoutGrid className="h-4 w-4" /> Tarjetas
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "list" ? "default" : "ghost"}
+            onClick={() => setView("list")}
+          >
+            <List className="h-4 w-4" /> Lista
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        {([
+          { key: "todos", label: "Total", value: metrics.total, cls: "" },
+          { key: "vinculadas", label: "Vinculadas", value: metrics.vinculadas, cls: "text-success" },
+          { key: "provisionales", label: "Provisionales", value: metrics.provisionales, cls: "text-info" },
+          { key: "sin_vendedor", label: "Sin vendedor", value: metrics.sinVendedor, cls: "text-warning" },
+          { key: "incompletas", label: "Incompletas", value: metrics.incompletas, cls: "text-warning" },
+          { key: "atencion", label: "Requieren atención", value: metrics.atencion, cls: "text-destructive" },
+        ] as { key: FiltroEstado; label: string; value: number; cls: string }[]).map((m) => (
+          <button key={m.key} type="button" onClick={() => setEstadoFilter(m.key)} className="text-left">
+            <Card className={estadoFilter === m.key ? "border-brand" : ""}>
+              <CardContent className="p-3">
+                <p className={`text-2xl font-bold ${m.cls}`}>{m.value}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">{m.label}</p>
+              </CardContent>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {FILTROS.map((f) => (
+          <Button
+            key={f.key}
+            type="button"
+            size="sm"
+            variant={estadoFilter === f.key ? "default" : "outline"}
+            onClick={() => setEstadoFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
       </div>
 
       {loading ? (
@@ -446,6 +625,27 @@ export default function AdminClientes() {
 
           {filtered.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
+          ) : view === "list" ? (
+            <ClientesTabla
+              rows={tablaRows}
+              isSuper={isSuper}
+              deletingId={deletingId}
+              highlightedId={highlightedId}
+              rowRef={(id, el) => { rowRefs.current[id] = el; }}
+              onFicha={abrirFicha}
+              onPedidos={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) setPedidosCliente({ id: c.id, empresa: c.empresa });
+              }}
+              onEditar={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) openEdit(c);
+              }}
+              onEliminar={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) deleteCliente(c);
+              }}
+            />
           ) : (
             <div className="grid gap-3">
               {filtered.map((c) => {
@@ -459,7 +659,9 @@ export default function AdminClientes() {
                   <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <p className="industrial-title text-lg">{c.empresa}</p>
+                        <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
+                          {c.empresa}
+                        </button>
                         <p className="text-sm">{c.contacto}</p>
                         <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
                         {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}

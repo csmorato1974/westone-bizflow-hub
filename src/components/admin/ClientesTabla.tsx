@@ -96,14 +96,14 @@ export function ClientesTabla({
                 <TableCell className="hidden lg:table-cell">{r.contacto}</TableCell>
                 <TableCell className="hidden md:table-cell whitespace-nowrap">{r.celular}</TableCell>
                 <TableCell className="hidden xl:table-cell max-w-[200px] truncate">{r.email ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell className="min-w-[150px]">
                   <div className="flex flex-wrap gap-1">
                     {estado.principal && (
                       <Badge variant="outline" className={`${estado.principal.className} text-[10px] whitespace-nowrap`}>
                         {estado.principal.label}
                       </Badge>
                     )}
-                    {estado.secundarios.map((b) => (
+                    {estado.secundarios.slice(0, 2).map((b) => (
                       <Badge
                         key={b.key}
                         variant="outline"
@@ -112,8 +112,18 @@ export function ClientesTabla({
                         {b.label}
                       </Badge>
                     ))}
+                    {estado.secundarios.length > 2 && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1 py-0 text-muted-foreground hidden md:inline-flex"
+                        title={estado.secundarios.slice(2).map((b) => b.label).join(" · ")}
+                      >
+                        +{estado.secundarios.length - 2}
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
+
                 <TableCell className="hidden lg:table-cell">{r.vendedorNombre ?? "—"}</TableCell>
                 <TableCell className="hidden xl:table-cell">{r.listaNombre ?? "—"}</TableCell>
                 <TableCell className="hidden xl:table-cell whitespace-nowrap text-muted-foreground text-xs">

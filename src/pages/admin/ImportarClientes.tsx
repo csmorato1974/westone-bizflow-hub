@@ -449,6 +449,13 @@ export default function ImportarClientes() {
                 </div>
               )}
 
+              {progreso && (
+                <p className="text-sm text-muted-foreground">
+                  Procesando en lotes: {progreso.hechas} de {progreso.total} filas…
+                </p>
+              )}
+
+
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="incluir-pass"

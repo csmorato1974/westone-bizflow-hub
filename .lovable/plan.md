@@ -1,38 +1,31 @@
-## Diagnóstico (verificado)
+## Situación verificada
 
-El Dashboard **ya consulta la base de datos** (clientes, pedidos, perfiles, roles). El problema no está en el código de la página: **ninguna tabla del esquema `public` tiene permisos concedidos a los roles de la API de datos**.
+- 271 cuentas de acceso; solo 2 son administradores: `csolizmo@gmail.com` (super admin) y `moronsergio@gmail.com` (admin, además vendedor y logística).
+- Datos actuales: 270 fichas de cliente, 2 pedidos con 3 líneas, 275 asignaciones de rol, 17 mensajes en 5 conversaciones, 2 notificaciones, 2 lotes de importación, 330 registros de auditoría.
+- La tabla de perfiles ya está vacía (0 filas), así que ahí no hay nada que borrar.
 
-Consultado ahora mismo:
-- La BD sí tiene datos: 268 clientes, 271 perfiles, 274 roles, 14 productos, 2 pedidos.
-- Las políticas de acceso (RLS) existen y son correctas para admin/super admin.
-- Pero la consulta de permisos devuelve **cero filas**: los roles `authenticated`, `anon` y `service_role` no tienen SELECT/INSERT/UPDATE/DELETE sobre ninguna tabla.
+## Qué haré (borrado total)
 
-Sin esos permisos, cada consulta desde la app devuelve un error de permiso, por lo que el Dashboard muestra 0 en todas las tarjetas y las listas quedan vacías. Esto afecta a toda la app, no solo al Dashboard.
+Purga en un solo paso, respetando el orden de dependencias:
 
-## Qué haré
+1. Líneas de pedido y pedidos (los 2 pedidos y sus 3 líneas).
+2. Las 270 fichas de cliente.
+3. Mensajes, participantes y las 5 conversaciones del chat.
+4. Notificaciones.
+5. Incidencias y lotes de importación.
+6. Los 330 registros de auditoría.
+7. Roles de todas las cuentas no administradoras.
+8. Las 269 cuentas de acceso no administradoras (se eliminan de la capa de autenticación mediante la función de servidor con permisos de administrador, en lotes para evitar tiempos de espera).
 
-1. **Migración de permisos**: conceder, tabla por tabla del esquema `public`:
-   - `SELECT, INSERT, UPDATE, DELETE` a `authenticated` (las políticas RLS siguen filtrando qué filas ve cada rol; nadie ve de más).
-   - `ALL` a `service_role` (necesario para las funciones de servidor: importación de clientes, borrado de usuarios).
-   - **Sin** permisos a `anon`: no hay contenido público en esta app, todo requiere sesión iniciada.
+Se conservan íntegras las dos cuentas administradoras, sus roles y su acceso.
 
-2. **Verificación posterior**:
-   - Volver a consultar el catálogo de permisos para confirmar que cada tabla quedó cubierta.
-   - Abrir la app en navegador con sesión de super admin y comprobar que el Dashboard muestra los conteos reales (clientes, pedidos, por aprobar, en despacho) y que la alerta de perfiles pendientes se calcula.
+## Verificación posterior
 
-3. **Ajuste menor en el Dashboard**: hoy, si la consulta de conteos falla, las tarjetas muestran silenciosamente `0`. Añadiré manejo de error para que, si vuelve a haber un fallo de acceso, la tarjeta muestre un indicador de error en vez de un cero engañoso.
-
-## Observación adicional (fuera del alcance, para tu decisión)
-
-Al revisar la BD detecté que **no hay ningún trigger activo**, aunque las funciones sí existen. Eso significa que ahora mismo:
-- Al registrarse un usuario nuevo no se crea automáticamente su perfil ni su rol (`handle_new_user`).
-- No se valida el precio de las líneas de pedido contra la lista asignada.
-- No se actualizan solas las marcas de tiempo ni el orden de conversaciones del chat.
-
-No lo incluyo en este plan porque pediste específicamente el Dashboard, pero conviene restaurarlo en un paso siguiente. Dime si lo agrego.
+- Reconsultar los conteos de todas las tablas para confirmar que quedan en cero y que solo persisten las 2 cuentas administradoras.
+- Abrir la app con sesión de super admin y comprobar que el Dashboard, Clientes, Pedidos y Usuarios cargan vacíos sin errores.
 
 ## Detalles técnicos
 
-- Migración SQL única con un bloque `DO` que recorre las tablas base de `public` y aplica `GRANT` solo donde falte, más `GRANT ALL ... TO service_role`.
-- No se modifican políticas RLS ni el esquema: solo privilegios de la API de datos.
-- Cambio de frontend acotado a `src/pages/Dashboard.tsx` (estado de error en `cargarStats`).
+- Los borrados de datos se hacen con sentencias `DELETE` mediante la herramienta de datos (no migración), ya que no hay cambios de esquema.
+- El borrado en `auth.users` requiere la API de administración: se ejecuta con un script que invoca la función de servidor existente `delete-user` por lote, o directamente contra la API admin con la clave de servicio desde el entorno de servidor. No se toca el esquema `auth` por SQL.
+- Advertencia: esta operación es irreversible y no genera respaldo automático. Si quieres una copia previa de clientes/pedidos en CSV antes de purgar, dímelo y la exporto primero.

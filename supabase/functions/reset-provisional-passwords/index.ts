@@ -1,6 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { buildProvisionalPassword } from "../import-clientes/rules.ts";
+
+// Misma regla que supabase/functions/import-clientes/rules.ts
+function buildProvisionalPassword(email?: string): string {
+  const local = (email ?? "").trim().toLowerCase().split("@")[0].replace(/[^a-z0-9._-]/g, "");
+  let base = local;
+  if (base.length < 3) base = (base || "cliente") + "-26";
+  return `Wst-${base}-26`;
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

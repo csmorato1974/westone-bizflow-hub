@@ -781,7 +781,8 @@ async function actualizarFicha(
     external_import_key: n.external_import_key,
   };
   if (n.empresa) patch.empresa = n.empresa;
-  if (n.nombre) patch.contacto = n.nombre;
+  const contactoPersona = n.original.nombre_completo?.trim();
+  if (contactoPersona) patch.contacto = contactoPersona;
   if (n.original.telefono) {
     patch.celular = n.original.telefono;
     patch.telefono_normalizado = n.telefono_normalizado;

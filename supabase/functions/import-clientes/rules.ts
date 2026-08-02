@@ -233,7 +233,9 @@ export interface MatchResult {
 function cambiosPropuestos(row: NormalizedRow, c: ExistingCliente): string[] {
   const cambios: string[] = [];
   if (row.empresa && normalizeText(row.empresa) !== normalizeText(c.empresa)) cambios.push("empresa");
-  if (row.nombre && normalizeText(row.nombre) !== normalizeText(c.contacto)) cambios.push("contacto");
+  const contactoPersona = (row.original.nombre_completo ?? "").trim();
+  if (contactoPersona && normalizeText(contactoPersona) !== normalizeText(c.contacto))
+    cambios.push("contacto");
   if (row.telefono_normalizado && row.telefono_normalizado !== normalizePhone(c.celular))
     cambios.push("celular");
   if (!row.email_provisional && row.email && row.email !== normalizeEmail(c.email))

@@ -87,7 +87,34 @@ export default function ImportarClientes() {
   };
 
   const onFile = async (file: File) => {
-    const content = await file.text();
+    let content = "";
+    const esExcel = /\.(xlsx|xlsm|xlsb|xls)$/i.test(file.name);
+    try {
+      if (esExcel) {
+        const XLSX = await import("xlsx");
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array", cellDates: true, cellText: true });
+        const hojas = wb.SheetNames;
+        if (hojas.length === 0) throw new Error("El libro no tiene hojas");
+        const ws = wb.Sheets[hojas[0]];
+        content = XLSX.utils.sheet_to_csv(ws, { FS: ",", blankrows: false, rawNumbers: false });
+        if (hojas.length > 1) {
+          toast({
+            title: "Varias hojas detectadas",
+            description: `Se usará solo la primera hoja: "${hojas[0]}".`,
+          });
+        }
+      } else {
+        content = await file.text();
+      }
+    } catch (e) {
+      toast({
+        title: "No se pudo leer el archivo",
+        description: e instanceof Error ? e.message : "Formato no soportado.",
+        variant: "destructive",
+      });
+      return;
+    }
     setTexto(content);
     setArchivo(file.name);
     setOrigen("archivo");
@@ -247,7 +274,7 @@ export default function ImportarClientes() {
       <div>
         <h1 className="industrial-title text-3xl">Importar clientes</h1>
         <p className="text-sm text-muted-foreground">
-          Alta masiva desde CSV o tabla pegada. Exclusivo de super administrador.
+          Alta masiva desde Excel (.xlsx), CSV o tabla pegada. Exclusivo de super administrador.
         </p>
       </div>
 
@@ -261,14 +288,14 @@ export default function ImportarClientes() {
             onValueChange={(v) => setOrigen(v as "archivo" | "pegado")}
           >
             <TabsList>
-              <TabsTrigger value="archivo">Subir CSV</TabsTrigger>
+              <TabsTrigger value="archivo">Subir archivo</TabsTrigger>
               <TabsTrigger value="pegado">Pegar tabla</TabsTrigger>
             </TabsList>
             <TabsContent value="archivo" className="space-y-3 pt-3">
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,.txt,text/csv"
+                accept=".csv,.txt,.xlsx,.xlsm,.xlsb,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
@@ -278,6 +305,7 @@ export default function ImportarClientes() {
               <Button variant="outline" onClick={() => fileRef.current?.click()}>
                 <Upload className="mr-2 h-4 w-4" /> Seleccionar archivo
               </Button>
+              <p className="text-xs text-muted-foreground">Formatos admitidos: Excel (.xlsx, .xls) y CSV/TXT. En Excel se usa la primera hoja.</p>
               {archivo && <p className="text-sm text-muted-foreground">Archivo: {archivo}</p>}
             </TabsContent>
             <TabsContent value="pegado" className="pt-3">

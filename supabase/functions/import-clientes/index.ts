@@ -655,12 +655,16 @@ async function asegurarCuenta(
   let userId: string | null = null;
   let passwordDevuelta: string | undefined = password;
 
+  // El nombre principal del perfil es el negocio (empresa); el contacto queda en la ficha de cliente.
+  const nombrePerfil = n.empresa || n.nombre || n.email;
+
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: n.email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: n.nombre, phone: n.original.telefono },
+    user_metadata: { full_name: nombrePerfil, phone: n.original.telefono },
   });
+
 
   if (createErr) {
     const msg = (createErr.message ?? "").toLowerCase();
@@ -689,7 +693,7 @@ async function asegurarCuenta(
   if (!prof) {
     const { error } = await admin.from("profiles").insert({
       id: userId,
-      full_name: n.nombre || n.email,
+      full_name: nombrePerfil,
       email: n.email,
       phone: n.original.telefono || null,
       email_provisional: n.email_provisional,
@@ -701,7 +705,7 @@ async function asegurarCuenta(
       email_provisional: n.email_provisional,
       must_change_password: passwordDevuelta ? true : prof.full_name === null ? true : undefined,
     };
-    if (!prof.full_name && n.nombre) patch.full_name = n.nombre;
+    if (!prof.full_name && nombrePerfil) patch.full_name = nombrePerfil;
     if (!prof.email) patch.email = n.email;
     if (!prof.phone && n.original.telefono) patch.phone = n.original.telefono;
     Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k]);

@@ -655,12 +655,16 @@ async function asegurarCuenta(
   let userId: string | null = null;
   let passwordDevuelta: string | undefined = password;
 
+  // El nombre principal del perfil es el negocio (empresa); el contacto queda en la ficha de cliente.
+  const nombrePerfil = n.empresa || n.nombre || n.email;
+
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: n.email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: n.nombre, phone: n.original.telefono },
+    user_metadata: { full_name: nombrePerfil, phone: n.original.telefono },
   });
+
 
   if (createErr) {
     const msg = (createErr.message ?? "").toLowerCase();

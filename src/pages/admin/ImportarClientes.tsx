@@ -361,7 +361,10 @@ export default function ImportarClientes() {
                   <div key={r.fila} className="rounded-md border p-3 text-sm space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted-foreground">Fila {r.fila}</span>
-                      <span className="font-semibold">{r.nombre || r.empresa || "—"}</span>
+                      <span className="font-semibold">{r.empresa || r.nombre || "—"}</span>
+                      {r.nombre && r.empresa && r.nombre !== r.empresa && (
+                        <span className="text-xs text-muted-foreground">Contacto: {r.nombre}</span>
+                      )}
                       <Badge className={ESTADO_STYLE[r.estado] + " border-0"}>
                         {ESTADO_LABEL[r.estado]}
                       </Badge>

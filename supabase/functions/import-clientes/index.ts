@@ -705,7 +705,7 @@ async function asegurarCuenta(
       email_provisional: n.email_provisional,
       must_change_password: passwordDevuelta ? true : prof.full_name === null ? true : undefined,
     };
-    if (!prof.full_name && n.nombre) patch.full_name = n.nombre;
+    if (!prof.full_name && nombrePerfil) patch.full_name = nombrePerfil;
     if (!prof.email) patch.email = n.email;
     if (!prof.phone && n.original.telefono) patch.phone = n.original.telefono;
     Object.keys(patch).forEach((k) => patch[k] === undefined && delete patch[k]);

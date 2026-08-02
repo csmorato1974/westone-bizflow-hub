@@ -87,7 +87,34 @@ export default function ImportarClientes() {
   };
 
   const onFile = async (file: File) => {
-    const content = await file.text();
+    let content = "";
+    const esExcel = /\.(xlsx|xlsm|xlsb|xls)$/i.test(file.name);
+    try {
+      if (esExcel) {
+        const XLSX = await import("xlsx");
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array", cellDates: true, cellText: true });
+        const hojas = wb.SheetNames;
+        if (hojas.length === 0) throw new Error("El libro no tiene hojas");
+        const ws = wb.Sheets[hojas[0]];
+        content = XLSX.utils.sheet_to_csv(ws, { FS: ",", blankrows: false, rawNumbers: false });
+        if (hojas.length > 1) {
+          toast({
+            title: "Varias hojas detectadas",
+            description: `Se usará solo la primera hoja: "${hojas[0]}".`,
+          });
+        }
+      } else {
+        content = await file.text();
+      }
+    } catch (e) {
+      toast({
+        title: "No se pudo leer el archivo",
+        description: e instanceof Error ? e.message : "Formato no soportado.",
+        variant: "destructive",
+      });
+      return;
+    }
     setTexto(content);
     setArchivo(file.name);
     setOrigen("archivo");

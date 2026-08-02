@@ -1,27 +1,20 @@
 ## Objetivo
 
-Que la contraseña provisional de las cuentas creadas en la importación masiva sea predecible y legible para el super admin:
+Aplicar el formato de clave provisional `Wst-<parte-local-del-email>-26` a las **496 cuentas existentes** que hoy tienen `email_provisional = true` y `must_change_password = true` (las creadas por importación con contraseña aleatoria).
 
-```text
-Wst-<parte local del email provisional>-26
-```
+## Qué haré
 
-Ejemplo: email `juan.perez@clientes-temp.local` → clave `Wst-juan.perez-26`
+1. Crear una función de servidor temporal `reset-provisional-passwords` (solo super admin, valida el JWT y el rol antes de hacer nada).
+2. La función:
+   - Lista los perfiles con `email_provisional = true` y `must_change_password = true`.
+   - Para cada uno calcula `Wst-<local>-26` a partir de su email (misma regla que usa la importación, con saneado de caracteres).
+   - Actualiza la contraseña en el sistema de autenticación y deja `must_change_password = true` para forzar el cambio en el primer ingreso.
+   - Procesa por lotes (p. ej. 50 cuentas por llamada) para evitar timeouts, devolviendo cuántas actualizó y cuáles fallaron.
+3. Ejecutarla en lotes hasta cubrir las 496 cuentas y verificar el resultado.
+4. Eliminar la función temporal al terminar (igual que hicimos con la purga), para no dejar un endpoint que pueda resetear claves masivamente.
 
-## Cambios
+## Notas
 
-1. `supabase/functions/import-clientes/rules.ts`
-   - Cambiar `buildProvisionalPassword()` para que reciba el email de la cuenta y devuelva `Wst-` + parte antes de la `@` + `-26`.
-   - Si la parte local resultara muy corta (<3 caracteres), completar con el teléfono normalizado o un hash estable para que la clave cumpla el mínimo de 6 caracteres de Auth.
-
-2. `supabase/functions/import-clientes/index.ts`
-   - Pasar el email ya resuelto (incluida la variante con sufijo si hubo colisión) a `buildProvisionalPassword(email)` antes de crear el usuario.
-   - Mantener el retorno de `password_provisional` en el resultado del commit y el flag `must_change_password: true`.
-
-3. Desplegar la función y verificar con una importación de prueba de 1 fila que la clave devuelta coincida con el patrón.
-
-Sin cambios de base de datos ni de UI.
-
-## Nota importante (seguridad)
-
-Esta clave es **predecible**: cualquiera que conozca el patrón y el email puede deducirla. Es exactamente el hallazgo `predictable_provisional_pwd` que se corrigió antes. Lo implemento como pides, y queda mitigado en parte porque el guard de auth obliga a cambiar la contraseña en el primer ingreso (`must_change_password`). Recomiendo mantener ese bloqueo activo siempre.
+- No cambia emails ni datos de cliente; solo la contraseña.
+- Las cuentas de admin/super admin y cualquier cuenta con email real no provisional quedan intactas.
+- Si preferís conservar la función (con botón en Usuarios para resetear una cuenta individual) en vez de borrarla, decímelo y la dejo instalada con ese alcance.

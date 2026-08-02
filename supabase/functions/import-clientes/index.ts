@@ -693,7 +693,7 @@ async function asegurarCuenta(
   if (!prof) {
     const { error } = await admin.from("profiles").insert({
       id: userId,
-      full_name: n.nombre || n.email,
+      full_name: nombrePerfil,
       email: n.email,
       phone: n.original.telefono || null,
       email_provisional: n.email_provisional,

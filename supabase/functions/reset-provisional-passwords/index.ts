@@ -22,15 +22,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-
-    const anon = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-    );
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await anon.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
-    const userId = claimsData.claims.sub as string;
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -38,12 +30,23 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    const { data: roles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (!roles?.some((r: { role: string }) => r.role === "super_admin")) {
-      return json({ error: "Solo super admin" }, 403);
+    // Acceso permitido a la service role (mantenimiento) o a un super admin autenticado.
+    const esServicio = token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!esServicio) {
+      const anon = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+      );
+      const { data: claimsData, error: claimsErr } = await anon.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
+      const userId = claimsData.claims.sub as string;
+      const { data: roles } = await admin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      if (!roles?.some((r: { role: string }) => r.role === "super_admin")) {
+        return json({ error: "Solo super admin" }, 403);
+      }
     }
 
     let limit = 50;

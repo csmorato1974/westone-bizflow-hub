@@ -303,11 +303,20 @@ const HEADER_ALIASES: Record<string, TemplateHeader> = {
   nombre: "nombre_completo",
   nombre_completo: "nombre_completo",
   contacto: "nombre_completo",
+  nombre_contacto: "nombre_completo",
   cliente: "nombre_completo",
   empresa: "empresa",
   razon_social: "empresa",
+  razon: "empresa",
+  nombre_tienda: "empresa",
+  tienda: "empresa",
+  negocio: "empresa",
+  nombre_negocio: "empresa",
+  nombre_comercial: "empresa",
+  local: "empresa",
   telefono: "telefono",
   celular: "telefono",
+  cel: "telefono",
   movil: "telefono",
   whatsapp: "telefono",
   email: "email",
@@ -317,6 +326,8 @@ const HEADER_ALIASES: Record<string, TemplateHeader> = {
   domicilio: "direccion",
   ciudad: "ciudad",
   localidad: "ciudad",
+  zona: "notas",
+  barrio: "notas",
   vendedor: "vendedor_asignado",
   vendedor_asignado: "vendedor_asignado",
   lista: "lista_precio",
@@ -329,14 +340,32 @@ const HEADER_ALIASES: Record<string, TemplateHeader> = {
   observaciones: "notas",
 };
 
+function mapHeaderRow(cells: string[]): (TemplateHeader | undefined)[] {
+  return cells
+    .map((c) => normalizeText(c).replace(/\s+/g, "_"))
+    .map((h) => HEADER_ALIASES[h]);
+}
+
 export function parseRows(text: string): { rows: RawRow[]; headerFound: boolean } {
   const table = parseDelimited(text);
   if (table.length === 0) return { rows: [], headerFound: false };
 
-  const headerCells = table[0].map((c) => normalizeText(c).replace(/\s+/g, "_"));
-  const mapped = headerCells.map((h) => HEADER_ALIASES[h]);
-  const headerFound = mapped.filter(Boolean).length >= 2;
-  const dataRows = headerFound ? table.slice(1) : table;
+  // Tolerar filas de preámbulo (títulos, filas vacías): se busca la primera
+  // fila que contenga al menos 2 encabezados reconocidos.
+  let headerIndex = -1;
+  let mapped: (TemplateHeader | undefined)[] = [];
+  const limite = Math.min(table.length, 10);
+  for (let i = 0; i < limite; i++) {
+    const candidato = mapHeaderRow(table[i]);
+    if (candidato.filter(Boolean).length >= 2) {
+      headerIndex = i;
+      mapped = candidato;
+      break;
+    }
+  }
+
+  const headerFound = headerIndex >= 0;
+  const dataRows = headerFound ? table.slice(headerIndex + 1) : table;
 
   const rows: RawRow[] = dataRows.map((cells, idx) => {
     const row: RawRow = {
@@ -354,13 +383,21 @@ export function parseRows(text: string): { rows: RawRow[]; headerFound: boolean 
     };
     cells.forEach((cell, i) => {
       const key = headerFound ? mapped[i] : TEMPLATE_HEADERS[i];
-      if (key) row[key] = (cell ?? "").trim();
+      if (!key) return;
+      const valor = (cell ?? "").trim();
+      if (!valor) return;
+      if (key === "notas" && row.notas) {
+        row.notas = `${row.notas} · ${valor}`;
+        return;
+      }
+      row[key] = valor;
     });
     return row;
   });
 
-  return { rows, headerFound };
+  return { rows: rows.filter((r) => Object.values(r).some((v) => v !== "" && v !== r.fila)), headerFound };
 }
+
 
 export const TEMPLATE_CSV = [
   TEMPLATE_HEADERS.join(","),

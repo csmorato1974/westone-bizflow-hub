@@ -274,7 +274,7 @@ export default function ImportarClientes() {
       <div>
         <h1 className="industrial-title text-3xl">Importar clientes</h1>
         <p className="text-sm text-muted-foreground">
-          Alta masiva desde CSV o tabla pegada. Exclusivo de super administrador.
+          Alta masiva desde Excel (.xlsx), CSV o tabla pegada. Exclusivo de super administrador.
         </p>
       </div>
 
@@ -288,14 +288,14 @@ export default function ImportarClientes() {
             onValueChange={(v) => setOrigen(v as "archivo" | "pegado")}
           >
             <TabsList>
-              <TabsTrigger value="archivo">Subir CSV</TabsTrigger>
+              <TabsTrigger value="archivo">Subir archivo</TabsTrigger>
               <TabsTrigger value="pegado">Pegar tabla</TabsTrigger>
             </TabsList>
             <TabsContent value="archivo" className="space-y-3 pt-3">
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,.txt,text/csv"
+                accept=".csv,.txt,.xlsx,.xlsm,.xlsb,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
@@ -305,6 +305,7 @@ export default function ImportarClientes() {
               <Button variant="outline" onClick={() => fileRef.current?.click()}>
                 <Upload className="mr-2 h-4 w-4" /> Seleccionar archivo
               </Button>
+              <p className="text-xs text-muted-foreground">Formatos admitidos: Excel (.xlsx, .xls) y CSV/TXT. En Excel se usa la primera hoja.</p>
               {archivo && <p className="text-sm text-muted-foreground">Archivo: {archivo}</p>}
             </TabsContent>
             <TabsContent value="pegado" className="pt-3">

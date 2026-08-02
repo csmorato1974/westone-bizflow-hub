@@ -116,22 +116,21 @@ export function buildProvisionalEmail(nombreNormalizado: string, telefono: strin
 }
 
 /**
- * Contraseña provisional CRIPTOGRÁFICAMENTE ALEATORIA.
- * Nunca se deriva del teléfono ni de ningún dato personal: debe ser impredecible.
- * Solo se genera en el servidor (edge function) y se entrega una única vez al super admin.
+ * Contraseña provisional derivada del email de la cuenta:
+ *   Wst-<parte local del email>-26
+ * Es predecible por diseño (pedido explícito del super admin); las cuentas quedan
+ * con `must_change_password = true`, por lo que se obliga a cambiarla al primer ingreso.
  */
-export function buildProvisionalPassword(_telefono?: string, _key?: string): string {
-  const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const simbolos = "!@#$%*?-_";
-  const bytes = new Uint8Array(20);
-  crypto.getRandomValues(bytes);
-  let out = "";
-  for (let i = 0; i < bytes.length; i++) out += alfabeto[bytes[i] % alfabeto.length];
-  const extra = new Uint8Array(2);
-  crypto.getRandomValues(extra);
-  // Garantiza complejidad: mayúscula, minúscula, dígito y símbolo.
-  return `W${out}${extra[0] % 10}${simbolos[extra[1] % simbolos.length]}`;
+export function buildProvisionalPassword(email?: string, telefono?: string): string {
+  const local = normalizeEmail(email).split("@")[0].replace(/[^a-z0-9._-]/g, "");
+  let base = local;
+  if (base.length < 3) {
+    const extra = (telefono ?? "").replace(/\D/g, "") || stableHash("pwd:" + (email ?? ""));
+    base = (base || "cliente") + "-" + extra;
+  }
+  return `Wst-${base}-26`;
 }
+
 
 
 export function similarity(a: string, b: string): number {

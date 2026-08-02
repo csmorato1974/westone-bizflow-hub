@@ -1,31 +1,27 @@
-## Qué encontré en tu archivo
+## Objetivo
 
-`Base_de_Clientes_Westone_1.xlsx` (hoja "Hoja1", 536 clientes):
-- Una fila vacía arriba y luego los encabezados: `No`, `CIUDAD`, `ZONA`, `DIRECCION`, `NOMBRE TIENDA`, `CONTACTO`, `CELULAR`.
-- Ejemplo: `LUBRICANTES BRASIL` / contacto `JULIO` / celular `75255767`.
+Que la contraseña provisional de las cuentas creadas en la importación masiva sea predecible y legible para el super admin:
 
-Hoy el importador no reconoce los encabezados `NOMBRE TIENDA`, `CELULAR`, `ZONA` ni `No`, y su referencia interna principal es el nombre del contacto. Eso hay que cambiar.
+```text
+Wst-<parte local del email provisional>-26
+```
+
+Ejemplo: email `juan.perez@clientes-temp.local` → clave `Wst-juan.perez-26`
 
 ## Cambios
 
-1. **Reconocer los encabezados de tu Excel** (`src/lib/importClientes.ts` y copia en `supabase/functions/import-clientes/rules.ts`)
-   - Nuevos alias: `nombre_tienda`, `tienda`, `negocio`, `razon` → empresa; `celular`/`cel` → teléfono (ya existe `celular`); `zona`/`barrio` → se anexa a notas; `no`/`nro`/`item` → columna ignorada explícitamente.
-   - Detección de encabezado tolerante a filas de preámbulo: se busca la primera fila que contenga al menos 2 encabezados reconocidos (hoy solo mira la primera fila).
+1. `supabase/functions/import-clientes/rules.ts`
+   - Cambiar `buildProvisionalPassword()` para que reciba el email de la cuenta y devuelva `Wst-` + parte antes de la `@` + `-26`.
+   - Si la parte local resultara muy corta (<3 caracteres), completar con el teléfono normalizado o un hash estable para que la clave cumpla el mínimo de 6 caracteres de Auth.
 
-2. **Nombre de tienda como referencia principal**
-   - En `normalizeRow`, la referencia principal (`nombre`) pasa a ser `empresa` → contacto → email, en ese orden (hoy es contacto → empresa).
-   - El nombre del contacto se sigue guardando aparte y va al campo `contacto` de la ficha de cliente; el perfil y el listado muestran la tienda.
-   - La clave de trazabilidad y la comparación por similitud usarán el nombre de la tienda, que es más estable entre exportaciones.
+2. `supabase/functions/import-clientes/index.ts`
+   - Pasar el email ya resuelto (incluida la variante con sufijo si hubo colisión) a `buildProvisionalPassword(email)` antes de crear el usuario.
+   - Mantener el retorno de `password_provisional` en el resultado del commit y el flag `must_change_password: true`.
 
-3. **Versionado de reglas**
-   - Subir `RULES_VERSION` a `1.1.0` en ambos archivos (frontend y edge function) para que no se mezclen lotes con reglas viejas.
+3. Desplegar la función y verificar con una importación de prueba de 1 fila que la clave devuelta coincida con el patrón.
 
-4. **UI**
-   - En "Importar clientes", la columna de referencia se rotula "Tienda / Negocio" y se muestra el contacto como dato secundario.
-   - Nota en la ayuda: se aceptan encabezados `NOMBRE TIENDA` y `CONTACTO`.
+Sin cambios de base de datos ni de UI.
 
-## Notas técnicas
+## Nota importante (seguridad)
 
-- Sin cambios de base de datos: `clientes.empresa` ya guarda la tienda y `clientes.contacto` la persona.
-- La detección de duplicados mantiene la jerarquía actual (clave → teléfono → email → nombre+teléfono parcial → similitud), solo cambia qué texto se usa como "nombre".
-- Los clientes ya importados con referencia por contacto se re-emparejarán por teléfono, así que una reimportación de esta lista actualizará en lugar de duplicar.
+Esta clave es **predecible**: cualquiera que conozca el patrón y el email puede deducirla. Es exactamente el hallazgo `predictable_provisional_pwd` que se corrigió antes. Lo implemento como pides, y queda mitigado en parte porque el guard de auth obliga a cambiar la contraseña en el primer ingreso (`must_change_password`). Recomiendo mantener ese bloqueo activo siempre.

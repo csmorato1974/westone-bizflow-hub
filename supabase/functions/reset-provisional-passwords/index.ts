@@ -31,7 +31,21 @@ Deno.serve(async (req) => {
     );
 
     // Acceso permitido a la service role (mantenimiento) o a un super admin autenticado.
-    const esServicio = token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    let esServicio = token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!esServicio) {
+      // Valida si el token trae privilegios de servicio consultando una tabla sin acceso anónimo.
+      const probe = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/rest/v1/user_roles?select=role&limit=1`,
+        { headers: { apikey: token, Authorization: `Bearer ${token}` } },
+      );
+      if (probe.ok) {
+        const payload = token.split(".")[1] ?? "";
+        try {
+          const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+          esServicio = decoded?.role === "service_role";
+        } catch (_) { /* no es JWT */ }
+      }
+    }
     if (!esServicio) {
       const anon = createClient(
         Deno.env.get("SUPABASE_URL")!,

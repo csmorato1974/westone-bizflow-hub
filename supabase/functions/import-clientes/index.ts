@@ -651,7 +651,7 @@ async function asegurarCuenta(
   profileByEmail: Map<string, { id: string; full_name: string | null; email: string | null; phone: string | null }>,
   observaciones: string[],
 ): Promise<{ user_id: string; password?: string }> {
-  const password = buildProvisionalPassword();
+  const password = buildProvisionalPassword(n.email, n.telefono_normalizado);
   let userId: string | null = null;
   let passwordDevuelta: string | undefined = password;
 

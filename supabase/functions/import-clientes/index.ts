@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
             id: nueva,
             user_id: conciliado.user_id,
             empresa: n.empresa,
-            contacto: n.nombre,
+            contacto: n.original.nombre_completo?.trim() || n.nombre,
             celular: n.original.telefono,
             email: n.email,
             direccion: n.direccion,
@@ -749,7 +749,7 @@ async function crearFicha(
     .from("clientes")
     .insert({
       empresa: n.empresa || n.nombre,
-      contacto: n.nombre || n.empresa,
+      contacto: n.original.nombre_completo?.trim() || n.nombre || n.empresa,
       celular: n.original.telefono || n.telefono_normalizado || "—",
       email: n.email,
       direccion: n.direccion || null,
@@ -781,7 +781,8 @@ async function actualizarFicha(
     external_import_key: n.external_import_key,
   };
   if (n.empresa) patch.empresa = n.empresa;
-  if (n.nombre) patch.contacto = n.nombre;
+  const contactoPersona = n.original.nombre_completo?.trim();
+  if (contactoPersona) patch.contacto = contactoPersona;
   if (n.original.telefono) {
     patch.celular = n.original.telefono;
     patch.telefono_normalizado = n.telefono_normalizado;

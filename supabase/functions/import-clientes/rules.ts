@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.0.0";
+export const RULES_VERSION = "1.1.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =
@@ -155,7 +155,8 @@ export function similarity(a: string, b: string): number {
 
 export function normalizeRow(raw: RawRow): NormalizedRow {
   const errores: string[] = [];
-  const nombre = (raw.nombre_completo || raw.empresa || "").trim();
+  // Referencia principal: nombre de la tienda / negocio (empresa).
+  const nombre = (raw.empresa || raw.nombre_completo || "").trim();
   const nombre_normalizado = normalizeText(nombre);
   const telefono_normalizado = normalizePhone(raw.telefono);
   let email = normalizeEmail(raw.email);
@@ -232,7 +233,9 @@ export interface MatchResult {
 function cambiosPropuestos(row: NormalizedRow, c: ExistingCliente): string[] {
   const cambios: string[] = [];
   if (row.empresa && normalizeText(row.empresa) !== normalizeText(c.empresa)) cambios.push("empresa");
-  if (row.nombre && normalizeText(row.nombre) !== normalizeText(c.contacto)) cambios.push("contacto");
+  const contactoPersona = (row.original.nombre_completo ?? "").trim();
+  if (contactoPersona && normalizeText(contactoPersona) !== normalizeText(c.contacto))
+    cambios.push("contacto");
   if (row.telefono_normalizado && row.telefono_normalizado !== normalizePhone(c.celular))
     cambios.push("celular");
   if (!row.email_provisional && row.email && row.email !== normalizeEmail(c.email))

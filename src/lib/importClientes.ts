@@ -9,7 +9,7 @@
  * lote si no coincide con la suya.
  */
 
-export const RULES_VERSION = "1.1.0";
+export const RULES_VERSION = "1.2.0";
 
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 

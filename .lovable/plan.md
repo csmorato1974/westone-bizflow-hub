@@ -59,26 +59,24 @@
 - `clientes.email` queda explícitamente como dato comercial/CRM; el email de acceso vive en la cuenta y en `profiles`.
 - Editar el email comercial no toca el acceso. La UI los separa visualmente y avisa cuando difieren, con acción directa para pedir el cambio de email de acceso si eso es lo que se buscaba.
 
-## Bloque 7 — Actividad comercial de clientes
-
-- Nuevas columnas de actividad en `clientes`: primera compra, última compra, cantidad de compras, total comprado, estado de actividad y fecha de última actualización.
-- Recalculadas desde los pedidos por una función de base de datos: la identidad principal sigue siendo el negocio; si hay ambigüedad al vincular pedidos a un cliente, no se actualiza y el caso va a revisión.
-- Refresco individual desde la ficha y masivo desde administración, ambos limitados a admin y super admin, con auditoría de cada actualización.
-- Bloque de actividad en la ficha del cliente y filtros por estado de actividad en los listados admin.
-
 ## Detalles técnicos
 
-- Migraciones: `profiles.username` + índice único sobre `lower(username)`; tabla `email_change_requests`; columnas de actividad en `clientes`; tabla/estado de onboarding; disparador sobre la tabla de cuentas para sincronizar y auditar el email; funciones de validación de username y de disponibilidad; función de recálculo de actividad. Todas las tablas nuevas con GRANT a `authenticated` y `service_role`, RLS por `auth.uid()` y `is_admin()`, funciones `SECURITY DEFINER` con `search_path = public` y sin ejecución para visitantes anónimos, siguiendo el patrón ya usado.
-- Funciones de servidor nuevas: `request-email-change`, `resolve-login`, `reconciliar-emails`, `enviar-onboarding`, `refrescar-actividad-clientes`. Todas validan el token en código, usan CORS y validan entrada con Zod.
+- Migraciones: `profiles.username` + índice único sobre `lower(username)`; tabla `email_change_requests`; tabla/estado de onboarding; disparador sobre la tabla de cuentas para sincronizar y auditar el email; funciones de validación de username y de disponibilidad. Todas las tablas nuevas con GRANT a `authenticated` y `service_role`, RLS por `auth.uid()` y `is_admin()`, funciones `SECURITY DEFINER` con `search_path = public` y sin ejecución para visitantes anónimos, siguiendo el patrón ya usado.
+- Funciones de servidor nuevas: `request-email-change`, `resolve-login`, `reconciliar-emails` (con modo dry-run) y `enviar-onboarding`. Todas validan el token en código, usan CORS y validan entrada con Zod.
 - Frontend: `RequireAuth` gana la puerta de "completar perfil"; `AuthContext` expone `username` y `emailPendiente`; se ajustan `Login.tsx`, `Perfil.tsx`, `CompletarPerfil.tsx` (nueva), `admin/Clientes.tsx`, `admin/Usuarios.tsx`, `admin/Whatsapp.tsx` y `App.tsx`.
 - La importación en lote asigna username provisional derivado del nombre de negocio con desambiguación numérica.
 
 ## QA
 
-Pruebas demostrables, con resultados reportados al final: alta manual; cambio de email desde perfil; cambio de email desde admin; reenvío y cancelación; reconciliación; username (formato, colisiones, edición, backfill, nombres reservados); login por username y por email; cuenta importada recorriendo todo el onboarding; actividad comercial con refresco individual y masivo. Las cuentas de prueba se eliminan al terminar.
+Pruebas demostrables, con resultados reportados al final de cada fase.
+
+- Fase 1: alta manual; cambio de email desde perfil; cambio de email desde admin; reenvío y cancelación; reconciliación en modo informe y luego aplicada; username (formato, colisiones, edición, backfill, nombres reservados); login por username y por email.
+- Fase 2: cuenta importada recorriendo todo el onboarding; separación de email comercial y de acceso.
+- Las cuentas de prueba se eliminan al terminar.
 
 ## Fuera de alcance
 
+- Actividad comercial de clientes (primera/última compra, totales, estado de actividad): tarea separada para cuando existan pedidos en la base y se pueda probar de verdad.
 - Cambiar el esquema de contraseñas provisionales.
 - Recuperación de acceso por username sin email real (sin email no hay a dónde enviar el enlace).
-- Carga de histórico de compras: hoy no hay pedidos en la base, así que la actividad arrancará en cero hasta que existan pedidos o se importe histórico (eso sería un pedido aparte).
+

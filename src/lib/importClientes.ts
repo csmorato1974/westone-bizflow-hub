@@ -249,6 +249,46 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
   };
 }
 
+/**
+ * Validación definitiva de duplicados dentro del mismo archivo (espejo de
+ * `detectarDuplicadosInternos` en la edge function).
+ *
+ * La primera aparición de un teléfono normalizado o de un email real se
+ * procesa; las repeticiones posteriores quedan bloqueadas y van a revisión.
+ */
+export function detectarDuplicadosInternos(rows: NormalizedRow[]): Map<number, string> {
+  const bloqueadas = new Map<number, string>();
+  const telVistos = new Map<string, number>();
+  const mailVistos = new Map<string, number>();
+
+  for (const n of rows) {
+    if (n.errores.length > 0) continue;
+
+    if (n.telefono_normalizado.length >= 7) {
+      const primera = telVistos.get(n.telefono_normalizado);
+      if (primera !== undefined) {
+        bloqueadas.set(
+          n.fila,
+          `Teléfono repetido en el archivo (ya aparece en la fila ${primera})`,
+        );
+        continue;
+      }
+      telVistos.set(n.telefono_normalizado, n.fila);
+    }
+
+    if (n.email && !n.email_provisional) {
+      const primera = mailVistos.get(n.email);
+      if (primera !== undefined) {
+        bloqueadas.set(n.fila, `Email repetido en el archivo (ya aparece en la fila ${primera})`);
+        continue;
+      }
+      mailVistos.set(n.email, n.fila);
+    }
+  }
+
+  return bloqueadas;
+}
+
 /* ------------------------------------------------------------------ */
 /* Parseo CSV / TSV                                                    */
 /* ------------------------------------------------------------------ */

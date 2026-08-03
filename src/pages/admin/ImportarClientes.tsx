@@ -153,11 +153,6 @@ export default function ImportarClientes() {
     }
     const res = (data as { results: ResultRow[] }).results;
     setResults(res);
-    setDecisiones(
-      Object.fromEntries(
-        res.filter((r) => r.estado === "coincidencia_probable").map((r) => [r.fila, "ignorar" as const]),
-      ),
-    );
   };
 
   const ejecutar = async (incluirActualizables: boolean) => {

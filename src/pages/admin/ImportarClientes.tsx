@@ -68,7 +68,6 @@ export default function ImportarClientes() {
   const [rows, setRows] = useState<RawRow[]>([]);
   const [results, setResults] = useState<ResultRow[] | null>(null);
   const [commitResults, setCommitResults] = useState<ResultRow[] | null>(null);
-  const [decisiones, setDecisiones] = useState<Record<number, "vincular" | "actualizar" | "ignorar">>({});
   const [filtro, setFiltro] = useState<"todos" | RowEstado>("todos");
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -82,7 +81,7 @@ export default function ImportarClientes() {
   const resetPreview = () => {
     setResults(null);
     setCommitResults(null);
-    setDecisiones({});
+
   };
 
   const onFile = async (file: File) => {

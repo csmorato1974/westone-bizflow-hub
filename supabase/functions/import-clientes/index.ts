@@ -453,11 +453,26 @@ Deno.serve(async (req) => {
         profile_id: null,
       };
 
+      // Validación definitiva: una coincidencia probable NUNCA se escribe de
+      // forma automática, aunque el cliente haya enviado otra decisión. Queda
+      // como incidencia para resolverse a mano desde "Revisión manual".
+      if (m.estado === "coincidencia_probable") {
+        base.accion_tomada = "ignorar";
+        base.accion_propuesta = "revisar";
+        base.observaciones = [
+          ...observaciones,
+          "Bloqueado por coincidencia probable: requiere resolución manual en Revisión manual.",
+        ];
+        results.push(base);
+        continue;
+      }
+
       if (!decision || decision.accion === "ignorar" || decision.accion === "revisar") {
         base.accion_tomada = "ignorar";
         results.push(base);
         continue;
       }
+
 
       // Punto 3: el diagnóstico cambió entre el preview y el commit
       if (decision.estado_preview !== m.estado) {

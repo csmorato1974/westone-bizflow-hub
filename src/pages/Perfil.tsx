@@ -46,6 +46,10 @@ export default function Perfil() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [emailActual, setEmailActual] = useState("");
+  const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
+  const [savingEmail, setSavingEmail] = useState(false);
+
   const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
   const [vendedor, setVendedor] = useState<VendedorInfo | null>(null);
   const [clientesCount, setClientesCount] = useState<number>(0);

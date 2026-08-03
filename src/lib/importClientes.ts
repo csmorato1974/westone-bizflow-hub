@@ -9,7 +9,7 @@
  * lote si no coincide con la suya.
  */
 
-export const RULES_VERSION = "1.3.0";
+export const RULES_VERSION = "1.4.0";
 
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
@@ -192,9 +192,10 @@ export function similarity(a: string, b: string): number {
 
 export function normalizeRow(raw: RawRow): NormalizedRow {
   const errores: string[] = [];
-  // Referencia principal: nombre de la tienda / negocio (empresa) y, en su
-  // defecto, el nombre del contacto.
-  const nombre = (raw.empresa || raw.nombre_completo || "").trim();
+  // Referencia principal OBLIGATORIA: nombre de la tienda / negocio (empresa).
+  // Rechazo estricto: el nombre del contacto NO sirve como respaldo.
+  const empresaRaw = (raw.empresa ?? "").trim();
+  const nombre = empresaRaw || (raw.nombre_completo ?? "").trim();
   const nombre_normalizado = normalizeText(nombre);
   const telefono_normalizado = normalizePhone(raw.telefono);
   let email = normalizeEmail(raw.email);
@@ -205,9 +206,10 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     email = "";
   }
 
-  if (!nombre) {
-    errores.push("Fila sin nombre de negocio");
+  if (!empresaRaw) {
+    errores.push("Fila sin nombre de negocio (tienda): revisión manual obligatoria");
   }
+
 
 
   const direccion = (raw.direccion ?? "").trim();

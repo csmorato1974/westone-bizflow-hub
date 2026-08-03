@@ -170,7 +170,7 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     errores.push(`Email inválido: ${email}`);
     email = "";
   }
-  if (!nombre && !telefono_normalizado) errores.push("Fila sin nombre y sin teléfono");
+  if (!nombre) errores.push("Fila sin nombre de negocio");
 
   const direccion = (raw.direccion ?? "").trim();
   const direccion_normalizada = normalizeText(direccion);

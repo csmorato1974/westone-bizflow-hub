@@ -336,9 +336,14 @@ Deno.serve(async (req) => {
       try {
         if (issueAccion === "ignorar") {
           base.accion_tomada = "ignorar";
+        } else if (n.errores.length > 0) {
+          throw new Error(
+            `No se puede aplicar el reintento: ${n.errores.join(" · ")}. Corrige los datos de la fila primero.`,
+          );
         } else {
           await ejecutarAccion(n, issueAccion, issueClienteId ?? m.cliente_id, base);
         }
+
       } catch (e) {
         ok = false;
         base.estado = "error";
@@ -453,6 +458,21 @@ Deno.serve(async (req) => {
         profile_id: null,
       };
 
+      // Validación definitiva: una fila con error de validación (por ejemplo,
+      // sin nombre de negocio/tienda) NUNCA se escribe, aunque el cliente haya
+      // enviado la decisión "crear". Va directo a incidencias.
+      if (m.estado === "error" || n.errores.length > 0) {
+        base.estado = "error";
+        base.accion_tomada = "ignorar";
+        base.accion_propuesta = "revisar";
+        base.observaciones = [
+          ...observaciones,
+          "Bloqueado por validación: requiere corrección manual en Revisión manual.",
+        ];
+        results.push(base);
+        continue;
+      }
+
       // Validación definitiva: una coincidencia probable NUNCA se escribe de
       // forma automática, aunque el cliente haya enviado otra decisión. Queda
       // como incidencia para resolverse a mano desde "Revisión manual".
@@ -466,6 +486,7 @@ Deno.serve(async (req) => {
         results.push(base);
         continue;
       }
+
 
       if (!decision || decision.accion === "ignorar" || decision.accion === "revisar") {
         base.accion_tomada = "ignorar";

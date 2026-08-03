@@ -427,36 +427,31 @@ export default function ImportarClientes() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Estas filas se parecen a clientes existentes. Elige qué hacer con cada una. Si crees que es un
-                  cliente distinto, ignórala aquí y créala manualmente desde Clientes.
-                </p>
+                <Alert>
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertTitle>Posibles duplicados bloqueados</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Estas filas se parecen a un cliente existente o repiten teléfono/email dentro del mismo
+                    archivo. La importación <strong>no las crea ni las actualiza</strong>: quedan como
+                    incidencias y se resuelven una por una desde “Revisión manual de incidencias”, más abajo.
+                  </AlertDescription>
+                </Alert>
                 {revisiones.map((r) => (
                   <div key={r.fila} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                     <div className="text-sm">
-                      <p className="font-semibold">{r.nombre || r.empresa}</p>
+                      <p className="font-semibold">{r.empresa || r.nombre}</p>
                       <p className="text-xs text-muted-foreground">
-                        {r.motivo} → {r.coincide_con?.empresa ?? r.coincide_con?.contacto ?? "—"}
+                        Fila {r.fila} · {r.motivo}
+                        {r.coincide_con ? ` → ${r.coincide_con.empresa ?? r.coincide_con.contacto ?? "—"}` : ""}
                       </p>
                     </div>
-                    <Select
-                      value={decisiones[r.fila] ?? "ignorar"}
-                      onValueChange={(v) =>
-                        setDecisiones((d) => ({ ...d, [r.fila]: v as "vincular" | "actualizar" | "ignorar" }))
-                      }
-                    >
-                      <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vincular">Vincular a existente</SelectItem>
-                        <SelectItem value="actualizar">Actualizar existente</SelectItem>
-                        <SelectItem value="ignorar">Ignorar</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Badge className="bg-warning text-warning-foreground">Bloqueado · a revisión</Badge>
                   </div>
                 ))}
               </CardContent>
             </Card>
           )}
+
 
           <Card>
             <CardHeader className="pb-3">

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Save, MessageCircle, User as UserIcon } from "lucide-react";
+import { Loader2, Save, MessageCircle, User as UserIcon, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { waLink } from "@/lib/whatsapp";

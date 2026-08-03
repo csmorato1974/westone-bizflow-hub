@@ -837,6 +837,7 @@ export type Database = {
         Args: { _cliente: string }
         Returns: boolean
       }
+      es_cuenta_administrativa: { Args: { _user_id: string }; Returns: boolean }
       es_vendedor_de_usuario: {
         Args: { _user: string; _vendedor: string }
         Returns: boolean

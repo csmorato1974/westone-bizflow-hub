@@ -7,6 +7,7 @@ import {
   normalizeText,
   stableHash,
   buildProvisionalPassword,
+  detectarDuplicadosInternos,
   type ExistingCliente,
   type NormalizedRow,
   type RawRow,
@@ -181,7 +182,13 @@ Deno.serve(async (req) => {
       normalizados.push(n);
     }
 
+    // Validación definitiva de duplicados internos del archivo: las
+    // repeticiones de teléfono o email dentro del mismo lote se bloquean y van
+    // a revisión manual, nunca se crean ni se actualizan.
+    const duplicadosInternos = detectarDuplicadosInternos(normalizados);
+
     const evaluar = (n: NormalizedRow) => {
+      const dupInterno = duplicadosInternos.get(n.fila);
       const m = matchRow(n, existentes);
       const observaciones: string[] = [];
       if (n.email_provisional) observaciones.push("Email provisional generado");
@@ -189,6 +196,16 @@ Deno.serve(async (req) => {
         observaciones.push(`Vendedor no encontrado: ${n.vendedor_asignado}`);
       if (n.lista_precio && !resolveLista(n.lista_precio))
         observaciones.push(`Lista de precios no encontrada: ${n.lista_precio}`);
+
+      if (dupInterno) {
+        observaciones.push(dupInterno);
+        return {
+          m: { ...m, estado: "coincidencia_probable" as RowEstado, motivo: dupInterno },
+          observaciones,
+          accion: "revisar" as Accion,
+        };
+      }
+
       const accion: Accion =
         m.estado === "nuevo"
           ? "crear"
@@ -201,6 +218,7 @@ Deno.serve(async (req) => {
                 : "error";
       return { m, observaciones, accion };
     };
+
 
     /**
      * Aplicación de la acción decidida. Es la ÚNICA ruta de escritura: la usan
@@ -435,11 +453,26 @@ Deno.serve(async (req) => {
         profile_id: null,
       };
 
+      // Validación definitiva: una coincidencia probable NUNCA se escribe de
+      // forma automática, aunque el cliente haya enviado otra decisión. Queda
+      // como incidencia para resolverse a mano desde "Revisión manual".
+      if (m.estado === "coincidencia_probable") {
+        base.accion_tomada = "ignorar";
+        base.accion_propuesta = "revisar";
+        base.observaciones = [
+          ...observaciones,
+          "Bloqueado por coincidencia probable: requiere resolución manual en Revisión manual.",
+        ];
+        results.push(base);
+        continue;
+      }
+
       if (!decision || decision.accion === "ignorar" || decision.accion === "revisar") {
         base.accion_tomada = "ignorar";
         results.push(base);
         continue;
       }
+
 
       // Punto 3: el diagnóstico cambió entre el preview y el commit
       if (decision.estado_preview !== m.estado) {

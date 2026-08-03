@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.2.0";
+export const RULES_VERSION = "1.3.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =
@@ -324,3 +324,49 @@ export function matchRow(row: NormalizedRow, existentes: ExistingCliente[]): Mat
 
   return { estado: "nuevo", cliente_id: null, motivo: "Sin coincidencias", cambios: [] };
 }
+
+/* ---------------- Duplicados internos del propio archivo ---------------- */
+
+/**
+ * Validación definitiva de duplicados dentro del mismo lote.
+ *
+ * Regla: la PRIMERA aparición de un teléfono normalizado o de un email real se
+ * procesa normalmente; cualquier repetición posterior queda BLOQUEADA y se
+ * envía a revisión manual (nunca se crea ni se actualiza nada de forma
+ * automática).
+ *
+ * Devuelve un mapa fila -> motivo para las filas repetidas.
+ */
+export function detectarDuplicadosInternos(rows: NormalizedRow[]): Map<number, string> {
+  const bloqueadas = new Map<number, string>();
+  const telVistos = new Map<string, number>();
+  const mailVistos = new Map<string, number>();
+
+  for (const n of rows) {
+    if (n.errores.length > 0) continue;
+
+    if (n.telefono_normalizado.length >= 7) {
+      const primera = telVistos.get(n.telefono_normalizado);
+      if (primera !== undefined) {
+        bloqueadas.set(
+          n.fila,
+          `Teléfono repetido en el archivo (ya aparece en la fila ${primera})`,
+        );
+        continue;
+      }
+      telVistos.set(n.telefono_normalizado, n.fila);
+    }
+
+    if (n.email && !n.email_provisional) {
+      const primera = mailVistos.get(n.email);
+      if (primera !== undefined) {
+        bloqueadas.set(n.fila, `Email repetido en el archivo (ya aparece en la fila ${primera})`);
+        continue;
+      }
+      mailVistos.set(n.email, n.fila);
+    }
+  }
+
+  return bloqueadas;
+}
+

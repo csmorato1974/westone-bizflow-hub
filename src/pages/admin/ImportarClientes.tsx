@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import {
   Download, Loader2, Upload, AlertTriangle, ShieldAlert, Eye, EyeOff, Copy,
@@ -18,6 +17,7 @@ import {
   RULES_VERSION, TEMPLATE_CSV, parseRows, type RawRow,
 } from "@/lib/importClientes";
 import ImportIncidencias from "@/components/admin/ImportIncidencias";
+import ImportReportes from "@/components/admin/ImportReportes";
 
 type RowEstado = "nuevo" | "duplicado_exacto" | "actualizable" | "coincidencia_probable" | "error";
 type Accion = "crear" | "actualizar" | "vincular" | "ignorar" | "revisar" | "error";
@@ -69,7 +69,6 @@ export default function ImportarClientes() {
   const [rows, setRows] = useState<RawRow[]>([]);
   const [results, setResults] = useState<ResultRow[] | null>(null);
   const [commitResults, setCommitResults] = useState<ResultRow[] | null>(null);
-  const [decisiones, setDecisiones] = useState<Record<number, "vincular" | "actualizar" | "ignorar">>({});
   const [filtro, setFiltro] = useState<"todos" | RowEstado>("todos");
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -83,7 +82,7 @@ export default function ImportarClientes() {
   const resetPreview = () => {
     setResults(null);
     setCommitResults(null);
-    setDecisiones({});
+
   };
 
   const onFile = async (file: File) => {
@@ -154,11 +153,6 @@ export default function ImportarClientes() {
     }
     const res = (data as { results: ResultRow[] }).results;
     setResults(res);
-    setDecisiones(
-      Object.fromEntries(
-        res.filter((r) => r.estado === "coincidencia_probable").map((r) => [r.fila, "ignorar" as const]),
-      ),
-    );
   };
 
   const ejecutar = async (incluirActualizables: boolean) => {
@@ -168,7 +162,8 @@ export default function ImportarClientes() {
       let accion: Accion = "ignorar";
       if (r.estado === "nuevo") accion = "crear";
       else if (r.estado === "actualizable" && incluirActualizables) accion = "actualizar";
-      else if (r.estado === "coincidencia_probable") accion = decisiones[r.fila] ?? "ignorar";
+      // Las coincidencias probables quedan siempre a revisión manual.
+      else if (r.estado === "coincidencia_probable") accion = "revisar";
       return { fila: r.fila, estado_preview: r.estado, accion, cliente_id: r.cliente_id };
     });
 
@@ -427,36 +422,31 @@ export default function ImportarClientes() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  Estas filas se parecen a clientes existentes. Elige qué hacer con cada una. Si crees que es un
-                  cliente distinto, ignórala aquí y créala manualmente desde Clientes.
-                </p>
+                <Alert>
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertTitle>Posibles duplicados bloqueados</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Estas filas se parecen a un cliente existente o repiten teléfono/email dentro del mismo
+                    archivo. La importación <strong>no las crea ni las actualiza</strong>: quedan como
+                    incidencias y se resuelven una por una desde “Revisión manual de incidencias”, más abajo.
+                  </AlertDescription>
+                </Alert>
                 {revisiones.map((r) => (
                   <div key={r.fila} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
                     <div className="text-sm">
-                      <p className="font-semibold">{r.nombre || r.empresa}</p>
+                      <p className="font-semibold">{r.empresa || r.nombre}</p>
                       <p className="text-xs text-muted-foreground">
-                        {r.motivo} → {r.coincide_con?.empresa ?? r.coincide_con?.contacto ?? "—"}
+                        Fila {r.fila} · {r.motivo}
+                        {r.coincide_con ? ` → ${r.coincide_con.empresa ?? r.coincide_con.contacto ?? "—"}` : ""}
                       </p>
                     </div>
-                    <Select
-                      value={decisiones[r.fila] ?? "ignorar"}
-                      onValueChange={(v) =>
-                        setDecisiones((d) => ({ ...d, [r.fila]: v as "vincular" | "actualizar" | "ignorar" }))
-                      }
-                    >
-                      <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vincular">Vincular a existente</SelectItem>
-                        <SelectItem value="actualizar">Actualizar existente</SelectItem>
-                        <SelectItem value="ignorar">Ignorar</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Badge className="bg-warning text-warning-foreground">Bloqueado · a revisión</Badge>
                   </div>
                 ))}
               </CardContent>
             </Card>
           )}
+
 
           <Card>
             <CardHeader className="pb-3">
@@ -523,6 +513,8 @@ export default function ImportarClientes() {
       )}
 
       <ImportIncidencias key={commitResults ? commitResults.length : "idle"} />
+
+      <ImportReportes key={commitResults ? `rep-${commitResults.length}` : "rep-idle"} />
     </div>
   );
 }

@@ -9,7 +9,7 @@
  * lote si no coincide con la suya.
  */
 
-export const RULES_VERSION = "1.1.0";
+export const RULES_VERSION = "1.2.0";
 
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
@@ -205,9 +205,10 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     email = "";
   }
 
-  if (!nombre && !telefono_normalizado) {
-    errores.push("Fila sin nombre y sin teléfono");
+  if (!nombre) {
+    errores.push("Fila sin nombre de negocio");
   }
+
 
   const direccion = (raw.direccion ?? "").trim();
   const direccion_normalizada = normalizeText(direccion);

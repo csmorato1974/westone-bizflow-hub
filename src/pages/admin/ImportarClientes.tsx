@@ -243,19 +243,20 @@ export default function ImportarClientes() {
   const reporteCSV = () => {
     const rowsOut = commitResults ?? results ?? [];
     const headers = [
-      "fila", "nombre", "empresa", "telefono", "email", "email_provisional", "estado",
+      "fila", "nombre", "empresa", "telefono", "email", "email_provisional", "rol", "estado",
       "accion", "motivo", "observaciones", "clave_importacion", "user_id", "cliente_id",
       ...(incluirPasswords ? ["password_provisional"] : []),
     ];
     const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = rowsOut.map((r) =>
       [
-        r.fila, r.nombre, r.empresa, r.telefono_normalizado, r.email, r.email_provisional,
+        r.fila, r.nombre, r.empresa, r.telefono_normalizado, r.email, r.email_provisional, "cliente",
         r.estado, r.accion_tomada ?? r.accion_propuesta, r.motivo, r.observaciones.join(" · "),
         r.external_import_key, r.user_id ?? "", r.cliente_id ?? "",
         ...(incluirPasswords ? [r.password_provisional ?? ""] : []),
       ].map(escape).join(","),
     );
+
     return [headers.join(","), ...lines].join("\n");
   };
 
@@ -373,9 +374,11 @@ export default function ImportarClientes() {
                           Acción: {r.accion_tomada}
                         </Badge>
                       )}
+                      <Badge variant="outline" className="text-xs uppercase">Rol: cliente</Badge>
                       {r.email_provisional && (
                         <Badge variant="outline" className="text-xs">Email provisional</Badge>
                       )}
+
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {r.email} · {r.telefono_normalizado || "sin teléfono"} · clave {r.external_import_key || "—"}

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Save, MessageCircle, User as UserIcon } from "lucide-react";
+import { Loader2, Save, MessageCircle, User as UserIcon, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { waLink } from "@/lib/whatsapp";
@@ -46,6 +46,10 @@ export default function Perfil() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [emailActual, setEmailActual] = useState("");
+  const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
+  const [savingEmail, setSavingEmail] = useState(false);
+
   const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
   const [vendedor, setVendedor] = useState<VendedorInfo | null>(null);
   const [clientesCount, setClientesCount] = useState<number>(0);
@@ -60,13 +64,29 @@ export default function Perfil() {
       .eq("id", user.id)
       .maybeSingle();
 
+    const actual = user.email ?? profile?.email ?? "";
+    setEmailActual(actual);
+    setEmailPendiente(((user as unknown as { new_email?: string | null }).new_email) || null);
+
+    // Si el usuario confirmó un cambio de email, sincronizamos el perfil.
+    if (actual && profile && (profile.email ?? "").toLowerCase() !== actual.toLowerCase()) {
+      await supabase
+        .from("profiles")
+        .update({ email: actual, email_provisional: actual.endsWith("@clientes-temp.local") })
+        .eq("id", user.id);
+      profile.email = actual;
+      await logAudit("confirmar_cambio_email", "profiles", user.id, { email: actual });
+    }
+
+
     if (profile) {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
-      setEmail(profile.email ?? user.email ?? "");
+      setEmail(profile.email ?? actual);
     } else {
-      setEmail(user.email ?? "");
+      setEmail(actual);
     }
+
 
     if (hasRole("cliente")) {
       const { data: cli } = await supabase
@@ -133,6 +153,31 @@ export default function Perfil() {
     await refreshProfile();
     toast.success("Perfil actualizado");
   };
+
+  const handleEmailChange = async () => {
+    if (!user) return;
+    const nuevo = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
+      return toast.error("Ingresá un email válido");
+    }
+    if (nuevo === emailActual.toLowerCase()) return;
+
+    setSavingEmail(true);
+    const { error } = await supabase.auth.updateUser(
+      { email: nuevo },
+      { emailRedirectTo: `${window.location.origin}/app/perfil` },
+    );
+    setSavingEmail(false);
+    if (error) return toast.error(error.message);
+
+    setEmailPendiente(nuevo);
+    await logAudit("solicitar_cambio_email", "profiles", user.id, {
+      email_anterior: emailActual,
+      email_nuevo: nuevo,
+    });
+    toast.success("Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.");
+  };
+
 
   const initials = (fullName || email || "U")
     .split(" ")
@@ -210,9 +255,42 @@ export default function Perfil() {
             </div>
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} disabled />
-              <p className="text-xs text-muted-foreground">El email no se puede cambiar desde aquí.</p>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  id="email"
+                  type="email"
+                  className="flex-1 min-w-[200px]"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tucorreo@dominio.com"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleEmailChange}
+                  disabled={savingEmail || email.trim().toLowerCase() === emailActual.toLowerCase()}
+                >
+                  {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
+                  <span className="ml-1">Actualizar email</span>
+                </Button>
+              </div>
+              {emailPendiente ? (
+                <p className="text-xs text-warning-foreground">
+                  Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
+                  email actual sigue activo hasta que confirmes el nuevo.
+                </p>
+              ) : !emailActual ? (
+                <p className="text-xs text-muted-foreground">
+                  Todavía no tenés un email definido. Cargá uno para poder recuperar tu acceso.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Al cambiar el email te enviamos un correo de confirmación al nuevo. El email actual
+                  sigue activo hasta que lo confirmes.
+                </p>
+              )}
             </div>
+
           </div>
           <div className="pt-2">
             <Button onClick={handleSave} disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand/90">

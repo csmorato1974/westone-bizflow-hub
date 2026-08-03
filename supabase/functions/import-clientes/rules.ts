@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.1.0";
+export const RULES_VERSION = "1.2.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =
@@ -116,20 +116,25 @@ export function buildProvisionalEmail(nombreNormalizado: string, telefono: strin
 }
 
 /**
- * Contraseña provisional derivada del email de la cuenta:
- *   Wst-<parte local del email>-26
- * Es predecible por diseño (pedido explícito del super admin); las cuentas quedan
- * con `must_change_password = true`, por lo que se obliga a cambiarla al primer ingreso.
+ * Contraseña provisional de lote (fase de pruebas).
+ *
+ * Antes se derivaba del email con el formato `Wst-{email-part}-26`
+ * (ej. juan.perez@clientes-temp.local -> Wst-juan.perez-26).
+ * Ahora es una clave única y fija para todas las cuentas creadas por
+ * importación: `Wst-prueba-2026`.
+ *
+ * Alcance: solo aplica a NUEVAS importaciones. No se modifican cuentas
+ * existentes ni las cuentas administrativas.
+ *
+ * Las cuentas quedan con `must_change_password = true`, por lo que se obliga
+ * a cambiarla en el primer ingreso.
  */
-export function buildProvisionalPassword(email?: string, telefono?: string): string {
-  const local = normalizeEmail(email).split("@")[0].replace(/[^a-z0-9._-]/g, "");
-  let base = local;
-  if (base.length < 3) {
-    const extra = (telefono ?? "").replace(/\D/g, "") || stableHash("pwd:" + (email ?? ""));
-    base = (base || "cliente") + "-" + extra;
-  }
-  return `Wst-${base}-26`;
+export const PROVISIONAL_PASSWORD = "Wst-prueba-2026";
+
+export function buildProvisionalPassword(_email?: string, _telefono?: string): string {
+  return PROVISIONAL_PASSWORD;
 }
+
 
 
 
@@ -165,7 +170,7 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     errores.push(`Email inválido: ${email}`);
     email = "";
   }
-  if (!nombre && !telefono_normalizado) errores.push("Fila sin nombre y sin teléfono");
+  if (!nombre) errores.push("Fila sin nombre de negocio");
 
   const direccion = (raw.direccion ?? "").trim();
   const direccion_normalizada = normalizeText(direccion);

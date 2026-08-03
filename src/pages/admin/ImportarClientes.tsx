@@ -373,9 +373,11 @@ export default function ImportarClientes() {
                           Acción: {r.accion_tomada}
                         </Badge>
                       )}
+                      <Badge variant="outline" className="text-xs uppercase">Rol: cliente</Badge>
                       {r.email_provisional && (
                         <Badge variant="outline" className="text-xs">Email provisional</Badge>
                       )}
+
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {r.email} · {r.telefono_normalizado || "sin teléfono"} · clave {r.external_import_key || "—"}

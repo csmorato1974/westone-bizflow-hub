@@ -143,6 +143,31 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
+  const handleEmailChange = async () => {
+    if (!user) return;
+    const nuevo = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
+      return toast.error("Ingresá un email válido");
+    }
+    if (nuevo === emailActual.toLowerCase()) return;
+
+    setSavingEmail(true);
+    const { error } = await supabase.auth.updateUser(
+      { email: nuevo },
+      { emailRedirectTo: `${window.location.origin}/app/perfil` },
+    );
+    setSavingEmail(false);
+    if (error) return toast.error(error.message);
+
+    setEmailPendiente(nuevo);
+    await logAudit("solicitar_cambio_email", "profiles", user.id, {
+      email_anterior: emailActual,
+      email_nuevo: nuevo,
+    });
+    toast.success("Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.");
+  };
+
+
   const initials = (fullName || email || "U")
     .split(" ")
     .map((p) => p[0])

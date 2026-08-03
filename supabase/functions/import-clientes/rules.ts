@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.2.0";
+export const RULES_VERSION = "1.3.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =

@@ -68,6 +68,17 @@ export default function Perfil() {
     setEmailActual(actual);
     setEmailPendiente(((user as unknown as { new_email?: string | null }).new_email) || null);
 
+    // Si el usuario confirmó un cambio de email, sincronizamos el perfil.
+    if (actual && profile && (profile.email ?? "").toLowerCase() !== actual.toLowerCase()) {
+      await supabase
+        .from("profiles")
+        .update({ email: actual, email_provisional: actual.endsWith("@clientes-temp.local") })
+        .eq("id", user.id);
+      profile.email = actual;
+      await logAudit("confirmar_cambio_email", "profiles", user.id, { email: actual });
+    }
+
+
     if (profile) {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");

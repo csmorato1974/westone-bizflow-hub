@@ -210,9 +210,42 @@ export default function Perfil() {
             </div>
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} disabled />
-              <p className="text-xs text-muted-foreground">El email no se puede cambiar desde aquí.</p>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  id="email"
+                  type="email"
+                  className="flex-1 min-w-[200px]"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tucorreo@dominio.com"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleEmailChange}
+                  disabled={savingEmail || email.trim().toLowerCase() === emailActual.toLowerCase()}
+                >
+                  {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
+                  <span className="ml-1">Actualizar email</span>
+                </Button>
+              </div>
+              {emailPendiente ? (
+                <p className="text-xs text-warning-foreground">
+                  Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
+                  email actual sigue activo hasta que confirmes el nuevo.
+                </p>
+              ) : !emailActual ? (
+                <p className="text-xs text-muted-foreground">
+                  Todavía no tenés un email definido. Cargá uno para poder recuperar tu acceso.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Al cambiar el email te enviamos un correo de confirmación al nuevo. El email actual
+                  sigue activo hasta que lo confirmes.
+                </p>
+              )}
             </div>
+
           </div>
           <div className="pt-2">
             <Button onClick={handleSave} disabled={saving} className="bg-brand text-brand-foreground hover:bg-brand/90">

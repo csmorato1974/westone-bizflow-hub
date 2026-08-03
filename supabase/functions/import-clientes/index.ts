@@ -336,9 +336,14 @@ Deno.serve(async (req) => {
       try {
         if (issueAccion === "ignorar") {
           base.accion_tomada = "ignorar";
+        } else if (n.errores.length > 0) {
+          throw new Error(
+            `No se puede aplicar el reintento: ${n.errores.join(" · ")}. Corrige los datos de la fila primero.`,
+          );
         } else {
           await ejecutarAccion(n, issueAccion, issueClienteId ?? m.cliente_id, base);
         }
+
       } catch (e) {
         ok = false;
         base.estado = "error";

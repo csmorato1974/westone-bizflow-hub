@@ -182,7 +182,13 @@ Deno.serve(async (req) => {
       normalizados.push(n);
     }
 
+    // Validación definitiva de duplicados internos del archivo: las
+    // repeticiones de teléfono o email dentro del mismo lote se bloquean y van
+    // a revisión manual, nunca se crean ni se actualizan.
+    const duplicadosInternos = detectarDuplicadosInternos(normalizados);
+
     const evaluar = (n: NormalizedRow) => {
+      const dupInterno = duplicadosInternos.get(n.fila);
       const m = matchRow(n, existentes);
       const observaciones: string[] = [];
       if (n.email_provisional) observaciones.push("Email provisional generado");
@@ -190,6 +196,16 @@ Deno.serve(async (req) => {
         observaciones.push(`Vendedor no encontrado: ${n.vendedor_asignado}`);
       if (n.lista_precio && !resolveLista(n.lista_precio))
         observaciones.push(`Lista de precios no encontrada: ${n.lista_precio}`);
+
+      if (dupInterno) {
+        observaciones.push(dupInterno);
+        return {
+          m: { ...m, estado: "coincidencia_probable" as RowEstado, motivo: dupInterno },
+          observaciones,
+          accion: "revisar" as Accion,
+        };
+      }
+
       const accion: Accion =
         m.estado === "nuevo"
           ? "crear"
@@ -202,6 +218,7 @@ Deno.serve(async (req) => {
                 : "error";
       return { m, observaciones, accion };
     };
+
 
     /**
      * Aplicación de la acción decidida. Es la ÚNICA ruta de escritura: la usan

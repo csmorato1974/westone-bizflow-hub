@@ -64,13 +64,18 @@ export default function Perfil() {
       .eq("id", user.id)
       .maybeSingle();
 
+    const actual = user.email ?? profile?.email ?? "";
+    setEmailActual(actual);
+    setEmailPendiente(((user as unknown as { new_email?: string | null }).new_email) || null);
+
     if (profile) {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
-      setEmail(profile.email ?? user.email ?? "");
+      setEmail(profile.email ?? actual);
     } else {
-      setEmail(user.email ?? "");
+      setEmail(actual);
     }
+
 
     if (hasRole("cliente")) {
       const { data: cli } = await supabase

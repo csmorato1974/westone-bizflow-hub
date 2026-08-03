@@ -512,6 +512,8 @@ export default function ImportarClientes() {
       )}
 
       <ImportIncidencias key={commitResults ? commitResults.length : "idle"} />
+
+      <ImportReportes key={commitResults ? `rep-${commitResults.length}` : "rep-idle"} />
     </div>
   );
 }

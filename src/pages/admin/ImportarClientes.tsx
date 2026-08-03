@@ -168,7 +168,8 @@ export default function ImportarClientes() {
       let accion: Accion = "ignorar";
       if (r.estado === "nuevo") accion = "crear";
       else if (r.estado === "actualizable" && incluirActualizables) accion = "actualizar";
-      else if (r.estado === "coincidencia_probable") accion = decisiones[r.fila] ?? "ignorar";
+      // Las coincidencias probables quedan siempre a revisión manual.
+      else if (r.estado === "coincidencia_probable") accion = "revisar";
       return { fila: r.fila, estado_preview: r.estado, accion, cliente_id: r.cliente_id };
     });
 

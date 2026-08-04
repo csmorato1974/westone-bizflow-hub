@@ -197,33 +197,74 @@ export default function Login() {
         Acceso restringido · Plataforma B2B Westone Performance
       </p>
 
-      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) setResetSent(false); }}>
+      <Dialog open={resetOpen} onOpenChange={(o) => { setResetOpen(o); if (!o) { setResetSent(false); setResetSinEmail(false); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Recuperar contraseña</DialogTitle>
             <DialogDescription>
-              Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+              Ingresá tu usuario o email y te enviaremos un enlace para restablecer tu contraseña.
             </DialogDescription>
           </DialogHeader>
-          {resetSent ? (
+          {resetSinEmail ? (
+            <div className="space-y-3">
+              <Alert className="border-amber-500/40 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs leading-relaxed">
+                  Tu cuenta todavía <strong>no tiene un correo real registrado</strong>, así que no
+                  podemos enviarte el enlace. Escribinos y lo activamos: registramos tu correo o te
+                  reenviamos una clave provisional en el momento.
+                </AlertDescription>
+              </Alert>
+              {SOPORTE_WHATSAPP ? (
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() =>
+                    window.open(
+                      waLink(
+                        SOPORTE_WHATSAPP,
+                        `Hola, soy ${resetEmail} y necesito recuperar el acceso a la plataforma Westone.`,
+                      ),
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Contactar a Westone por WhatsApp
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Contactá a tu asesor o al administrador de Westone Performance para activar tu
+                  acceso.
+                </p>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : resetSent ? (
             <Alert className="border-green-500/40 bg-green-500/10">
               <MailCheck className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-xs leading-relaxed">
-                Te enviamos un enlace a <strong>{resetEmail}</strong>. Revisa tu bandeja de entrada y la carpeta de spam. El enlace expira en poco tiempo por seguridad.
+                Si <strong>{resetEmail}</strong> corresponde a una cuenta con correo registrado, te
+                enviamos el enlace. Revisá tu bandeja de entrada y la carpeta de spam. El enlace
+                expira en poco tiempo por seguridad.
               </AlertDescription>
             </Alert>
           ) : (
             <form onSubmit={onResetRequest} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="reset-email">Email</Label>
+                <Label htmlFor="reset-email">Usuario o email</Label>
                 <Input
                   id="reset-email"
-                  type="email"
+                  type="text"
                   required
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
-                  autoComplete="email"
-                  placeholder="tu@email.com"
+                  autoComplete="username"
+                  placeholder="tu.usuario o tu@email.com"
                 />
               </div>
               <DialogFooter>
@@ -238,6 +279,7 @@ export default function Login() {
           )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

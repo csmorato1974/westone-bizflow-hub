@@ -62,6 +62,7 @@ export function AppSidebar() {
     ? [
         { title: "Usuarios", url: "/app/admin/usuarios", icon: Shield },
         { title: "Importar clientes", url: "/app/admin/importar-clientes", icon: Upload },
+        { title: "Importar pedidos", url: "/app/admin/importar-pedidos", icon: Upload },
       ]
     : isAdmin
     ? [{ title: "Usuarios", url: "/app/admin/usuarios", icon: Shield }]

@@ -160,29 +160,73 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
-  const handleEmailChange = async () => {
+  const handleUsernameSave = async () => {
+    if (!user) return;
+    const nuevo = username.trim().toLowerCase();
+    if (nuevo === usernameActual.toLowerCase()) return;
+    if (!/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/.test(nuevo)) {
+      return toast.error("Usuario inválido: 3 a 30 caracteres (letras, números, punto, guion o guion bajo)");
+    }
+    setSaving(true);
+    const { data: disponible } = await supabase.rpc("username_disponible", { _username: nuevo });
+    if (!disponible) {
+      setSaving(false);
+      return toast.error("Ese nombre de usuario no está disponible");
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: nuevo, username_provisional: false })
+      .eq("id", user.id);
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    setUsernameActual(nuevo);
+    setUsernameProvisional(false);
+    await logAudit("actualizar_username", "profiles", user.id, {
+      username_anterior: usernameActual,
+      username_nuevo: nuevo,
+    });
+    await refreshProfile();
+    toast.success("Nombre de usuario actualizado");
+  };
+
+  const callEmailChange = async (accion: "solicitar" | "reenviar" | "cancelar") => {
     if (!user) return;
     const nuevo = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
-      return toast.error("Ingresá un email válido");
+    if (accion === "solicitar") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) return toast.error("Ingresá un email válido");
+      if (nuevo === emailActual.toLowerCase()) return;
     }
-    if (nuevo === emailActual.toLowerCase()) return;
 
     setSavingEmail(true);
-    const { error } = await supabase.auth.updateUser(
-      { email: nuevo },
-      { emailRedirectTo: `${window.location.origin}/app/perfil` },
-    );
-    setSavingEmail(false);
-    if (error) return toast.error(error.message);
-
-    setEmailPendiente(nuevo);
-    await logAudit("solicitar_cambio_email", "profiles", user.id, {
-      email_anterior: emailActual,
-      email_nuevo: nuevo,
+    const { data, error } = await supabase.functions.invoke("request-email-change", {
+      body: {
+        accion,
+        user_id: user.id,
+        email: nuevo,
+        redirect_to: `${window.location.origin}/app/perfil`,
+      },
     });
-    toast.success("Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.");
+    setSavingEmail(false);
+
+    if (error || data?.error) {
+      const msg = data?.error ?? "No se pudo procesar la solicitud";
+      return toast.error(msg);
+    }
+
+    if (accion === "cancelar") {
+      setEmailPendiente(null);
+      setEmail(emailActual);
+      toast.success("Solicitud cancelada");
+    } else {
+      setEmailPendiente(nuevo);
+      toast.success(
+        accion === "reenviar"
+          ? "Reenviamos el correo de confirmación"
+          : "Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.",
+      );
+    }
   };
+
 
 
   const initials = (fullName || email || "U")

@@ -354,6 +354,35 @@ export default function AdminClientes() {
     await logAudit("onboarding_enviado", "clientes", c.id, { canal, empresa: c.empresa });
   };
 
+  // Vista previa: siempre se valida el texto con datos reales antes de abrir
+  // wa.me o mailto:.
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewCanal, setPreviewCanal] = useState<"whatsapp" | "email">("whatsapp");
+
+  const previewData = useMemo(() => {
+    const c = clientes.find((x) => x.id === previewId);
+    if (!c) return null;
+    const { vars, email } = onboardingDe(c);
+    if (!vars) return null;
+    return {
+      empresa: c.empresa,
+      contacto: c.contacto,
+      celular: c.celular,
+      emailDestino: email,
+      vars,
+    };
+  }, [previewId, clientes, onboardingDe]);
+
+  const abrirPreview = (id: string, canal: "whatsapp" | "email") => {
+    const c = clientes.find((x) => x.id === id);
+    if (!c) return;
+    const { vars } = onboardingDe(c);
+    if (!vars) return toast.error("Este cliente no tiene clave provisional");
+    if (!vars.username) return toast.error("La cuenta no tiene nombre de usuario asignado");
+    setPreviewCanal(canal);
+    setPreviewId(id);
+  };
+
   const enviarWhatsapp = async (id: string) => {
     const c = clientes.find((x) => x.id === id);
     if (!c) return;
@@ -361,6 +390,7 @@ export default function AdminClientes() {
     if (!vars) return toast.error("Este cliente no tiene clave provisional");
     if (!vars.username) return toast.error("La cuenta no tiene nombre de usuario asignado");
     window.open(waLink(c.celular, mensajeWhatsapp(vars)), "_blank", "noopener,noreferrer");
+    setPreviewId(null);
     await marcarEnviado(c, "whatsapp");
     toast.success("WhatsApp abierto · revisá y presioná enviar");
   };
@@ -372,9 +402,11 @@ export default function AdminClientes() {
     if (!vars) return toast.error("Este cliente no tiene clave provisional");
     if (!dest) return toast.error("El cliente no tiene un email real para escribirle");
     window.location.href = mailtoLink(dest, vars);
+    setPreviewId(null);
     await marcarEnviado(c, "email");
     toast.success("Correo abierto en tu cliente de email");
   };
+
 
   const loteClientes = useMemo(
     () => selectedIds.map((id) => clientes.find((c) => c.id === id)).filter(Boolean) as Cliente[],

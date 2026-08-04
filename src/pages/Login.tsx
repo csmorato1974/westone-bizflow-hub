@@ -16,8 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { toast } from "sonner";
-import { Loader2, Eye, EyeOff, MailCheck } from "lucide-react";
+import { Loader2, Eye, EyeOff, MailCheck, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SOPORTE_WHATSAPP } from "@/lib/onboarding";
+import { waLink } from "@/lib/whatsapp";
+
 
 export default function Login() {
   const { user, loading, signIn, signUp, requestPasswordReset } = useAuth();
@@ -41,7 +44,9 @@ export default function Login() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
+  const [resetSinEmail, setResetSinEmail] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+
 
   if (!loading && user) return <Navigate to={from} replace />;
 

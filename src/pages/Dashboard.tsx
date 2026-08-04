@@ -7,6 +7,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReporteVentas } from "@/components/admin/ReporteVentas";
+
 
 type Motivo =
   | "sin_rol"

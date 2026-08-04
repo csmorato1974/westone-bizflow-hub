@@ -979,7 +979,85 @@ export default function AdminClientes() {
         </>
       )}
 
+      {/* Envío en secuencia: el admin confirma cada mensaje manualmente */}
+      <Dialog open={loteOpen} onOpenChange={setLoteOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">
+              Onboarding en secuencia ({Math.min(loteIndex + 1, loteClientes.length)}/{loteClientes.length})
+            </DialogTitle>
+          </DialogHeader>
+          {loteActual ? (
+            (() => {
+              const ob = onboardingDe(loteActual);
+              const enviado = fechaEnvio(loteActual.onboarding_enviado_en);
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">{loteActual.empresa}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {loteActual.contacto} · 📞 {loteActual.celular}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Usuario: {ob.vars?.username || "—"} · Clave: {ob.vars?.clave_provisional || "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {enviado ? `Ya enviado ${enviado}` : "Sin enviar"}
+                    </p>
+                  </div>
+                  <Textarea
+                    readOnly
+                    rows={10}
+                    className="text-xs"
+                    value={ob.vars ? mensajeWhatsapp(ob.vars) : ""}
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                      onClick={() => enviarWhatsapp(loteActual.id)}
+                    >
+                      <MessageCircle className="h-3 w-3" /> Abrir WhatsApp
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!ob.email}
+                      onClick={() => enviarEmail(loteActual.id)}
+                    >
+                      <Mail className="h-3 w-3" /> Abrir Email
+                    </Button>
+                  </div>
+                  <DialogFooter className="gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={loteIndex === 0}
+                      onClick={() => setLoteIndex((i) => Math.max(0, i - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    {loteIndex + 1 < loteClientes.length ? (
+                      <Button size="sm" variant="outline" onClick={() => setLoteIndex((i) => i + 1)}>
+                        Siguiente
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => { setLoteOpen(false); setSelectedIds([]); }}>
+                        Terminar
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="text-sm text-muted-foreground">No hay clientes seleccionados.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={open} onOpenChange={onOpenChange}>
+
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="industrial-title">

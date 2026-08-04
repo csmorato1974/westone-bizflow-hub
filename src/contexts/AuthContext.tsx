@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, avatar_url, must_change_password")
+      .select("full_name, avatar_url, must_change_password, username, username_provisional, email, email_provisional")
       .eq("id", userId)
       .maybeSingle();
     setProfile(
@@ -30,9 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: data.full_name,
             avatar_url: data.avatar_url,
             must_change_password: !!data.must_change_password,
+            username: data.username ?? null,
+            username_provisional: !!data.username_provisional,
+            email: data.email ?? null,
+            email_provisional: !!data.email_provisional,
           }
         : null,
     );
+  };
+
+  /** El email de la cuenta es la fuente de verdad: sincroniza profiles.email si cambió. */
+  const syncEmail = async () => {
+    await supabase.rpc("sincronizar_mi_email");
   };
 
   useEffect(() => {

@@ -31,7 +31,6 @@ import {
   mensajeWhatsapp,
   mailtoLink,
   fechaEnvio,
-  APP_LOGIN_URL,
 } from "@/lib/onboarding";
 
 import { useAuth } from "@/contexts/AuthContext";

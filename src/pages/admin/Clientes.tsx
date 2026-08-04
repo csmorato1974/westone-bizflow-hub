@@ -23,7 +23,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
-import { mapsLink } from "@/lib/whatsapp";
+import { mapsLink, waLink } from "@/lib/whatsapp";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  buildVars,
+  emailContactable,
+  mensajeWhatsapp,
+  mailtoLink,
+  fechaEnvio,
+  APP_LOGIN_URL,
+} from "@/lib/onboarding";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";

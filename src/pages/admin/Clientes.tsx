@@ -462,7 +462,9 @@ export default function AdminClientes() {
       setAccesoEmail(""); setAccesoEmailPendiente(null);
       return;
     }
+    setClaveRegenerada(null);
     let cancel = false;
+
     (async () => {
       const [{ data: p }, { data: req }] = await Promise.all([
         supabase.from("profiles").select("username,email").eq("id", userId).maybeSingle(),

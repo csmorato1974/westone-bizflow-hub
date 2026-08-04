@@ -108,14 +108,33 @@ Deno.serve(async (req) => {
       return json({ ok: true, estado: "aplicada", email_nuevo: emailNuevo, ya_estaba: true });
     }
 
-    // Disponibilidad (perfil y cuenta de acceso)
+    // Disponibilidad: la cuenta de acceso es la fuente de verdad.
+    // Un perfil desincronizado no debe bloquear el cambio.
     const { data: enUso } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, full_name")
       .ilike("email", emailNuevo)
       .neq("id", targetId)
       .maybeSingle();
-    if (enUso) return json({ error: "Ese email ya está en uso por otra cuenta" }, 409);
+
+    if (enUso) {
+      const { data: otro } = await admin.auth.admin.getUserById(enUso.id);
+      const otroEmail = (otro?.user?.email ?? "").toLowerCase();
+      if (otroEmail === emailNuevo) {
+        return json(
+          {
+            error: `Ese email ya es el email de acceso de "${enUso.full_name ?? "otra cuenta"}". Cambiá primero el email de esa cuenta o usá otro.`,
+          },
+          409,
+        );
+      }
+      // Perfil desincronizado: lo corregimos con el email real de su cuenta y seguimos.
+      await admin
+        .from("profiles")
+        .update({ email: otroEmail || null, email_provisional: otroEmail.endsWith("@clientes-temp.local") })
+        .eq("id", enUso.id);
+    }
+
 
     // Cambio propio: el navegador dispara el flujo nativo con su propia sesión.
     // (La sesión temporal desde el servidor invalidaba el token del enlace y la

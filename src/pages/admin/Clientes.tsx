@@ -860,6 +860,8 @@ export default function AdminClientes() {
             <div className="grid gap-3">
               {filtered.map((c) => {
                 const maps = mapsLink(c.latitud, c.longitud);
+                const ob = onboardingDe(c);
+                const enviado = fechaEnvio(c.onboarding_enviado_en);
                 return (
                   <div
                     key={c.id}
@@ -869,14 +871,25 @@ export default function AdminClientes() {
                   <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
-                          {c.empresa}
-                        </button>
+                        <div className="flex items-start gap-2">
+                          {ob.vars && (
+                            <Checkbox
+                              className="mt-1"
+                              checked={selectedIds.includes(c.id)}
+                              onCheckedChange={() => toggleSelected(c.id)}
+                              aria-label={`Seleccionar ${c.empresa}`}
+                            />
+                          )}
+                          <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
+                            {c.empresa}
+                          </button>
+                        </div>
                         <p className="text-sm">{c.contacto}</p>
                         <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
                         {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}
                         {!c.activo && <p className="text-xs text-destructive">Inactivo</p>}
                       </div>
+
                       <div className="space-y-1 text-sm">
                         {c.direccion && <p className="text-muted-foreground">📍 {c.direccion}</p>}
                         {maps && (

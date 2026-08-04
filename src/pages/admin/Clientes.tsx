@@ -40,7 +40,7 @@ import { norm } from "@/lib/reportes";
 
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
-import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";
+import { computeEstado, matchFiltro, PROVISIONAL_DOMAIN, type FiltroEstado } from "@/lib/clienteEstado";
 import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
@@ -150,6 +150,8 @@ export default function AdminClientes() {
   const [accesoEmail, setAccesoEmail] = useState("");
   const [accesoEmailPendiente, setAccesoEmailPendiente] = useState<string | null>(null);
   const [savingAcceso, setSavingAcceso] = useState(false);
+  const [claveRegenerada, setClaveRegenerada] = useState<string | null>(null);
+
 
 
   const load = async () => {
@@ -460,7 +462,9 @@ export default function AdminClientes() {
       setAccesoEmail(""); setAccesoEmailPendiente(null);
       return;
     }
+    setClaveRegenerada(null);
     let cancel = false;
+
     (async () => {
       const [{ data: p }, { data: req }] = await Promise.all([
         supabase.from("profiles").select("username,email").eq("id", userId).maybeSingle(),
@@ -528,6 +532,19 @@ export default function AdminClientes() {
     }
     setAccesoEmailPendiente(nuevo);
     toast.success("Enviamos el correo de confirmación al nuevo email");
+  };
+
+  /** Reaplica la clave provisional estándar y fuerza el cambio en el primer login. */
+  const regenerarClaveProvisional = async () => {
+    if (!userId) return;
+    setSavingAcceso(true);
+    const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
+      body: { user_id: userId },
+    });
+    setSavingAcceso(false);
+    if (error || data?.error) return toast.error(data?.error ?? "No se pudo regenerar la clave");
+    setClaveRegenerada(data.password as string);
+    toast.success("Clave provisional regenerada");
   };
 
 
@@ -1219,6 +1236,24 @@ export default function AdminClientes() {
                     </p>
                   )}
                 </div>
+                {accesoEmail.trim().toLowerCase().endsWith(PROVISIONAL_DOMAIN) && (
+                  <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
+                    <p className="text-xs leading-relaxed">
+                      Cuenta sin correo real: no puede recibir el enlace de recuperación. Registrá su
+                      email de acceso arriba, o regenerá la clave provisional y comunicásela.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={savingAcceso}
+                        onClick={regenerarClaveProvisional}>
+                        Regenerar clave provisional
+                      </Button>
+                      {claveRegenerada && (
+                        <code className="rounded bg-background px-2 py-1 text-xs">{claveRegenerada}</code>
+                      )}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>

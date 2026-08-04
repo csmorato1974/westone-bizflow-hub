@@ -111,12 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const requestPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+  /** Acepta usuario o email. Devuelve sinEmail cuando la cuenta no tiene correo real. */
+  const requestPasswordReset = async (identificador: string) => {
+    const { data, error } = await supabase.functions.invoke("request-password-reset", {
+      body: {
+        identificador: identificador.trim(),
+        redirectTo: `${window.location.origin}/reset-password`,
+      },
     });
-    return { error: error?.message ?? null };
+    if (error) return { error: "No pudimos procesar la solicitud. Intentá de nuevo.", sinEmail: false };
+    return { error: null, sinEmail: !!data?.sin_email };
   };
+
 
   const updatePassword = async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword });

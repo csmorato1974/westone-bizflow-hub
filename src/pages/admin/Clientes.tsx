@@ -55,6 +55,8 @@ interface User {
   phone?: string | null;
   must_change_password?: boolean | null;
   email_provisional?: boolean | null;
+  username?: string | null;
+  username_provisional?: boolean | null;
   roles?: AppRole[];
 }
 

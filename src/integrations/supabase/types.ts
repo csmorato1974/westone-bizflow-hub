@@ -944,6 +944,7 @@ export type Database = {
         Args: { _profile: string; _vendedor: string }
         Returns: boolean
       }
+      cliente_estadisticas: { Args: { _cliente: string }; Returns: Json }
       cliente_tiene_pedido_despacho: {
         Args: { _cliente: string }
         Returns: boolean
@@ -972,6 +973,10 @@ export type Database = {
       puede_ver_pedido: {
         Args: { _pedido: string; _user: string }
         Returns: boolean
+      }
+      reporte_ventas: {
+        Args: { _desde?: string; _hasta?: string }
+        Returns: Json
       }
       sincronizar_mi_email: { Args: never; Returns: Json }
       username_disponible: { Args: { _username: string }; Returns: boolean }

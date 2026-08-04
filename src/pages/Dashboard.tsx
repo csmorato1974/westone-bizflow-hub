@@ -379,6 +379,9 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {isAdmin && <ReporteVentas />}
     </div>
   );
 }
+

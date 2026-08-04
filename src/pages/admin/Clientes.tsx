@@ -872,6 +872,63 @@ export default function AdminClientes() {
                 Lista de usuarios registrados con rol cliente. Vincular permite acceder al catálogo y crear pedidos.
               </p>
             </div>
+            {userId && (
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-sm font-medium">Acceso de la cuenta vinculada</p>
+                <div className="space-y-1">
+                  <Label>Nombre de usuario</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={accesoUsername}
+                      onChange={(e) => setAccesoUsername(e.target.value.toLowerCase())}
+                      maxLength={30}
+                      placeholder="usuario"
+                    />
+                    <Button type="button" variant="outline" disabled={savingAcceso} onClick={guardarUsername}>
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Email de acceso</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={accesoEmail}
+                      onChange={(e) => setAccesoEmail(e.target.value)}
+                      maxLength={255}
+                      placeholder="acceso@dominio.com"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingAcceso}
+                      onClick={() => solicitarCambioEmailAcceso("solicitar")}
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
+                  {accesoEmailPendiente ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-amber-600">
+                        Pendiente de confirmación: <strong>{accesoEmailPendiente}</strong>
+                      </p>
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" variant="outline" disabled={savingAcceso}
+                          onClick={() => solicitarCambioEmailAcceso("reenviar")}>Reenviar</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={savingAcceso}
+                          onClick={() => solicitarCambioEmailAcceso("cancelar")}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Este es el email con el que la cuenta inicia sesión. El email de arriba (ficha) es el
+                      contacto comercial y es independiente.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
             <div className="flex items-center gap-2">
               <input id="activo" type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="h-4 w-4" />

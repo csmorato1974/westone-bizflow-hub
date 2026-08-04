@@ -371,6 +371,51 @@ export type Database = {
         }
         Relationships: []
       }
+      import_pedidos_batches: {
+        Row: {
+          archivo: string | null
+          created_at: string
+          detalle: Json
+          errores: number
+          id: string
+          lineas_creadas: number
+          omitidos: number
+          origen: string
+          pedidos_creados: number
+          pendientes: number
+          total_filas: number
+          user_id: string
+        }
+        Insert: {
+          archivo?: string | null
+          created_at?: string
+          detalle?: Json
+          errores?: number
+          id?: string
+          lineas_creadas?: number
+          omitidos?: number
+          origen?: string
+          pedidos_creados?: number
+          pendientes?: number
+          total_filas?: number
+          user_id: string
+        }
+        Update: {
+          archivo?: string | null
+          created_at?: string
+          detalle?: Json
+          errores?: number
+          id?: string
+          lineas_creadas?: number
+          omitidos?: number
+          origen?: string
+          pedidos_creados?: number
+          pendientes?: number
+          total_filas?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       lista_precio_items: {
         Row: {
           id: string
@@ -608,8 +653,11 @@ export type Database = {
           created_at: string
           estado: Database["public"]["Enums"]["pedido_estado"]
           id: string
+          import_batch_id: string | null
+          import_row_key: string | null
           notas: string | null
           numero: number
+          origen_importacion: string | null
           total: number
           updated_at: string
           vendedor_id: string | null
@@ -620,8 +668,11 @@ export type Database = {
           created_at?: string
           estado?: Database["public"]["Enums"]["pedido_estado"]
           id?: string
+          import_batch_id?: string | null
+          import_row_key?: string | null
           notas?: string | null
           numero?: number
+          origen_importacion?: string | null
           total?: number
           updated_at?: string
           vendedor_id?: string | null
@@ -632,8 +683,11 @@ export type Database = {
           created_at?: string
           estado?: Database["public"]["Enums"]["pedido_estado"]
           id?: string
+          import_batch_id?: string | null
+          import_row_key?: string | null
           notas?: string | null
           numero?: number
+          origen_importacion?: string | null
           total?: number
           updated_at?: string
           vendedor_id?: string | null

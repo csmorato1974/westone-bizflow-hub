@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Loader2, Package, ExternalLink } from "lucide-react";
@@ -20,6 +21,7 @@ interface Pedido {
   estado: string;
   total: number;
   created_at: string;
+  origen_importacion: string | null;
   pedido_items: Item[];
 }
 
@@ -31,7 +33,7 @@ export function PedidosRecientes({ clienteId, limit = 5, hideViewAll = false, ti
   const load = async () => {
     const { data, error } = await supabase
       .from("pedidos")
-      .select("id,numero,estado,total,created_at,pedido_items!pedido_items_pedido_id_fkey(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku))")
+      .select("id,numero,estado,total,created_at,origen_importacion,pedido_items!pedido_items_pedido_id_fkey(cantidad,precio_unitario,presentacion,subtotal,productos(nombre,sku))")
       .eq("cliente_id", clienteId)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -81,6 +83,9 @@ export function PedidosRecientes({ clienteId, limit = 5, hideViewAll = false, ti
                       <span className="industrial-title">#{p.numero}</span>
                       <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</span>
                       <EstadoBadge estado={p.estado} />
+                      {p.origen_importacion === "historico" && (
+                        <Badge variant="outline" className="text-xs">Histórico</Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="industrial-title text-sm">Bs {Number(p.total).toFixed(2)}</span>

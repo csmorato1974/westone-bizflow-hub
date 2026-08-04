@@ -35,6 +35,9 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { ClienteEstadisticas } from "@/components/admin/ClienteEstadisticas";
+import { norm } from "@/lib/reportes";
+
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
 import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";

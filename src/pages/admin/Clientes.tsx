@@ -139,7 +139,7 @@ export default function AdminClientes() {
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
-      supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional"),
+      supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional,username,username_provisional"),
     ]);
     const rolesByUser = new Map<string, AppRole[]>();
     (ur ?? []).forEach((r: { user_id: string; role: string }) => {

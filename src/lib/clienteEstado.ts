@@ -69,15 +69,20 @@ export function computeEstado(c: ClienteEstadoInput): ClienteEstado {
   const vinculada = !!c.user_id && !!perfil;
   const sinCuenta = !c.user_id;
 
-  const emails = [c.email ?? "", perfil?.email ?? ""];
-  const emailProvisional =
-    emails.some((e) => e.toLowerCase().endsWith(PROVISIONAL_DOMAIN)) ||
-    !!c.email_provisional ||
-    !!perfil?.email_provisional;
+  const esPlaceholder = (e?: string | null) =>
+    (e ?? "").trim().toLowerCase().endsWith(PROVISIONAL_DOMAIN);
+
+  // El email de acceso (perfil) manda; si no hay cuenta vinculada se usa el email del CRM.
+  // Los flags email_provisional se ignoran: pueden quedar desactualizados tras un cambio de email.
+  const emailProvisional = perfil
+    ? esPlaceholder(perfil.email) || (!perfil.email?.trim() && esPlaceholder(c.email))
+    : esPlaceholder(c.email);
 
   const cambiarPassword = !!perfil?.must_change_password;
   const sinVendedor = !c.vendedor_id;
-  const incompleto = !c.celular?.trim() || !c.email?.trim() || !c.lista_precio_id;
+  // "Incompleto" = faltan datos de contacto del cliente. La lista de precios se informa aparte.
+  const incompleto = !c.celular?.trim() || !c.email?.trim();
+  const sinLista = !c.lista_precio_id;
 
   const keys: EstadoKey[] = [];
   if (!c.activo) keys.push("inactivo");
@@ -87,6 +92,7 @@ export function computeEstado(c: ClienteEstadoInput): ClienteEstado {
   if (cambiarPassword) keys.push("cambiar_password");
   if (emailProvisional) keys.push("email_provisional");
   if (sinVendedor) keys.push("sin_vendedor");
+  if (sinLista) keys.push("sin_lista");
   if (vinculada) keys.push("vinculada");
 
   const ordered = PRIORIDAD.filter((k) => keys.includes(k));
@@ -94,6 +100,7 @@ export function computeEstado(c: ClienteEstadoInput): ClienteEstado {
 
   const requiereAtencion =
     sinCuenta || vinculoRoto || sinVendedor || incompleto || emailProvisional || cambiarPassword || !c.activo;
+
 
   return {
     keys: ordered,

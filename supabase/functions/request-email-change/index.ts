@@ -132,7 +132,17 @@ Deno.serve(async (req) => {
     );
     // Scope local: no revocar las demás sesiones del usuario (si no, se cierra su sesión real)
     await tmp.auth.signOut({ scope: "local" });
-    if (updErr) return json({ error: updErr.message }, 400);
+    if (updErr) {
+      const m = updErr.message ?? "";
+      const espera = m.match(/after (\d+) seconds/);
+      if (espera) {
+        return json(
+          { error: `Por seguridad, esperá ${espera[1]} segundos antes de volver a enviar el correo.` },
+          429,
+        );
+      }
+      return json({ error: m }, 400);
+    }
 
     // Estado / auditoría
     const now = new Date().toISOString();

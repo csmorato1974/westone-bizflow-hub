@@ -6,6 +6,7 @@ export type EstadoKey =
   | "cambiar_password"
   | "email_provisional"
   | "sin_vendedor"
+  | "sin_lista"
   | "vinculada";
 
 export interface EstadoBadgeDef {
@@ -23,6 +24,7 @@ const PRIORIDAD: EstadoKey[] = [
   "cambiar_password",
   "email_provisional",
   "sin_vendedor",
+  "sin_lista",
   "vinculada",
 ];
 
@@ -34,8 +36,10 @@ const DEFS: Record<EstadoKey, EstadoBadgeDef> = {
   cambiar_password: { key: "cambiar_password", label: "Debe cambiar contraseña", className: "border-warning text-warning" },
   email_provisional: { key: "email_provisional", label: "Email provisional", className: "border-info text-info" },
   sin_vendedor: { key: "sin_vendedor", label: "Sin vendedor asignado", className: "border-warning text-warning" },
+  sin_lista: { key: "sin_lista", label: "Sin lista de precios", className: "border-muted-foreground text-muted-foreground" },
   vinculada: { key: "vinculada", label: "Cuenta vinculada", className: "border-success text-success" },
 };
+
 
 export const PROVISIONAL_DOMAIN = "@clientes-temp.local";
 

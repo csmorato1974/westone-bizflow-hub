@@ -40,7 +40,7 @@ import { norm } from "@/lib/reportes";
 
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
-import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";
+import { computeEstado, matchFiltro, PROVISIONAL_DOMAIN, type FiltroEstado } from "@/lib/clienteEstado";
 import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
@@ -150,6 +150,8 @@ export default function AdminClientes() {
   const [accesoEmail, setAccesoEmail] = useState("");
   const [accesoEmailPendiente, setAccesoEmailPendiente] = useState<string | null>(null);
   const [savingAcceso, setSavingAcceso] = useState(false);
+  const [claveRegenerada, setClaveRegenerada] = useState<string | null>(null);
+
 
 
   const load = async () => {

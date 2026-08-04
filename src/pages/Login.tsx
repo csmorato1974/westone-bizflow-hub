@@ -104,9 +104,10 @@ export default function Login() {
             <TabsContent value="login">
               <form onSubmit={onLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" required value={email}
-                    onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                  <Label htmlFor="email">Usuario o email</Label>
+                  <Input id="email" type="text" required value={email}
+                    onChange={(e) => setEmail(e.target.value)} autoComplete="username"
+                    placeholder="tu.usuario o tucorreo@dominio.com" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Contraseña</Label>

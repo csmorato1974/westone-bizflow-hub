@@ -591,6 +591,51 @@ export type Database = {
         }
         Relationships: []
       }
+      password_recovery_requests: {
+        Row: {
+          created_at: string
+          email_acceso: string | null
+          estado: string
+          id: string
+          identificador: string
+          notas: string | null
+          resuelto_en: string | null
+          resuelto_por: string | null
+          tiene_email_real: boolean
+          updated_at: string
+          user_id: string | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email_acceso?: string | null
+          estado?: string
+          id?: string
+          identificador: string
+          notas?: string | null
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          tiene_email_real?: boolean
+          updated_at?: string
+          user_id?: string | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email_acceso?: string | null
+          estado?: string
+          id?: string
+          identificador?: string
+          notas?: string | null
+          resuelto_en?: string | null
+          resuelto_por?: string | null
+          tiene_email_real?: boolean
+          updated_at?: string
+          user_id?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
       pedido_items: {
         Row: {
           cantidad: number

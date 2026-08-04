@@ -286,42 +286,42 @@ export default function ClienteCatalogo() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="grid gap-3 sm:grid-cols-2 max-h-[65vh] overflow-y-auto pr-2">
+        <div className="grid gap-2 xl:grid-cols-2 max-h-[65vh] overflow-y-auto pr-2">
           {filtered.map((p) => {
             const v = getCurrentVariante(p);
             return (
-              <Card key={p.id} className="hover:border-brand transition-colors overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setInfo(p)}
-                  className="aspect-square bg-muted flex items-center justify-center overflow-hidden w-full group"
-                >
-                  {p.imagen_url ? (
-                    <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-contain group-hover:scale-105 transition-transform" loading="lazy" />
-                  ) : (
-                    <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                  )}
-                </button>
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="industrial-title text-base truncate">{p.nombre}</h3>
-                      <p className="text-xs text-muted-foreground">{p.sku} · {LINEA_LABEL[p.linea]}</p>
-                    </div>
-                    <Badge variant="outline" className={(v?.stock ?? 0) > 0 ? "border-success text-success" : "border-destructive text-destructive"}>
-                      {(v?.stock ?? 0) > 0 ? `Stock: ${v!.stock}` : "Agotado"}
-                    </Badge>
-                  </div>
-                  {p.descripcion && <p className="text-xs text-muted-foreground line-clamp-2">{p.descripcion}</p>}
+              <Card key={p.id} className="hover:border-brand transition-colors">
+                <CardContent className="p-3 flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setInfo(p)}
+                    className="h-20 w-20 shrink-0 rounded border bg-muted flex items-center justify-center overflow-hidden"
+                    title={p.nombre}
+                  >
+                    {p.imagen_url ? (
+                      <img src={productImageUrl(p.imagen_url)!} alt={p.nombre} className="h-full w-full object-contain" loading="lazy" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </button>
 
-                  {p.variantes.length > 0 && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Presentación</Label>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="industrial-title text-sm truncate">{p.nombre}</h3>
+                        <p className="text-xs text-muted-foreground truncate">{p.sku} · {LINEA_LABEL[p.linea] ?? p.linea}</p>
+                      </div>
+                      <Badge variant="outline" className={`shrink-0 ${(v?.stock ?? 0) > 0 ? "border-success text-success" : "border-destructive text-destructive"}`}>
+                        {(v?.stock ?? 0) > 0 ? `Stock: ${v!.stock}` : "Agotado"}
+                      </Badge>
+                    </div>
+
+                    {p.variantes.length > 0 && (
                       <Select
                         value={selectedVar[p.id] ?? ""}
                         onValueChange={(val) => setSelectedVar((s) => ({ ...s, [p.id]: val }))}
                       >
-                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {p.variantes.map((vv) => (
                             <SelectItem key={vv.id} value={vv.id} disabled={vv.stock <= 0}>
@@ -330,16 +330,16 @@ export default function ClienteCatalogo() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="industrial-title text-lg">Bs {(v?.precio ?? 0).toFixed(2)}</span>
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="outline" onClick={() => setInfo(p)}><Info className="h-4 w-4" /></Button>
-                      <Button size="sm" disabled={!v || v.stock <= 0} onClick={() => add(p, v)} className="bg-brand text-brand-foreground hover:bg-brand-dark">
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="industrial-title text-base">Bs {(v?.precio ?? 0).toFixed(2)}</span>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setInfo(p)} title="Ver detalle"><Info className="h-4 w-4" /></Button>
+                        <Button size="icon" className="h-8 w-8 bg-brand text-brand-foreground hover:bg-brand-dark" disabled={!v || v.stock <= 0} onClick={() => add(p, v)} title="Agregar al carrito">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -347,8 +347,9 @@ export default function ClienteCatalogo() {
             );
           })}
           {filtered.length === 0 && (
-            <Card className="sm:col-span-2"><CardContent className="p-8 text-center text-muted-foreground">No hay productos que coincidan</CardContent></Card>
+            <Card className="xl:col-span-2"><CardContent className="p-8 text-center text-muted-foreground">No hay productos que coincidan</CardContent></Card>
           )}
+
         </div>
 
         <Card className="h-fit sticky top-4">

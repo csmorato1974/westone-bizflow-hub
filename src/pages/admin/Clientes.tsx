@@ -46,6 +46,9 @@ interface Cliente {
   vendedor_id: string | null;
   lista_precio_id: string | null;
   user_id: string | null;
+  onboarding_enviado_en?: string | null;
+  onboarding_canal?: string | null;
+
 }
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
 interface User {

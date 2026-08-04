@@ -530,6 +530,19 @@ export default function AdminClientes() {
     toast.success("Enviamos el correo de confirmación al nuevo email");
   };
 
+  /** Reaplica la clave provisional estándar y fuerza el cambio en el primer login. */
+  const regenerarClaveProvisional = async () => {
+    if (!userId) return;
+    setSavingAcceso(true);
+    const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
+      body: { user_id: userId },
+    });
+    setSavingAcceso(false);
+    if (error || data?.error) return toast.error(data?.error ?? "No se pudo regenerar la clave");
+    setClaveRegenerada(data.password as string);
+    toast.success("Clave provisional regenerada");
+  };
+
 
   const abrirFicha = (id: string) => {
     const next = new URLSearchParams(searchParams);
@@ -1219,6 +1232,24 @@ export default function AdminClientes() {
                     </p>
                   )}
                 </div>
+                {accesoEmail.trim().toLowerCase().endsWith(PROVISIONAL_DOMAIN) && (
+                  <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
+                    <p className="text-xs leading-relaxed">
+                      Cuenta sin correo real: no puede recibir el enlace de recuperación. Registrá su
+                      email de acceso arriba, o regenerá la clave provisional y comunicásela.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" disabled={savingAcceso}
+                        onClick={regenerarClaveProvisional}>
+                        Regenerar clave provisional
+                      </Button>
+                      {claveRegenerada && (
+                        <code className="rounded bg-background px-2 py-1 text-xs">{claveRegenerada}</code>
+                      )}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>

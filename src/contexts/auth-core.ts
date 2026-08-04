@@ -7,6 +7,10 @@ export interface ProfileInfo {
   full_name: string | null;
   avatar_url: string | null;
   must_change_password: boolean;
+  username: string | null;
+  username_provisional: boolean;
+  email: string | null;
+  email_provisional: boolean;
 }
 
 export interface AuthContextValue {
@@ -15,7 +19,8 @@ export interface AuthContextValue {
   roles: AppRole[];
   profile: ProfileInfo | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** Acepta username o email como identificador. */
+  signIn: (identificador: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;

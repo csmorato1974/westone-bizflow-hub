@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { useAuth } from "@/contexts/AuthContext";
 import { waLink } from "@/lib/whatsapp";
+import { ReconciliarEmails } from "@/components/admin/ReconciliarEmails";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -171,6 +172,9 @@ export default function AdminUsuarios() {
         <h1 className="industrial-title text-3xl">Usuarios y Roles</h1>
         <p className="text-sm text-muted-foreground">Asigna roles para controlar el acceso a los módulos</p>
       </div>
+
+      {isSuper && <ReconciliarEmails />}
+
 
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row gap-3 md:items-center">

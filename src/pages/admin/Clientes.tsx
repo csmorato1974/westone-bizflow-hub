@@ -55,6 +55,8 @@ interface User {
   phone?: string | null;
   must_change_password?: boolean | null;
   email_provisional?: boolean | null;
+  username?: string | null;
+  username_provisional?: boolean | null;
   roles?: AppRole[];
 }
 
@@ -123,13 +125,21 @@ export default function AdminClientes() {
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
 
+  // Acceso de la cuenta vinculada (profiles): username y email de acceso
+  const [accesoUsername, setAccesoUsername] = useState("");
+  const [accesoUsernameActual, setAccesoUsernameActual] = useState("");
+  const [accesoEmail, setAccesoEmail] = useState("");
+  const [accesoEmailPendiente, setAccesoEmailPendiente] = useState<string | null>(null);
+  const [savingAcceso, setSavingAcceso] = useState(false);
+
+
   const load = async () => {
     setLoading(true);
     const [{ data: cs }, { data: ur }, { data: lp }, { data: profs }] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
-      supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional"),
+      supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional,username,username_provisional"),
     ]);
     const rolesByUser = new Map<string, AppRole[]>();
     (ur ?? []).forEach((r: { user_id: string; role: string }) => {
@@ -303,6 +313,80 @@ export default function AdminClientes() {
     setUserId(c.user_id ?? "");
     setOpen(true);
   };
+
+  // Carga los datos de acceso (usuario / email de acceso) de la cuenta vinculada
+  useEffect(() => {
+    if (!open || !userId) {
+      setAccesoUsername(""); setAccesoUsernameActual("");
+      setAccesoEmail(""); setAccesoEmailPendiente(null);
+      return;
+    }
+    let cancel = false;
+    (async () => {
+      const [{ data: p }, { data: req }] = await Promise.all([
+        supabase.from("profiles").select("username,email").eq("id", userId).maybeSingle(),
+        supabase
+          .from("email_change_requests")
+          .select("email_nuevo")
+          .eq("user_id", userId)
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (cancel) return;
+      setAccesoUsername(p?.username ?? "");
+      setAccesoUsernameActual(p?.username ?? "");
+      setAccesoEmail(p?.email ?? "");
+      setAccesoEmailPendiente(req?.email_nuevo ?? null);
+    })();
+    return () => { cancel = true; };
+  }, [open, userId]);
+
+  const guardarUsername = async () => {
+    const nuevo = accesoUsername.trim().toLowerCase();
+    if (!userId || nuevo === accesoUsernameActual.toLowerCase()) return;
+    if (!/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/.test(nuevo)) {
+      return toast.error("Usuario inválido: 3 a 30 caracteres (letras, números, punto, guion o guion bajo)");
+    }
+    setSavingAcceso(true);
+    const { data: disponible } = await supabase.rpc("username_disponible", { _username: nuevo });
+    if (!disponible) {
+      setSavingAcceso(false);
+      return toast.error("Ese nombre de usuario no está disponible");
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: nuevo, username_provisional: false })
+      .eq("id", userId);
+    setSavingAcceso(false);
+    if (error) return toast.error(error.message);
+    setAccesoUsernameActual(nuevo);
+    await logAudit("actualizar_username", "profiles", userId, { username_nuevo: nuevo });
+    toast.success("Nombre de usuario actualizado");
+  };
+
+  const solicitarCambioEmailAcceso = async (accion: "solicitar" | "reenviar" | "cancelar") => {
+    if (!userId) return;
+    const nuevo = accesoEmail.trim().toLowerCase();
+    if (accion === "solicitar" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
+      return toast.error("Email de acceso inválido");
+    }
+    setSavingAcceso(true);
+    const { data, error } = await supabase.functions.invoke("request-email-change", {
+      body: { accion, user_id: userId, email: nuevo, redirect_to: `${window.location.origin}/app/perfil` },
+    });
+    setSavingAcceso(false);
+    if (error || data?.error) return toast.error(data?.error ?? "No se pudo procesar la solicitud");
+    if (accion === "cancelar") {
+      setAccesoEmailPendiente(null);
+      toast.success("Solicitud cancelada");
+    } else {
+      setAccesoEmailPendiente(nuevo);
+      toast.success("Enviamos el correo de confirmación al nuevo email");
+    }
+  };
+
 
   const abrirFicha = (id: string) => {
     const next = new URLSearchParams(searchParams);
@@ -788,6 +872,63 @@ export default function AdminClientes() {
                 Lista de usuarios registrados con rol cliente. Vincular permite acceder al catálogo y crear pedidos.
               </p>
             </div>
+            {userId && (
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-sm font-medium">Acceso de la cuenta vinculada</p>
+                <div className="space-y-1">
+                  <Label>Nombre de usuario</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={accesoUsername}
+                      onChange={(e) => setAccesoUsername(e.target.value.toLowerCase())}
+                      maxLength={30}
+                      placeholder="usuario"
+                    />
+                    <Button type="button" variant="outline" disabled={savingAcceso} onClick={guardarUsername}>
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Email de acceso</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      value={accesoEmail}
+                      onChange={(e) => setAccesoEmail(e.target.value)}
+                      maxLength={255}
+                      placeholder="acceso@dominio.com"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingAcceso}
+                      onClick={() => solicitarCambioEmailAcceso("solicitar")}
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
+                  {accesoEmailPendiente ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-amber-600">
+                        Pendiente de confirmación: <strong>{accesoEmailPendiente}</strong>
+                      </p>
+                      <div className="flex gap-2">
+                        <Button type="button" size="sm" variant="outline" disabled={savingAcceso}
+                          onClick={() => solicitarCambioEmailAcceso("reenviar")}>Reenviar</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={savingAcceso}
+                          onClick={() => solicitarCambioEmailAcceso("cancelar")}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Este es el email con el que la cuenta inicia sesión. El email de arriba (ficha) es el
+                      contacto comercial y es independiente.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             <div><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} maxLength={500} /></div>
             <div className="flex items-center gap-2">
               <input id="activo" type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="h-4 w-4" />

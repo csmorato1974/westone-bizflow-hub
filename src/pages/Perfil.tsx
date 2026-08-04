@@ -45,6 +45,9 @@ export default function Perfil() {
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameActual, setUsernameActual] = useState("");
+  const [usernameProvisional, setUsernameProvisional] = useState(false);
   const [email, setEmail] = useState("");
   const [emailActual, setEmailActual] = useState("");
   const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
@@ -60,32 +63,35 @@ export default function Perfil() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email, phone")
+      .select("full_name, email, phone, username, username_provisional")
       .eq("id", user.id)
       .maybeSingle();
 
+    // El email de la cuenta de acceso es la fuente de verdad (AuthContext ya sincronizó el perfil).
     const actual = user.email ?? profile?.email ?? "";
     setEmailActual(actual);
-    setEmailPendiente(((user as unknown as { new_email?: string | null }).new_email) || null);
 
-    // Si el usuario confirmó un cambio de email, sincronizamos el perfil.
-    if (actual && profile && (profile.email ?? "").toLowerCase() !== actual.toLowerCase()) {
-      await supabase
-        .from("profiles")
-        .update({ email: actual, email_provisional: actual.endsWith("@clientes-temp.local") })
-        .eq("id", user.id);
-      profile.email = actual;
-      await logAudit("confirmar_cambio_email", "profiles", user.id, { email: actual });
-    }
-
+    const { data: pendiente } = await supabase
+      .from("email_change_requests")
+      .select("email_nuevo")
+      .eq("user_id", user.id)
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setEmailPendiente(pendiente?.email_nuevo ?? null);
 
     if (profile) {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
-      setEmail(profile.email ?? actual);
+      setUsername(profile.username ?? "");
+      setUsernameActual(profile.username ?? "");
+      setUsernameProvisional(!!profile.username_provisional);
+      setEmail(actual || (profile.email ?? ""));
     } else {
       setEmail(actual);
     }
+
 
 
     if (hasRole("cliente")) {
@@ -154,29 +160,73 @@ export default function Perfil() {
     toast.success("Perfil actualizado");
   };
 
-  const handleEmailChange = async () => {
+  const handleUsernameSave = async () => {
+    if (!user) return;
+    const nuevo = username.trim().toLowerCase();
+    if (nuevo === usernameActual.toLowerCase()) return;
+    if (!/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/.test(nuevo)) {
+      return toast.error("Usuario inválido: 3 a 30 caracteres (letras, números, punto, guion o guion bajo)");
+    }
+    setSaving(true);
+    const { data: disponible } = await supabase.rpc("username_disponible", { _username: nuevo });
+    if (!disponible) {
+      setSaving(false);
+      return toast.error("Ese nombre de usuario no está disponible");
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: nuevo, username_provisional: false })
+      .eq("id", user.id);
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    setUsernameActual(nuevo);
+    setUsernameProvisional(false);
+    await logAudit("actualizar_username", "profiles", user.id, {
+      username_anterior: usernameActual,
+      username_nuevo: nuevo,
+    });
+    await refreshProfile();
+    toast.success("Nombre de usuario actualizado");
+  };
+
+  const callEmailChange = async (accion: "solicitar" | "reenviar" | "cancelar") => {
     if (!user) return;
     const nuevo = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
-      return toast.error("Ingresá un email válido");
+    if (accion === "solicitar") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) return toast.error("Ingresá un email válido");
+      if (nuevo === emailActual.toLowerCase()) return;
     }
-    if (nuevo === emailActual.toLowerCase()) return;
 
     setSavingEmail(true);
-    const { error } = await supabase.auth.updateUser(
-      { email: nuevo },
-      { emailRedirectTo: `${window.location.origin}/app/perfil` },
-    );
-    setSavingEmail(false);
-    if (error) return toast.error(error.message);
-
-    setEmailPendiente(nuevo);
-    await logAudit("solicitar_cambio_email", "profiles", user.id, {
-      email_anterior: emailActual,
-      email_nuevo: nuevo,
+    const { data, error } = await supabase.functions.invoke("request-email-change", {
+      body: {
+        accion,
+        user_id: user.id,
+        email: nuevo,
+        redirect_to: `${window.location.origin}/app/perfil`,
+      },
     });
-    toast.success("Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.");
+    setSavingEmail(false);
+
+    if (error || data?.error) {
+      const msg = data?.error ?? "No se pudo procesar la solicitud";
+      return toast.error(msg);
+    }
+
+    if (accion === "cancelar") {
+      setEmailPendiente(null);
+      setEmail(emailActual);
+      toast.success("Solicitud cancelada");
+    } else {
+      setEmailPendiente(nuevo);
+      toast.success(
+        accion === "reenviar"
+          ? "Reenviamos el correo de confirmación"
+          : "Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.",
+      );
+    }
   };
+
 
 
   const initials = (fullName || email || "U")
@@ -254,7 +304,36 @@ export default function Perfil() {
               <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+591 ..." />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Nombre de usuario (para iniciar sesión)</Label>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  id="username"
+                  className="flex-1 min-w-[200px]"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  placeholder="tu.usuario"
+                  maxLength={30}
+                  autoComplete="username"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleUsernameSave}
+                  disabled={saving || username.trim().toLowerCase() === usernameActual.toLowerCase()}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserIcon className="h-4 w-4" />}
+                  <span className="ml-1">Guardar usuario</span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {usernameProvisional
+                  ? "Este usuario fue generado automáticamente: podés cambiarlo por uno propio."
+                  : "Podés iniciar sesión con este usuario o con tu email."}
+              </p>
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="email">Email de acceso</Label>
               <div className="flex gap-2 flex-wrap">
                 <Input
                   id="email"
@@ -267,18 +346,33 @@ export default function Perfil() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleEmailChange}
+                  onClick={() => callEmailChange("solicitar")}
                   disabled={savingEmail || email.trim().toLowerCase() === emailActual.toLowerCase()}
                 >
                   {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
                   <span className="ml-1">Actualizar email</span>
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Email confirmado: <strong>{emailActual || "sin definir"}</strong>
+              </p>
               {emailPendiente ? (
-                <p className="text-xs text-warning-foreground">
-                  Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
-                  email actual sigue activo hasta que confirmes el nuevo.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600">
+                    Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
+                    email actual sigue activo hasta que confirmes el nuevo.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={savingEmail}
+                      onClick={() => callEmailChange("reenviar")}>
+                      Reenviar correo
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={savingEmail}
+                      onClick={() => callEmailChange("cancelar")}>
+                      Cancelar solicitud
+                    </Button>
+                  </div>
+                </div>
               ) : !emailActual ? (
                 <p className="text-xs text-muted-foreground">
                   Todavía no tenés un email definido. Cargá uno para poder recuperar tu acceso.
@@ -290,6 +384,7 @@ export default function Perfil() {
                 </p>
               )}
             </div>
+
 
           </div>
           <div className="pt-2">

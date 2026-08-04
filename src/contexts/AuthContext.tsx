@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, avatar_url, must_change_password")
+      .select("full_name, avatar_url, must_change_password, username, username_provisional, email, email_provisional")
       .eq("id", userId)
       .maybeSingle();
     setProfile(
@@ -30,9 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: data.full_name,
             avatar_url: data.avatar_url,
             must_change_password: !!data.must_change_password,
+            username: data.username ?? null,
+            username_provisional: !!data.username_provisional,
+            email: data.email ?? null,
+            email_provisional: !!data.email_provisional,
           }
         : null,
     );
+  };
+
+  /** El email de la cuenta es la fuente de verdad: sincroniza profiles.email si cambió. */
+  const syncEmail = async () => {
+    await supabase.rpc("sincronizar_mi_email");
   };
 
   useEffect(() => {
@@ -40,7 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
-        setTimeout(() => {
+        setTimeout(async () => {
+          await syncEmail();
           loadRoles(newSession.user.id);
           loadProfile(newSession.user.id);
         }, 0);
@@ -50,10 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
+        await syncEmail();
         Promise.all([loadRoles(s.user.id), loadProfile(s.user.id)]).finally(() =>
           setLoading(false),
         );
@@ -63,9 +74,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+  /** Acepta username o email. Con email usa el login nativo; con username lo resuelve en el backend. */
+  const signIn = async (identificador: string, password: string) => {
+    const id = identificador.trim();
+    if (id.includes("@")) {
+      const { error } = await supabase.auth.signInWithPassword({ email: id, password });
+      return { error: error?.message ? "Usuario o contraseña incorrectos" : null };
+    }
+
+    const { data, error } = await supabase.functions.invoke("resolve-login", {
+      body: { identificador: id, password },
+    });
+    if (error || !data?.access_token) {
+      return { error: "Usuario o contraseña incorrectos" };
+    }
+    const { error: sessErr } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    return { error: sessErr ? "Usuario o contraseña incorrectos" : null };
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {

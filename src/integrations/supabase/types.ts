@@ -180,6 +180,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_change_requests: {
+        Row: {
+          cerrado_en: string | null
+          created_at: string
+          email_anterior: string | null
+          email_nuevo: string
+          estado: string
+          id: string
+          reenvios: number
+          solicitado_por: string
+          ultimo_envio: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cerrado_en?: string | null
+          created_at?: string
+          email_anterior?: string | null
+          email_nuevo: string
+          estado?: string
+          id?: string
+          reenvios?: number
+          solicitado_por: string
+          ultimo_envio?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cerrado_en?: string | null
+          created_at?: string
+          email_anterior?: string | null
+          email_nuevo?: string
+          estado?: string
+          id?: string
+          reenvios?: number
+          solicitado_por?: string
+          ultimo_envio?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       import_batch_issues: {
         Row: {
           batch_id: string | null
@@ -688,6 +730,8 @@ export type Database = {
           must_change_password: boolean
           phone: string | null
           updated_at: string
+          username: string | null
+          username_provisional: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -699,6 +743,8 @@ export type Database = {
           must_change_password?: boolean
           phone?: string | null
           updated_at?: string
+          username?: string | null
+          username_provisional?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -710,6 +756,8 @@ export type Database = {
           must_change_password?: boolean
           phone?: string | null
           updated_at?: string
+          username?: string | null
+          username_provisional?: boolean
         }
         Relationships: []
       }
@@ -862,6 +910,9 @@ export type Database = {
         Args: { _pedido: string; _user: string }
         Returns: boolean
       }
+      sincronizar_mi_email: { Args: never; Returns: Json }
+      username_disponible: { Args: { _username: string }; Returns: boolean }
+      username_reservado: { Args: { _username: string }; Returns: boolean }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "vendedor" | "logistica" | "cliente"

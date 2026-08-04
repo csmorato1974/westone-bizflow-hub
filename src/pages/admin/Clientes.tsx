@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus } from "lucide-react";
+import { Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus, Send, MessageCircle, Mail } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
-import { mapsLink } from "@/lib/whatsapp";
+import { mapsLink, waLink } from "@/lib/whatsapp";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  buildVars,
+  emailContactable,
+  mensajeWhatsapp,
+  mailtoLink,
+  fechaEnvio,
+} from "@/lib/onboarding";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
@@ -46,6 +55,9 @@ interface Cliente {
   vendedor_id: string | null;
   lista_precio_id: string | null;
   user_id: string | null;
+  onboarding_enviado_en?: string | null;
+  onboarding_canal?: string | null;
+
 }
 type AppRole = "super_admin" | "admin" | "vendedor" | "logistica" | "cliente";
 interface User {
@@ -273,22 +285,104 @@ export default function AdminClientes() {
 
   const filtered = useMemo(() => visibles.map((v) => v.cliente), [visibles]);
 
+  // ── Onboarding (clave provisional) ────────────────────────────────────────
+  // El sistema NO envía nada: solo prepara el texto y abre WhatsApp / el correo
+  // del administrador, que revisa y envía manualmente.
+  const onboardingDe = useCallback(
+    (c: Cliente) => {
+      const p = c.user_id ? profileMap.get(c.user_id) ?? null : null;
+      const vars = buildVars({
+        contacto: c.contacto,
+        empresa: c.empresa,
+        username: p?.username ?? "",
+        emailAcceso: p?.email ?? null,
+        emailCrm: c.email,
+      });
+      return {
+        vars,
+        email: emailContactable(c.email, p?.email),
+      };
+    },
+    [profileMap],
+  );
+
   const tablaRows: ClienteRow[] = useMemo(
     () =>
-      visibles.map(({ cliente: c, estado }) => ({
-        id: c.id,
-        empresa: c.empresa,
-        contacto: c.contacto,
-        celular: c.celular,
-        email: c.email,
-        activo: c.activo,
-        created_at: c.created_at,
-        vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
-        listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
-        estado,
-      })),
-    [visibles, vendedorMap, listaMap],
+      visibles.map(({ cliente: c, estado }) => {
+        const ob = onboardingDe(c);
+        return {
+          id: c.id,
+          empresa: c.empresa,
+          contacto: c.contacto,
+          celular: c.celular,
+          email: c.email,
+          activo: c.activo,
+          created_at: c.created_at,
+          vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
+          listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
+          estado,
+          onboardingListo: !!ob.vars,
+          onboardingEmail: ob.email,
+          onboardingEnviadoEn: c.onboarding_enviado_en ?? null,
+          onboardingCanal: c.onboarding_canal ?? null,
+        };
+      }),
+    [visibles, vendedorMap, listaMap, onboardingDe],
   );
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loteOpen, setLoteOpen] = useState(false);
+  const [loteIndex, setLoteIndex] = useState(0);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleAll = (checked: boolean) =>
+    setSelectedIds(checked ? tablaRows.filter((r) => r.onboardingListo).map((r) => r.id) : []);
+
+  const marcarEnviado = async (c: Cliente, canal: "whatsapp" | "email") => {
+    const ahora = new Date().toISOString();
+    const { error } = await supabase
+      .from("clientes")
+      .update({ onboarding_enviado_en: ahora, onboarding_canal: canal })
+      .eq("id", c.id);
+    if (error) return toast.error(error.message);
+    setClientes((prev) =>
+      prev.map((x) =>
+        x.id === c.id ? { ...x, onboarding_enviado_en: ahora, onboarding_canal: canal } : x,
+      ),
+    );
+    await logAudit("onboarding_enviado", "clientes", c.id, { canal, empresa: c.empresa });
+  };
+
+  const enviarWhatsapp = async (id: string) => {
+    const c = clientes.find((x) => x.id === id);
+    if (!c) return;
+    const { vars } = onboardingDe(c);
+    if (!vars) return toast.error("Este cliente no tiene clave provisional");
+    if (!vars.username) return toast.error("La cuenta no tiene nombre de usuario asignado");
+    window.open(waLink(c.celular, mensajeWhatsapp(vars)), "_blank", "noopener,noreferrer");
+    await marcarEnviado(c, "whatsapp");
+    toast.success("WhatsApp abierto · revisá y presioná enviar");
+  };
+
+  const enviarEmail = async (id: string) => {
+    const c = clientes.find((x) => x.id === id);
+    if (!c) return;
+    const { vars, email: dest } = onboardingDe(c);
+    if (!vars) return toast.error("Este cliente no tiene clave provisional");
+    if (!dest) return toast.error("El cliente no tiene un email real para escribirle");
+    window.location.href = mailtoLink(dest, vars);
+    await marcarEnviado(c, "email");
+    toast.success("Correo abierto en tu cliente de email");
+  };
+
+  const loteClientes = useMemo(
+    () => selectedIds.map((id) => clientes.find((c) => c.id === id)).filter(Boolean) as Cliente[],
+    [selectedIds, clientes],
+  );
+  const loteActual = loteClientes[loteIndex] ?? null;
+
+
 
   const resetForm = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");
@@ -711,6 +805,27 @@ export default function AdminClientes() {
             </Card>
           )}
 
+          {selectedIds.length > 0 && (
+            <Card className="border-brand/50 bg-brand/5">
+              <CardContent className="p-3 flex flex-wrap items-center gap-3">
+                <p className="text-sm">
+                  <strong>{selectedIds.length}</strong> cliente{selectedIds.length === 1 ? "" : "s"} seleccionado
+                  {selectedIds.length === 1 ? "" : "s"} para onboarding
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                  onClick={() => { setLoteIndex(0); setLoteOpen(true); }}
+                >
+                  <Send className="h-3 w-3" /> Enviar en secuencia
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                  Limpiar selección
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {filtered.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
           ) : view === "list" ? (
@@ -720,7 +835,13 @@ export default function AdminClientes() {
               deletingId={deletingId}
               highlightedId={highlightedId}
               rowRef={(id, el) => { rowRefs.current[id] = el; }}
+              selectedIds={selectedIds}
+              onToggleSelected={toggleSelected}
+              onToggleAll={toggleAll}
+              onWhatsapp={enviarWhatsapp}
+              onEmail={enviarEmail}
               onFicha={abrirFicha}
+
               onPedidos={(id) => {
                 const c = clientes.find((x) => x.id === id);
                 if (c) setPedidosCliente({ id: c.id, empresa: c.empresa });
@@ -738,6 +859,8 @@ export default function AdminClientes() {
             <div className="grid gap-3">
               {filtered.map((c) => {
                 const maps = mapsLink(c.latitud, c.longitud);
+                const ob = onboardingDe(c);
+                const enviado = fechaEnvio(c.onboarding_enviado_en);
                 return (
                   <div
                     key={c.id}
@@ -747,14 +870,25 @@ export default function AdminClientes() {
                   <Card className={!c.activo ? "opacity-60" : ""}>
                     <CardContent className="p-4 grid md:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
-                          {c.empresa}
-                        </button>
+                        <div className="flex items-start gap-2">
+                          {ob.vars && (
+                            <Checkbox
+                              className="mt-1"
+                              checked={selectedIds.includes(c.id)}
+                              onCheckedChange={() => toggleSelected(c.id)}
+                              aria-label={`Seleccionar ${c.empresa}`}
+                            />
+                          )}
+                          <button type="button" onClick={() => abrirFicha(c.id)} className="industrial-title text-lg text-left hover:text-brand hover:underline">
+                            {c.empresa}
+                          </button>
+                        </div>
                         <p className="text-sm">{c.contacto}</p>
                         <p className="text-sm text-muted-foreground">📞 {c.celular}</p>
                         {c.email && <p className="text-sm text-muted-foreground break-all">✉️ {c.email}</p>}
                         {!c.activo && <p className="text-xs text-destructive">Inactivo</p>}
                       </div>
+
                       <div className="space-y-1 text-sm">
                         {c.direccion && <p className="text-muted-foreground">📍 {c.direccion}</p>}
                         {maps && (
@@ -778,7 +912,29 @@ export default function AdminClientes() {
                             </Badge>
                           )}
                         </div>
+                        {ob.vars && (
+                          <div className="space-y-1 rounded-md border border-dashed p-2">
+                            <p className="text-xs text-muted-foreground">
+                              Onboarding: {enviado ? <span className="text-success">✓ enviado {enviado}{c.onboarding_canal ? ` · ${c.onboarding_canal}` : ""}</span> : "sin enviar"}
+                            </p>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" onClick={() => enviarWhatsapp(c.id)}>
+                                <MessageCircle className="h-3 w-3" /> WhatsApp
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!ob.email}
+                                title={ob.email ? undefined : "Sin email real para escribir"}
+                                onClick={() => enviarEmail(c.id)}
+                              >
+                                <Mail className="h-3 w-3" /> Email
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex gap-2 flex-wrap">
+
                           <Button size="sm" variant="outline" onClick={() => setPedidosCliente({ id: c.id, empresa: c.empresa })}>
                             <Package className="h-3 w-3" /> Ver pedidos
                           </Button>
@@ -822,7 +978,85 @@ export default function AdminClientes() {
         </>
       )}
 
+      {/* Envío en secuencia: el admin confirma cada mensaje manualmente */}
+      <Dialog open={loteOpen} onOpenChange={setLoteOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">
+              Onboarding en secuencia ({Math.min(loteIndex + 1, loteClientes.length)}/{loteClientes.length})
+            </DialogTitle>
+          </DialogHeader>
+          {loteActual ? (
+            (() => {
+              const ob = onboardingDe(loteActual);
+              const enviado = fechaEnvio(loteActual.onboarding_enviado_en);
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <p className="font-semibold">{loteActual.empresa}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {loteActual.contacto} · 📞 {loteActual.celular}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Usuario: {ob.vars?.username || "—"} · Clave: {ob.vars?.clave_provisional || "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {enviado ? `Ya enviado ${enviado}` : "Sin enviar"}
+                    </p>
+                  </div>
+                  <Textarea
+                    readOnly
+                    rows={10}
+                    className="text-xs"
+                    value={ob.vars ? mensajeWhatsapp(ob.vars) : ""}
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                      onClick={() => enviarWhatsapp(loteActual.id)}
+                    >
+                      <MessageCircle className="h-3 w-3" /> Abrir WhatsApp
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!ob.email}
+                      onClick={() => enviarEmail(loteActual.id)}
+                    >
+                      <Mail className="h-3 w-3" /> Abrir Email
+                    </Button>
+                  </div>
+                  <DialogFooter className="gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={loteIndex === 0}
+                      onClick={() => setLoteIndex((i) => Math.max(0, i - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    {loteIndex + 1 < loteClientes.length ? (
+                      <Button size="sm" variant="outline" onClick={() => setLoteIndex((i) => i + 1)}>
+                        Siguiente
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => { setLoteOpen(false); setSelectedIds([]); }}>
+                        Terminar
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="text-sm text-muted-foreground">No hay clientes seleccionados.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={open} onOpenChange={onOpenChange}>
+
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="industrial-title">

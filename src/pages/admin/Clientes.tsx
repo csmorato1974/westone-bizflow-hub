@@ -220,23 +220,23 @@ export default function AdminClientes() {
 
   // cuentas con rol cliente que no tienen ficha vinculada
   const huerfanos = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = norm(search);
     const list = clienteUsers.filter((u) => !linkedUserIds.has(u.id));
     if (!q) return list;
     return list.filter((u) =>
-      [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
+      [u.full_name ?? "", u.email ?? ""].some((v) => norm(v).includes(q)),
     );
   }, [clienteUsers, linkedUserIds, search]);
 
   // perfiles SIN rol cliente y SIN ficha vinculada — candidatos a convertir
   const convertibles = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = norm(search);
     const list = allProfiles.filter(
       (u) => !linkedUserIds.has(u.id) && !(u.roles ?? []).includes("cliente"),
     );
     if (!q) return list;
     return list.filter((u) =>
-      [u.full_name ?? "", u.email ?? ""].some((v) => v.toLowerCase().includes(q)),
+      [u.full_name ?? "", u.email ?? ""].some((v) => norm(v).includes(q)),
     );
   }, [allProfiles, linkedUserIds, search]);
 
@@ -280,13 +280,19 @@ export default function AdminClientes() {
 
   // Búsqueda + filtro por estado, compartidos por ambas vistas.
   const visibles = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = norm(search);
     return enriched.filter(({ cliente: c, estado }) => {
       if (!matchFiltro(estado, estadoFilter)) return false;
       if (!q) return true;
-      return [c.empresa, c.contacto, c.celular, c.email ?? "", c.direccion ?? ""].some((v) =>
-        v.toLowerCase().includes(q),
-      );
+      return [
+        c.empresa,
+        c.contacto,
+        c.celular,
+        c.email ?? "",
+        c.direccion ?? "",
+        c.ciudad ?? "",
+        c.codigo_cliente_externo ?? "",
+      ].some((v) => norm(v).includes(q));
     });
   }, [enriched, search, estadoFilter]);
 
@@ -698,7 +704,7 @@ export default function AdminClientes() {
         <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por empresa, contacto, email, celular…"
+            placeholder="Buscar por negocio, contacto, código CLI-XXXX, ciudad, email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"

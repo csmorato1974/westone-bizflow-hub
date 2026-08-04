@@ -79,12 +79,17 @@ export default function Login() {
   const onResetRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setResetBusy(true);
-    const { error } = await requestPasswordReset(resetEmail);
+    const { error, sinEmail } = await requestPasswordReset(resetEmail);
     setResetBusy(false);
     if (error) return toast.error(error);
+    if (sinEmail) {
+      setResetSinEmail(true);
+      return;
+    }
     setResetSent(true);
-    toast.success("Te enviamos un enlace de recuperación");
+    toast.success("Si la cuenta tiene correo registrado, ya salió el enlace");
   };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-dark p-4">
@@ -133,7 +138,7 @@ export default function Login() {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => { setResetEmail(email); setResetSent(false); setResetOpen(true); }}
+                    onClick={() => { setResetEmail(email); setResetSent(false); setResetSinEmail(false); setResetOpen(true); }}
                     className="text-xs text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
                   >
                     ¿Olvidaste tu contraseña?

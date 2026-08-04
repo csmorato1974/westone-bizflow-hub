@@ -806,6 +806,27 @@ export default function AdminClientes() {
             </Card>
           )}
 
+          {selectedIds.length > 0 && (
+            <Card className="border-brand/50 bg-brand/5">
+              <CardContent className="p-3 flex flex-wrap items-center gap-3">
+                <p className="text-sm">
+                  <strong>{selectedIds.length}</strong> cliente{selectedIds.length === 1 ? "" : "s"} seleccionado
+                  {selectedIds.length === 1 ? "" : "s"} para onboarding
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-brand text-brand-foreground hover:bg-brand-dark"
+                  onClick={() => { setLoteIndex(0); setLoteOpen(true); }}
+                >
+                  <Send className="h-3 w-3" /> Enviar en secuencia
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                  Limpiar selección
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {filtered.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-muted-foreground">Sin resultados</CardContent></Card>
           ) : view === "list" ? (
@@ -815,7 +836,13 @@ export default function AdminClientes() {
               deletingId={deletingId}
               highlightedId={highlightedId}
               rowRef={(id, el) => { rowRefs.current[id] = el; }}
+              selectedIds={selectedIds}
+              onToggleSelected={toggleSelected}
+              onToggleAll={toggleAll}
+              onWhatsapp={enviarWhatsapp}
+              onEmail={enviarEmail}
               onFicha={abrirFicha}
+
               onPedidos={(id) => {
                 const c = clientes.find((x) => x.id === id);
                 if (c) setPedidosCliente({ id: c.id, empresa: c.empresa });

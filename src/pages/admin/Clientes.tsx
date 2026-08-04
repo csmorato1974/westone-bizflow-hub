@@ -314,6 +314,80 @@ export default function AdminClientes() {
     setOpen(true);
   };
 
+  // Carga los datos de acceso (usuario / email de acceso) de la cuenta vinculada
+  useEffect(() => {
+    if (!open || !userId) {
+      setAccesoUsername(""); setAccesoUsernameActual("");
+      setAccesoEmail(""); setAccesoEmailPendiente(null);
+      return;
+    }
+    let cancel = false;
+    (async () => {
+      const [{ data: p }, { data: req }] = await Promise.all([
+        supabase.from("profiles").select("username,email").eq("id", userId).maybeSingle(),
+        supabase
+          .from("email_change_requests")
+          .select("email_nuevo")
+          .eq("user_id", userId)
+          .eq("estado", "pendiente")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (cancel) return;
+      setAccesoUsername(p?.username ?? "");
+      setAccesoUsernameActual(p?.username ?? "");
+      setAccesoEmail(p?.email ?? "");
+      setAccesoEmailPendiente(req?.email_nuevo ?? null);
+    })();
+    return () => { cancel = true; };
+  }, [open, userId]);
+
+  const guardarUsername = async () => {
+    const nuevo = accesoUsername.trim().toLowerCase();
+    if (!userId || nuevo === accesoUsernameActual.toLowerCase()) return;
+    if (!/^[a-z0-9][a-z0-9._-]{1,28}[a-z0-9]$/.test(nuevo)) {
+      return toast.error("Usuario inválido: 3 a 30 caracteres (letras, números, punto, guion o guion bajo)");
+    }
+    setSavingAcceso(true);
+    const { data: disponible } = await supabase.rpc("username_disponible", { _username: nuevo });
+    if (!disponible) {
+      setSavingAcceso(false);
+      return toast.error("Ese nombre de usuario no está disponible");
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: nuevo, username_provisional: false })
+      .eq("id", userId);
+    setSavingAcceso(false);
+    if (error) return toast.error(error.message);
+    setAccesoUsernameActual(nuevo);
+    await logAudit("actualizar_username", "profiles", userId, { username_nuevo: nuevo });
+    toast.success("Nombre de usuario actualizado");
+  };
+
+  const solicitarCambioEmailAcceso = async (accion: "solicitar" | "reenviar" | "cancelar") => {
+    if (!userId) return;
+    const nuevo = accesoEmail.trim().toLowerCase();
+    if (accion === "solicitar" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nuevo)) {
+      return toast.error("Email de acceso inválido");
+    }
+    setSavingAcceso(true);
+    const { data, error } = await supabase.functions.invoke("request-email-change", {
+      body: { accion, user_id: userId, email: nuevo, redirect_to: `${window.location.origin}/app/perfil` },
+    });
+    setSavingAcceso(false);
+    if (error || data?.error) return toast.error(data?.error ?? "No se pudo procesar la solicitud");
+    if (accion === "cancelar") {
+      setAccesoEmailPendiente(null);
+      toast.success("Solicitud cancelada");
+    } else {
+      setAccesoEmailPendiente(nuevo);
+      toast.success("Enviamos el correo de confirmación al nuevo email");
+    }
+  };
+
+
   const abrirFicha = (id: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("focus", id);

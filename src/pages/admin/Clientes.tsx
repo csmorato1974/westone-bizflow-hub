@@ -380,11 +380,15 @@ export default function AdminClientes() {
     if (error || data?.error) return toast.error(data?.error ?? "No se pudo procesar la solicitud");
     if (accion === "cancelar") {
       setAccesoEmailPendiente(null);
-      toast.success("Solicitud cancelada");
-    } else {
-      setAccesoEmailPendiente(nuevo);
-      toast.success("Enviamos el correo de confirmación al nuevo email");
+      return toast.success("Solicitud cancelada");
     }
+    if (data?.estado === "aplicada") {
+      setAccesoEmailPendiente(null);
+      setAccesoEmail(data.email_nuevo ?? nuevo);
+      return toast.success("Email de acceso actualizado: ya puede iniciar sesión con el nuevo email");
+    }
+    setAccesoEmailPendiente(nuevo);
+    toast.success("Enviamos el correo de confirmación al nuevo email");
   };
 
 

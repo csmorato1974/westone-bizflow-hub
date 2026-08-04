@@ -62,6 +62,9 @@ export type Database = {
           lista_precio_id: string | null
           longitud: number | null
           notas: string | null
+          onboarding_canal: string | null
+          onboarding_enviado_en: string | null
+          onboarding_enviado_por: string | null
           telefono_normalizado: string | null
           user_id: string | null
           vendedor_id: string | null
@@ -83,6 +86,9 @@ export type Database = {
           lista_precio_id?: string | null
           longitud?: number | null
           notas?: string | null
+          onboarding_canal?: string | null
+          onboarding_enviado_en?: string | null
+          onboarding_enviado_por?: string | null
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
@@ -104,6 +110,9 @@ export type Database = {
           lista_precio_id?: string | null
           longitud?: number | null
           notas?: string | null
+          onboarding_canal?: string | null
+          onboarding_enviado_en?: string | null
+          onboarding_enviado_por?: string | null
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null

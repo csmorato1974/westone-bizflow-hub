@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
       { email: emailNuevo },
       redirectTo ? { emailRedirectTo: redirectTo } : undefined,
     );
-    await tmp.auth.signOut();
+    // Scope local: no revocar las demás sesiones del usuario (si no, se cierra su sesión real)
+    await tmp.auth.signOut({ scope: "local" });
     if (updErr) return json({ error: updErr.message }, 400);
 
     // Estado / auditoría

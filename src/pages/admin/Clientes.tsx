@@ -276,22 +276,104 @@ export default function AdminClientes() {
 
   const filtered = useMemo(() => visibles.map((v) => v.cliente), [visibles]);
 
+  // ── Onboarding (clave provisional) ────────────────────────────────────────
+  // El sistema NO envía nada: solo prepara el texto y abre WhatsApp / el correo
+  // del administrador, que revisa y envía manualmente.
+  const onboardingDe = useCallback(
+    (c: Cliente) => {
+      const p = c.user_id ? profileMap.get(c.user_id) ?? null : null;
+      const vars = buildVars({
+        contacto: c.contacto,
+        empresa: c.empresa,
+        username: p?.username ?? "",
+        emailAcceso: p?.email ?? null,
+        emailCrm: c.email,
+      });
+      return {
+        vars,
+        email: emailContactable(c.email, p?.email),
+      };
+    },
+    [profileMap],
+  );
+
   const tablaRows: ClienteRow[] = useMemo(
     () =>
-      visibles.map(({ cliente: c, estado }) => ({
-        id: c.id,
-        empresa: c.empresa,
-        contacto: c.contacto,
-        celular: c.celular,
-        email: c.email,
-        activo: c.activo,
-        created_at: c.created_at,
-        vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
-        listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
-        estado,
-      })),
-    [visibles, vendedorMap, listaMap],
+      visibles.map(({ cliente: c, estado }) => {
+        const ob = onboardingDe(c);
+        return {
+          id: c.id,
+          empresa: c.empresa,
+          contacto: c.contacto,
+          celular: c.celular,
+          email: c.email,
+          activo: c.activo,
+          created_at: c.created_at,
+          vendedorNombre: c.vendedor_id ? vendedorMap.get(c.vendedor_id) ?? "—" : null,
+          listaNombre: c.lista_precio_id ? listaMap.get(c.lista_precio_id) ?? "—" : null,
+          estado,
+          onboardingListo: !!ob.vars,
+          onboardingEmail: ob.email,
+          onboardingEnviadoEn: c.onboarding_enviado_en ?? null,
+          onboardingCanal: c.onboarding_canal ?? null,
+        };
+      }),
+    [visibles, vendedorMap, listaMap, onboardingDe],
   );
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loteOpen, setLoteOpen] = useState(false);
+  const [loteIndex, setLoteIndex] = useState(0);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleAll = (checked: boolean) =>
+    setSelectedIds(checked ? tablaRows.filter((r) => r.onboardingListo).map((r) => r.id) : []);
+
+  const marcarEnviado = async (c: Cliente, canal: "whatsapp" | "email") => {
+    const ahora = new Date().toISOString();
+    const { error } = await supabase
+      .from("clientes")
+      .update({ onboarding_enviado_en: ahora, onboarding_canal: canal })
+      .eq("id", c.id);
+    if (error) return toast.error(error.message);
+    setClientes((prev) =>
+      prev.map((x) =>
+        x.id === c.id ? { ...x, onboarding_enviado_en: ahora, onboarding_canal: canal } : x,
+      ),
+    );
+    await logAudit("onboarding_enviado", "clientes", c.id, { canal, empresa: c.empresa });
+  };
+
+  const enviarWhatsapp = async (id: string) => {
+    const c = clientes.find((x) => x.id === id);
+    if (!c) return;
+    const { vars } = onboardingDe(c);
+    if (!vars) return toast.error("Este cliente no tiene clave provisional");
+    if (!vars.username) return toast.error("La cuenta no tiene nombre de usuario asignado");
+    window.open(waLink(c.celular, mensajeWhatsapp(vars)), "_blank", "noopener,noreferrer");
+    await marcarEnviado(c, "whatsapp");
+    toast.success("WhatsApp abierto · revisá y presioná enviar");
+  };
+
+  const enviarEmail = async (id: string) => {
+    const c = clientes.find((x) => x.id === id);
+    if (!c) return;
+    const { vars, email: dest } = onboardingDe(c);
+    if (!vars) return toast.error("Este cliente no tiene clave provisional");
+    if (!dest) return toast.error("El cliente no tiene un email real para escribirle");
+    window.location.href = mailtoLink(dest, vars);
+    await marcarEnviado(c, "email");
+    toast.success("Correo abierto en tu cliente de email");
+  };
+
+  const loteClientes = useMemo(
+    () => selectedIds.map((id) => clientes.find((c) => c.id === id)).filter(Boolean) as Cliente[],
+    [selectedIds, clientes],
+  );
+  const loteActual = loteClientes[loteIndex] ?? null;
+
+
 
   const resetForm = () => {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");

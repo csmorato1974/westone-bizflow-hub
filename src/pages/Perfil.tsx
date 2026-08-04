@@ -304,7 +304,36 @@ export default function Perfil() {
               <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+591 ..." />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Nombre de usuario (para iniciar sesión)</Label>
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  id="username"
+                  className="flex-1 min-w-[200px]"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  placeholder="tu.usuario"
+                  maxLength={30}
+                  autoComplete="username"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleUsernameSave}
+                  disabled={saving || username.trim().toLowerCase() === usernameActual.toLowerCase()}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserIcon className="h-4 w-4" />}
+                  <span className="ml-1">Guardar usuario</span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {usernameProvisional
+                  ? "Este usuario fue generado automáticamente: podés cambiarlo por uno propio."
+                  : "Podés iniciar sesión con este usuario o con tu email."}
+              </p>
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <Label htmlFor="email">Email de acceso</Label>
               <div className="flex gap-2 flex-wrap">
                 <Input
                   id="email"
@@ -317,18 +346,33 @@ export default function Perfil() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleEmailChange}
+                  onClick={() => callEmailChange("solicitar")}
                   disabled={savingEmail || email.trim().toLowerCase() === emailActual.toLowerCase()}
                 >
                   {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
                   <span className="ml-1">Actualizar email</span>
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Email confirmado: <strong>{emailActual || "sin definir"}</strong>
+              </p>
               {emailPendiente ? (
-                <p className="text-xs text-warning-foreground">
-                  Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
-                  email actual sigue activo hasta que confirmes el nuevo.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-600">
+                    Pendiente de confirmación: revisá la bandeja de <strong>{emailPendiente}</strong>. El
+                    email actual sigue activo hasta que confirmes el nuevo.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={savingEmail}
+                      onClick={() => callEmailChange("reenviar")}>
+                      Reenviar correo
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={savingEmail}
+                      onClick={() => callEmailChange("cancelar")}>
+                      Cancelar solicitud
+                    </Button>
+                  </div>
+                </div>
               ) : !emailActual ? (
                 <p className="text-xs text-muted-foreground">
                   Todavía no tenés un email definido. Cargá uno para poder recuperar tu acceso.
@@ -340,6 +384,7 @@ export default function Perfil() {
                 </p>
               )}
             </div>
+
 
           </div>
           <div className="pt-2">

@@ -1,1 +1,6 @@
 project_id = "ickwvreacprvsdozeabi"
+[functions.request-password-reset]
+verify_jwt = false
+
+[functions.reset-provisional-password]
+verify_jwt = false

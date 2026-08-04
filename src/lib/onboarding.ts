@@ -18,6 +18,14 @@ export const APP_LOGIN_URL: string =
   "https://westone-bizflow-hub.lovable.app/login";
 
 /**
+ * WhatsApp de soporte de Westone (solo dígitos con código de país).
+ * Definir VITE_SOPORTE_WHATSAPP para activar el botón de contacto directo.
+ */
+export const SOPORTE_WHATSAPP: string =
+  (import.meta.env.VITE_SOPORTE_WHATSAPP as string | undefined)?.replace(/\D/g, "") || "";
+
+
+/**
  * Clave provisional de las cuentas importadas: `Wst-{parte-local-email}-26`
  * (ej. juan.perez@clientes-temp.local -> Wst-juan.perez-26).
  * Devuelve null si el email no es un placeholder provisional.

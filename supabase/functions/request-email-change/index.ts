@@ -93,7 +93,20 @@ Deno.serve(async (req) => {
 
     if (!EMAIL_RE.test(emailNuevo)) return json({ error: "Email inválido" }, 400);
     if (emailNuevo.length > 255) return json({ error: "Email demasiado largo" }, 400);
-    if (emailNuevo === emailActual) return json({ error: "El email es el mismo que el actual" }, 400);
+    // La cuenta ya tiene ese email (p. ej. el cambio se aplicó antes): sincronizamos y cerramos.
+    if (emailNuevo === emailActual) {
+      const now = new Date().toISOString();
+      await admin
+        .from("profiles")
+        .update({ email: emailNuevo, email_provisional: emailNuevo.endsWith("@clientes-temp.local") })
+        .eq("id", targetId);
+      await admin
+        .from("email_change_requests")
+        .update({ estado: "confirmada", cerrado_en: now })
+        .eq("user_id", targetId)
+        .eq("estado", "pendiente");
+      return json({ ok: true, estado: "aplicada", email_nuevo: emailNuevo, ya_estaba: true });
+    }
 
     // Disponibilidad (perfil y cuenta de acceso)
     const { data: enUso } = await admin

@@ -172,6 +172,9 @@ export default function AdminUsuarios() {
         <p className="text-sm text-muted-foreground">Asigna roles para controlar el acceso a los módulos</p>
       </div>
 
+      {isSuper && <ReconciliarEmails />}
+
+
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row gap-3 md:items-center">
           <div className="relative flex-1">

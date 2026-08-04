@@ -206,25 +206,44 @@ export default function Perfil() {
         redirect_to: `${window.location.origin}/app/perfil`,
       },
     });
-    setSavingEmail(false);
 
     if (error || data?.error) {
+      setSavingEmail(false);
       const msg = data?.error ?? "No se pudo procesar la solicitud";
       return toast.error(msg);
     }
 
     if (accion === "cancelar") {
+      setSavingEmail(false);
       setEmailPendiente(null);
       setEmail(emailActual);
-      toast.success("Solicitud cancelada");
-    } else {
-      setEmailPendiente(nuevo);
-      toast.success(
-        accion === "reenviar"
-          ? "Reenviamos el correo de confirmación"
-          : "Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.",
+      return toast.success("Solicitud cancelada");
+    }
+
+    // El correo de confirmación se dispara desde la sesión real del usuario:
+    // así el enlace queda válido y el cambio se aplica en la cuenta al confirmarlo.
+    const destino = (data?.email_nuevo as string | undefined) ?? nuevo;
+    const { error: nativeErr } = await supabase.auth.updateUser(
+      { email: destino },
+      { emailRedirectTo: `${window.location.origin}/app/perfil` },
+    );
+    setSavingEmail(false);
+
+    if (nativeErr) {
+      const espera = nativeErr.message.match(/after (\d+) seconds/);
+      return toast.error(
+        espera
+          ? `Por seguridad, esperá ${espera[1]} segundos antes de volver a enviar el correo.`
+          : nativeErr.message,
       );
     }
+
+    setEmailPendiente(destino);
+    toast.success(
+      accion === "reenviar"
+        ? "Reenviamos el correo de confirmación"
+        : "Te enviamos un correo de confirmación al nuevo email. El actual sigue activo hasta que lo confirmes.",
+    );
   };
 
 

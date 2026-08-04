@@ -1230,13 +1230,17 @@ export default function AdminClientes() {
             <DialogTitle className="industrial-title">Pedidos de {pedidosCliente?.empresa}</DialogTitle>
           </DialogHeader>
           {pedidosCliente && (
-            <PedidosRecientes
-              clienteId={pedidosCliente.id}
-              limit={20}
-              hideViewAll
-              title="Historial de pedidos"
-            />
+            <div className="space-y-4">
+              <ClienteEstadisticas clienteId={pedidosCliente.id} />
+              <PedidosRecientes
+                clienteId={pedidosCliente.id}
+                limit={20}
+                hideViewAll
+                title="Historial de pedidos"
+              />
+            </div>
           )}
+
         </DialogContent>
       </Dialog>
     </div>

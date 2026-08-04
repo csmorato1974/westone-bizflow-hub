@@ -45,6 +45,9 @@ export default function Perfil() {
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameActual, setUsernameActual] = useState("");
+  const [usernameProvisional, setUsernameProvisional] = useState(false);
   const [email, setEmail] = useState("");
   const [emailActual, setEmailActual] = useState("");
   const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
@@ -60,32 +63,35 @@ export default function Perfil() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, email, phone")
+      .select("full_name, email, phone, username, username_provisional")
       .eq("id", user.id)
       .maybeSingle();
 
+    // El email de la cuenta de acceso es la fuente de verdad (AuthContext ya sincronizó el perfil).
     const actual = user.email ?? profile?.email ?? "";
     setEmailActual(actual);
-    setEmailPendiente(((user as unknown as { new_email?: string | null }).new_email) || null);
 
-    // Si el usuario confirmó un cambio de email, sincronizamos el perfil.
-    if (actual && profile && (profile.email ?? "").toLowerCase() !== actual.toLowerCase()) {
-      await supabase
-        .from("profiles")
-        .update({ email: actual, email_provisional: actual.endsWith("@clientes-temp.local") })
-        .eq("id", user.id);
-      profile.email = actual;
-      await logAudit("confirmar_cambio_email", "profiles", user.id, { email: actual });
-    }
-
+    const { data: pendiente } = await supabase
+      .from("email_change_requests")
+      .select("email_nuevo")
+      .eq("user_id", user.id)
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setEmailPendiente(pendiente?.email_nuevo ?? null);
 
     if (profile) {
       setFullName(profile.full_name ?? "");
       setPhone(profile.phone ?? "");
-      setEmail(profile.email ?? actual);
+      setUsername(profile.username ?? "");
+      setUsernameActual(profile.username ?? "");
+      setUsernameProvisional(!!profile.username_provisional);
+      setEmail(actual || (profile.email ?? ""));
     } else {
       setEmail(actual);
     }
+
 
 
     if (hasRole("cliente")) {

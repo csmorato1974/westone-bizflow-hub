@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -12,8 +13,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Package, Pencil, Trash2, FileText } from "lucide-react";
+import { Loader2, Package, Pencil, Trash2, FileText, MessageCircle, Mail } from "lucide-react";
 import type { ClienteEstado } from "@/lib/clienteEstado";
+import { fechaEnvio } from "@/lib/onboarding";
 
 export interface ClienteRow {
   id: string;
@@ -26,6 +28,11 @@ export interface ClienteRow {
   vendedorNombre: string | null;
   listaNombre: string | null;
   estado: ClienteEstado;
+  /** Puede recibir el mensaje de onboarding (tiene clave provisional). */
+  onboardingListo: boolean;
+  onboardingEmail: string | null;
+  onboardingEnviadoEn: string | null;
+  onboardingCanal: string | null;
 }
 
 interface Props {
@@ -34,10 +41,15 @@ interface Props {
   deletingId: string | null;
   highlightedId: string | null;
   rowRef: (id: string, el: HTMLTableRowElement | null) => void;
+  selectedIds: string[];
+  onToggleSelected: (id: string) => void;
+  onToggleAll: (checked: boolean) => void;
   onFicha: (id: string) => void;
   onPedidos: (id: string) => void;
   onEditar: (id: string) => void;
   onEliminar: (id: string) => void;
+  onWhatsapp: (id: string) => void;
+  onEmail: (id: string) => void;
 }
 
 const fecha = (iso: string) =>
@@ -49,21 +61,38 @@ export function ClientesTabla({
   deletingId,
   highlightedId,
   rowRef,
+  selectedIds,
+  onToggleSelected,
+  onToggleAll,
   onFicha,
   onPedidos,
   onEditar,
   onEliminar,
+  onWhatsapp,
+  onEmail,
 }: Props) {
+  const seleccionables = rows.filter((r) => r.onboardingListo);
+  const allSelected =
+    seleccionables.length > 0 && seleccionables.every((r) => selectedIds.includes(r.id));
   return (
     <div className="rounded-lg border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[36px]">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(v) => onToggleAll(!!v)}
+                aria-label="Seleccionar todos"
+                disabled={seleccionables.length === 0}
+              />
+            </TableHead>
             <TableHead>Empresa</TableHead>
             <TableHead className="hidden lg:table-cell">Contacto</TableHead>
             <TableHead className="hidden md:table-cell">Teléfono</TableHead>
             <TableHead className="hidden xl:table-cell">Email</TableHead>
             <TableHead>Estado</TableHead>
+            <TableHead className="hidden lg:table-cell">Onboarding</TableHead>
             <TableHead className="hidden lg:table-cell">Vendedor</TableHead>
             <TableHead className="hidden xl:table-cell">Lista</TableHead>
             <TableHead className="hidden xl:table-cell">Alta</TableHead>
@@ -75,6 +104,7 @@ export function ClientesTabla({
             const { estado } = r;
             // En pantallas chicas mostramos como máximo 2 metadatos bajo el nombre.
             const meta = [r.contacto, r.celular].filter(Boolean).slice(0, 2);
+            const enviado = fechaEnvio(r.onboardingEnviadoEn);
             return (
               <TableRow
                 key={r.id}
@@ -83,6 +113,14 @@ export function ClientesTabla({
                   highlightedId === r.id ? "bg-brand/10" : ""
                 }`}
               >
+                <TableCell>
+                  <Checkbox
+                    checked={selectedIds.includes(r.id)}
+                    onCheckedChange={() => onToggleSelected(r.id)}
+                    disabled={!r.onboardingListo}
+                    aria-label={`Seleccionar ${r.empresa}`}
+                  />
+                </TableCell>
                 <TableCell className="max-w-[220px]">
                   <button
                     type="button"
@@ -123,6 +161,18 @@ export function ClientesTabla({
                     )}
                   </div>
                 </TableCell>
+                <TableCell className="hidden lg:table-cell whitespace-nowrap text-xs">
+                  {enviado ? (
+                    <span className="text-success">
+                      ✓ {enviado}
+                      {r.onboardingCanal ? ` · ${r.onboardingCanal}` : ""}
+                    </span>
+                  ) : r.onboardingListo ? (
+                    <span className="text-muted-foreground">Sin enviar</span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
 
                 <TableCell className="hidden lg:table-cell">{r.vendedorNombre ?? "—"}</TableCell>
                 <TableCell className="hidden xl:table-cell">{r.listaNombre ?? "—"}</TableCell>
@@ -131,6 +181,27 @@ export function ClientesTabla({
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 justify-end">
+                    {r.onboardingListo && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Enviar por WhatsApp"
+                          onClick={() => onWhatsapp(r.id)}
+                        >
+                          <MessageCircle className="h-4 w-4 text-success" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title={r.onboardingEmail ? "Enviar por Email" : "Sin email real para escribir"}
+                          disabled={!r.onboardingEmail}
+                          onClick={() => onEmail(r.id)}
+                        >
+                          <Mail className="h-4 w-4 text-info" />
+                        </Button>
+                      </>
+                    )}
                     <Button size="icon" variant="ghost" title="Ver ficha" onClick={() => onFicha(r.id)}>
                       <FileText className="h-4 w-4" />
                     </Button>

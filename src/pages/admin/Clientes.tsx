@@ -55,6 +55,9 @@ interface Cliente {
   notas: string | null;
   activo: boolean;
   created_at: string;
+  ciudad?: string | null;
+  codigo_cliente_externo?: string | null;
+
   email_provisional: boolean | null;
   vendedor_id: string | null;
   lista_precio_id: string | null;

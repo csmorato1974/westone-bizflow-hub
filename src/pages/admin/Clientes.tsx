@@ -125,6 +125,14 @@ export default function AdminClientes() {
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
 
+  // Acceso de la cuenta vinculada (profiles): username y email de acceso
+  const [accesoUsername, setAccesoUsername] = useState("");
+  const [accesoUsernameActual, setAccesoUsernameActual] = useState("");
+  const [accesoEmail, setAccesoEmail] = useState("");
+  const [accesoEmailPendiente, setAccesoEmailPendiente] = useState<string | null>(null);
+  const [savingAcceso, setSavingAcceso] = useState(false);
+
+
   const load = async () => {
     setLoading(true);
     const [{ data: cs }, { data: ur }, { data: lp }, { data: profs }] = await Promise.all([

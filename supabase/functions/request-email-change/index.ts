@@ -30,17 +30,16 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const accion: string = body.accion ?? "solicitar";
     const targetId: string = typeof body.user_id === "string" && body.user_id ? body.user_id : callerId;
-    const redirectTo: string = typeof body.redirect_to === "string" ? body.redirect_to : "";
 
     if (!["solicitar", "reenviar", "cancelar"].includes(accion)) {
       return json({ error: "Acción inválida" }, 400);
     }
 
     // Permiso: dueño, admin o super_admin
-    let esAdmin = false;
-    if (targetId !== callerId) {
+    const esPropio = targetId === callerId;
+    if (!esPropio) {
       const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", callerId);
-      esAdmin = (roles ?? []).some((r) => r.role === "admin" || r.role === "super_admin");
+      const esAdmin = (roles ?? []).some((r) => r.role === "admin" || r.role === "super_admin");
       if (!esAdmin) return json({ error: "No tenés permiso para cambiar el email de esta cuenta" }, 403);
     }
 
@@ -82,7 +81,7 @@ Deno.serve(async (req) => {
     if (accion === "reenviar") {
       const { data: pend } = await admin
         .from("email_change_requests")
-        .select("id, email_nuevo, reenvios")
+        .select("id, email_nuevo")
         .eq("user_id", targetId)
         .eq("estado", "pendiente")
         .order("created_at", { ascending: false })
@@ -96,7 +95,7 @@ Deno.serve(async (req) => {
     if (emailNuevo.length > 255) return json({ error: "Email demasiado largo" }, 400);
     if (emailNuevo === emailActual) return json({ error: "El email es el mismo que el actual" }, 400);
 
-    // Disponibilidad
+    // Disponibilidad (perfil y cuenta de acceso)
     const { data: enUso } = await admin
       .from("profiles")
       .select("id")
@@ -105,88 +104,93 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (enUso) return json({ error: "Ese email ya está en uso por otra cuenta" }, 409);
 
-    // Sesión temporal de la cuenta destino para usar el flujo nativo de cambio de email
-    const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: emailActual,
-    });
-    if (linkErr || !link?.properties?.hashed_token) {
-      return json({ error: `No se pudo preparar el cambio: ${linkErr?.message ?? "sin token"}` }, 500);
-    }
-
-    const tmp = createClient(SUPABASE_URL, ANON, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data: sess, error: sessErr } = await tmp.auth.verifyOtp({
-      type: "magiclink",
-      token_hash: link.properties.hashed_token,
-    });
-    if (sessErr || !sess.session) {
-      return json({ error: `No se pudo preparar el cambio: ${sessErr?.message ?? "sin sesión"}` }, 500);
-    }
-
-    // Flujo nativo: envía el correo de confirmación al email nuevo
-    const { error: updErr } = await tmp.auth.updateUser(
-      { email: emailNuevo },
-      redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-    );
-    // Scope local: no revocar las demás sesiones del usuario (si no, se cierra su sesión real)
-    await tmp.auth.signOut({ scope: "local" });
-    if (updErr) {
-      const m = updErr.message ?? "";
-      const espera = m.match(/after (\d+) seconds/);
-      if (espera) {
-        return json(
-          { error: `Por seguridad, esperá ${espera[1]} segundos antes de volver a enviar el correo.` },
-          429,
-        );
-      }
-      return json({ error: m }, 400);
-    }
-
-    // Estado / auditoría
-    const now = new Date().toISOString();
-    const { data: pend } = await admin
-      .from("email_change_requests")
-      .select("id, reenvios")
-      .eq("user_id", targetId)
-      .eq("estado", "pendiente")
-      .eq("email_nuevo", emailNuevo)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (pend) {
-      await admin
+    // Cambio propio: el navegador dispara el flujo nativo con su propia sesión.
+    // (La sesión temporal desde el servidor invalidaba el token del enlace y la
+    // confirmación fallaba en silencio: "Email link is invalid or has expired".)
+    if (esPropio) {
+      const now = new Date().toISOString();
+      const { data: pend } = await admin
         .from("email_change_requests")
-        .update({ reenvios: (pend.reenvios ?? 0) + 1, ultimo_envio: now })
-        .eq("id", pend.id);
-    } else {
-      // cerrar otras pendientes del mismo usuario
-      await admin
-        .from("email_change_requests")
-        .update({ estado: "cancelada", cerrado_en: now })
+        .select("id, reenvios")
         .eq("user_id", targetId)
-        .eq("estado", "pendiente");
+        .eq("estado", "pendiente")
+        .eq("email_nuevo", emailNuevo)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      await admin.from("email_change_requests").insert({
-        user_id: targetId,
-        solicitado_por: callerId,
-        email_anterior: emailActual,
-        email_nuevo: emailNuevo,
-        estado: "pendiente",
+      if (pend) {
+        await admin
+          .from("email_change_requests")
+          .update({ reenvios: (pend.reenvios ?? 0) + 1, ultimo_envio: now })
+          .eq("id", pend.id);
+      } else {
+        await admin
+          .from("email_change_requests")
+          .update({ estado: "cancelada", cerrado_en: now })
+          .eq("user_id", targetId)
+          .eq("estado", "pendiente");
+        await admin.from("email_change_requests").insert({
+          user_id: targetId,
+          solicitado_por: callerId,
+          email_anterior: emailActual,
+          email_nuevo: emailNuevo,
+          estado: "pendiente",
+        });
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: callerId,
+        accion: accion === "reenviar" ? "reenviar_cambio_email" : "solicitar_cambio_email",
+        entidad: "profiles",
+        entidad_id: targetId,
+        detalle: { email_anterior: emailActual, email_nuevo: emailNuevo, por_admin: false },
       });
+
+      return json({ ok: true, estado: "pendiente", modo: "nativo", email_nuevo: emailNuevo });
     }
+
+    // Cambio hecho por admin / super admin: se aplica de inmediato sobre la cuenta.
+    const { error: updErr } = await admin.auth.admin.updateUserById(targetId, {
+      email: emailNuevo,
+      email_confirm: true,
+    });
+    if (updErr) {
+      const m = updErr.message ?? "No se pudo aplicar el cambio de email";
+      const status = /already/i.test(m) ? 409 : 400;
+      return json({ error: m }, status);
+    }
+
+    const now = new Date().toISOString();
+    await admin
+      .from("profiles")
+      .update({ email: emailNuevo, email_provisional: emailNuevo.endsWith("@clientes-temp.local") })
+      .eq("id", targetId);
+
+    await admin
+      .from("email_change_requests")
+      .update({ estado: "cancelada", cerrado_en: now })
+      .eq("user_id", targetId)
+      .eq("estado", "pendiente");
+
+    await admin.from("email_change_requests").insert({
+      user_id: targetId,
+      solicitado_por: callerId,
+      email_anterior: emailActual,
+      email_nuevo: emailNuevo,
+      estado: "confirmada",
+      cerrado_en: now,
+    });
 
     await admin.from("audit_logs").insert({
       user_id: callerId,
-      accion: accion === "reenviar" ? "reenviar_cambio_email" : "solicitar_cambio_email",
+      accion: "confirmar_cambio_email",
       entidad: "profiles",
       entidad_id: targetId,
-      detalle: { email_anterior: emailActual, email_nuevo: emailNuevo, por_admin: targetId !== callerId },
+      detalle: { email_anterior: emailActual, email_nuevo: emailNuevo, por_admin: true },
     });
 
-    return json({ ok: true, estado: "pendiente", email_nuevo: emailNuevo });
+    return json({ ok: true, estado: "aplicada", email_nuevo: emailNuevo });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

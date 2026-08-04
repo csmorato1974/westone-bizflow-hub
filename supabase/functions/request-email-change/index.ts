@@ -109,31 +109,49 @@ Deno.serve(async (req) => {
     }
 
     // Disponibilidad: la cuenta de acceso es la fuente de verdad.
-    // Un perfil desincronizado no debe bloquear el cambio.
+    // Un perfil desincronizado no debe bloquear el cambio: se corrige y se sigue.
     const { data: enUso } = await admin
       .from("profiles")
       .select("id, full_name")
       .ilike("email", emailNuevo)
       .neq("id", targetId)
-      .maybeSingle();
+      .limit(20);
 
-    if (enUso) {
-      const { data: otro } = await admin.auth.admin.getUserById(enUso.id);
+    for (const otroPerfil of enUso ?? []) {
+      const { data: otro } = await admin.auth.admin.getUserById(otroPerfil.id);
       const otroEmail = (otro?.user?.email ?? "").toLowerCase();
+
       if (otroEmail === emailNuevo) {
         return json(
           {
-            error: `Ese email ya es el email de acceso de "${enUso.full_name ?? "otra cuenta"}". Cambiá primero el email de esa cuenta o usá otro.`,
+            error: `Ese email ya es el email de acceso de "${otroPerfil.full_name ?? "otra cuenta"}". Cambiá primero el email de esa cuenta o usá otro.`,
           },
           409,
         );
       }
-      // Perfil desincronizado: lo corregimos con el email real de su cuenta y seguimos.
+
+      // Perfil desincronizado (la cuenta real tiene otro email o ya no existe).
       await admin
         .from("profiles")
-        .update({ email: otroEmail || null, email_provisional: otroEmail.endsWith("@clientes-temp.local") })
-        .eq("id", enUso.id);
+        .update({
+          email: otroEmail || null,
+          email_provisional: otroEmail.endsWith("@clientes-temp.local"),
+        })
+        .eq("id", otroPerfil.id);
+
+      await admin.from("audit_logs").insert({
+        user_id: callerId,
+        accion: "reconciliar_email",
+        entidad: "profiles",
+        entidad_id: otroPerfil.id,
+        detalle: {
+          email_anterior: emailNuevo,
+          email_nuevo: otroEmail || null,
+          motivo: "perfil_desincronizado_bloqueaba_cambio",
+        },
+      });
     }
+
 
 
     // Cambio propio: el navegador dispara el flujo nativo con su propia sesión.

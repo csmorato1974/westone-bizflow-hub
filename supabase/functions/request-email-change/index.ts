@@ -207,9 +207,17 @@ Deno.serve(async (req) => {
     });
     if (updErr) {
       const m = updErr.message ?? "No se pudo aplicar el cambio de email";
-      const status = /already/i.test(m) ? 409 : 400;
-      return json({ error: m }, status);
+      const enUsoReal = /already/i.test(m);
+      return json(
+        {
+          error: enUsoReal
+            ? "Ese email ya está registrado en otra cuenta de acceso. Usá otro email."
+            : m,
+        },
+        enUsoReal ? 409 : 400,
+      );
     }
+
 
     const now = new Date().toISOString();
     await admin

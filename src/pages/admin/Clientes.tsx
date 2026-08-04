@@ -35,6 +35,7 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
 import { computeEstado, matchFiltro, type FiltroEstado } from "@/lib/clienteEstado";
 import { LayoutGrid, List } from "lucide-react";
@@ -870,8 +871,8 @@ export default function AdminClientes() {
               selectedIds={selectedIds}
               onToggleSelected={toggleSelected}
               onToggleAll={toggleAll}
-              onWhatsapp={enviarWhatsapp}
-              onEmail={enviarEmail}
+              onWhatsapp={(id) => abrirPreview(id, "whatsapp")}
+              onEmail={(id) => abrirPreview(id, "email")}
               onFicha={abrirFicha}
 
               onPedidos={(id) => {
@@ -950,7 +951,7 @@ export default function AdminClientes() {
                               Onboarding: {enviado ? <span className="text-success">✓ enviado {enviado}{c.onboarding_canal ? ` · ${c.onboarding_canal}` : ""}</span> : "sin enviar"}
                             </p>
                             <div className="flex gap-2 flex-wrap">
-                              <Button size="sm" variant="outline" onClick={() => enviarWhatsapp(c.id)}>
+                              <Button size="sm" variant="outline" onClick={() => abrirPreview(c.id, "whatsapp")}>
                                 <MessageCircle className="h-3 w-3" /> WhatsApp
                               </Button>
                               <Button
@@ -958,7 +959,7 @@ export default function AdminClientes() {
                                 variant="outline"
                                 disabled={!ob.email}
                                 title={ob.email ? undefined : "Sin email real para escribir"}
-                                onClick={() => enviarEmail(c.id)}
+                                onClick={() => abrirPreview(c.id, "email")}
                               >
                                 <Mail className="h-3 w-3" /> Email
                               </Button>
@@ -1010,6 +1011,15 @@ export default function AdminClientes() {
         </>
       )}
 
+      <OnboardingPreview
+        data={previewData}
+        canal={previewCanal}
+        onCanalChange={setPreviewCanal}
+        onOpenChange={(o) => { if (!o) setPreviewId(null); }}
+        onConfirmWhatsapp={() => previewId && enviarWhatsapp(previewId)}
+        onConfirmEmail={() => previewId && enviarEmail(previewId)}
+      />
+
       {/* Envío en secuencia: el admin confirma cada mensaje manualmente */}
       <Dialog open={loteOpen} onOpenChange={setLoteOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1046,7 +1056,7 @@ export default function AdminClientes() {
                     <Button
                       size="sm"
                       className="bg-brand text-brand-foreground hover:bg-brand-dark"
-                      onClick={() => enviarWhatsapp(loteActual.id)}
+                      onClick={() => abrirPreview(loteActual.id, "whatsapp")}
                     >
                       <MessageCircle className="h-3 w-3" /> Abrir WhatsApp
                     </Button>
@@ -1054,7 +1064,7 @@ export default function AdminClientes() {
                       size="sm"
                       variant="outline"
                       disabled={!ob.email}
-                      onClick={() => enviarEmail(loteActual.id)}
+                      onClick={() => abrirPreview(loteActual.id, "email")}
                     >
                       <Mail className="h-3 w-3" /> Abrir Email
                     </Button>

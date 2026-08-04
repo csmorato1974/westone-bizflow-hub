@@ -23,7 +23,11 @@ export interface AuthContextValue {
   signIn: (identificador: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  /** Acepta usuario o email. `sinEmail` indica cuenta sin correo real (creada en lote). */
+  requestPasswordReset: (
+    identificador: string,
+  ) => Promise<{ error: string | null; sinEmail: boolean }>;
+
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: boolean;

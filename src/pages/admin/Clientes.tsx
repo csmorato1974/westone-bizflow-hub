@@ -913,7 +913,29 @@ export default function AdminClientes() {
                             </Badge>
                           )}
                         </div>
+                        {ob.vars && (
+                          <div className="space-y-1 rounded-md border border-dashed p-2">
+                            <p className="text-xs text-muted-foreground">
+                              Onboarding: {enviado ? <span className="text-success">✓ enviado {enviado}{c.onboarding_canal ? ` · ${c.onboarding_canal}` : ""}</span> : "sin enviar"}
+                            </p>
+                            <div className="flex gap-2 flex-wrap">
+                              <Button size="sm" variant="outline" onClick={() => enviarWhatsapp(c.id)}>
+                                <MessageCircle className="h-3 w-3" /> WhatsApp
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!ob.email}
+                                title={ob.email ? undefined : "Sin email real para escribir"}
+                                onClick={() => enviarEmail(c.id)}
+                              >
+                                <Mail className="h-3 w-3" /> Email
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex gap-2 flex-wrap">
+
                           <Button size="sm" variant="outline" onClick={() => setPedidosCliente({ id: c.id, empresa: c.empresa })}>
                             <Package className="h-3 w-3" /> Ver pedidos
                           </Button>

@@ -283,11 +283,25 @@ export function matchRow(row: NormalizedRow, existentes: ExistingCliente[]): Mat
     };
   };
 
-  // 1. Clave de importación conocida (reimportación)
+  // 1. Código de cliente (principal o alias histórico)
+  const codigo = normalizeCodigoCliente(row.codigo_cliente_externo);
+  if (codigo) {
+    const porCodigo = existentes.find(
+      (c) => normalizeCodigoCliente(c.codigo_cliente_externo) === codigo,
+    );
+    if (porCodigo) return decide(porCodigo, "Mismo código de cliente");
+    const porAlias = existentes.find((c) =>
+      (c.codigos_alias ?? []).some((a) => normalizeCodigoCliente(a) === codigo),
+    );
+    if (porAlias) return decide(porAlias, "Código histórico (alias) del cliente");
+  }
+
+  // 2. Clave de importación conocida (reimportación)
   const porKey = existentes.find(
     (c) => c.external_import_key && c.external_import_key === row.external_import_key,
   );
   if (porKey) return decide(porKey, "Reimportación: misma clave de trazabilidad");
+
 
   // 2. Teléfono normalizado exacto
   if (row.telefono_normalizado.length >= 7) {

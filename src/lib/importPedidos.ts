@@ -366,11 +366,43 @@ export function construirDryRun(args: {
 }): DryRunResultado {
   const { rows, clientes, catalogo, rowKeysExistentes, mapeoManual } = args;
 
+  // Resolución de cliente: código principal -> alias histórico -> clave técnica
+  // -> teléfono -> email. Nunca crea clientes: lo ambiguo va a mapeo manual.
   const porCodigo = new Map<string, ClienteRef>();
+  const porAlias = new Map<string, ClienteRef>();
+  const porClave = new Map<string, ClienteRef>();
+  const porTelefono = new Map<string, ClienteRef>();
+  const porEmail = new Map<string, ClienteRef>();
   clientes.forEach((c) => {
     const cod = normalizarIdUnificado(c.codigo_cliente_externo ?? "");
-    if (cod) porCodigo.set(cod, c);
+    if (cod && !porCodigo.has(cod)) porCodigo.set(cod, c);
+    (c.codigos_alias ?? []).forEach((a) => {
+      const k = normalizarIdUnificado(a);
+      if (k && !porAlias.has(k)) porAlias.set(k, c);
+    });
+    if (c.external_import_key && !porClave.has(c.external_import_key)) {
+      porClave.set(c.external_import_key, c);
+    }
+    if (c.telefono_normalizado && !porTelefono.has(c.telefono_normalizado)) {
+      porTelefono.set(c.telefono_normalizado, c);
+    }
+    const mail = (c.email ?? "").trim().toLowerCase();
+    if (mail && !porEmail.has(mail)) porEmail.set(mail, c);
   });
+
+  const resolverCliente = (idUni: string): ClienteRef | null => {
+    if (!idUni) return null;
+    return (
+      porCodigo.get(idUni) ??
+      porAlias.get(idUni) ??
+      porClave.get(idUni) ??
+      porTelefono.get(idUni.replace(/[^0-9]/g, "").replace(/^0+/, "")) ??
+      porEmail.get(idUni.toLowerCase()) ??
+      null
+    );
+  };
+
+
 
   const pendientes: PendientePreview[] = [];
   const grupos = new Map<string, PedidoPreview>();

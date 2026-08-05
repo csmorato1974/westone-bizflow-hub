@@ -143,10 +143,13 @@ export default function VendedorClientes() {
       await logAudit("editar_cliente", "clientes", data.id, { empresa: data.empresa });
       toast.success("Cliente actualizado");
     } else {
+      // El código CLI, el teléfono normalizado y la clave técnica los genera la base de datos.
       const { data, error } = await supabase.from("clientes").insert({
         ...payload,
         vendedor_id: user.id,
+        origen_registro: "manual",
       }).select().single();
+
       setSaving(false);
       if (error) { toast.error(error.message); return; }
       await logAudit("crear_cliente", "clientes", data.id, { empresa: data.empresa });

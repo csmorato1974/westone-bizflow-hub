@@ -55,19 +55,35 @@ export default function ImportarPedidos() {
   /* ---------------- carga de referencias ---------------- */
 
   const cargarReferencias = useCallback(async () => {
-    const [cli, prod, existentes] = await Promise.all([
-      supabase.from("clientes").select("id,empresa,codigo_cliente_externo").limit(5000),
+    const [cli, prod, existentes, alias] = await Promise.all([
+      supabase
+        .from("clientes")
+        .select("id,empresa,codigo_cliente_externo,external_import_key,telefono_normalizado,email")
+        .limit(5000),
       supabase.from("productos").select("id,sku,nombre,presentaciones").eq("activo", true).limit(2000),
       supabase.from("pedidos").select("import_row_key").not("import_row_key", "is", null).limit(10000),
+      supabase.from("cliente_codigos_alias").select("cliente_id,codigo").eq("activo", true).limit(5000),
     ]);
     if (cli.error) toast.error("No se pudieron cargar los clientes: " + cli.error.message);
     if (prod.error) toast.error("No se pudo cargar el catálogo: " + prod.error.message);
-    setClientes((cli.data ?? []) as ClienteRef[]);
+    const aliasPorCliente = new Map<string, string[]>();
+    ((alias.data ?? []) as { cliente_id: string; codigo: string }[]).forEach((a) => {
+      const arr = aliasPorCliente.get(a.cliente_id) ?? [];
+      arr.push(a.codigo);
+      aliasPorCliente.set(a.cliente_id, arr);
+    });
+    setClientes(
+      ((cli.data ?? []) as ClienteRef[]).map((c) => ({
+        ...c,
+        codigos_alias: aliasPorCliente.get(c.id) ?? [],
+      })),
+    );
     setCatalogo((prod.data ?? []) as CatalogoProducto[]);
     setRowKeys(new Set(((existentes.data ?? []) as { import_row_key: string | null }[])
       .map((r) => r.import_row_key)
       .filter((k): k is string => !!k)));
   }, []);
+
 
   useEffect(() => {
     cargarReferencias();

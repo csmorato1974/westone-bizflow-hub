@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.4.0";
+export const RULES_VERSION = "1.5.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =
@@ -230,7 +230,19 @@ export interface ExistingCliente {
   lista_precio_id: string | null;
   telefono_normalizado: string | null;
   external_import_key: string | null;
+  codigo_cliente_externo?: string | null;
+  /** Códigos históricos (alias) del cliente, ya normalizados en mayúsculas. */
+  codigos_alias?: string[];
 }
+
+/** Normaliza un código de cliente igual que public.normalizar_codigo_cliente. */
+export function normalizeCodigoCliente(value: string | null | undefined): string {
+  return (value ?? "")
+    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
 
 export interface MatchResult {
   estado: RowEstado;
@@ -271,11 +283,25 @@ export function matchRow(row: NormalizedRow, existentes: ExistingCliente[]): Mat
     };
   };
 
-  // 1. Clave de importación conocida (reimportación)
+  // 1. Código de cliente (principal o alias histórico)
+  const codigo = normalizeCodigoCliente(row.codigo_cliente_externo);
+  if (codigo) {
+    const porCodigo = existentes.find(
+      (c) => normalizeCodigoCliente(c.codigo_cliente_externo) === codigo,
+    );
+    if (porCodigo) return decide(porCodigo, "Mismo código de cliente");
+    const porAlias = existentes.find((c) =>
+      (c.codigos_alias ?? []).some((a) => normalizeCodigoCliente(a) === codigo),
+    );
+    if (porAlias) return decide(porAlias, "Código histórico (alias) del cliente");
+  }
+
+  // 2. Clave de importación conocida (reimportación)
   const porKey = existentes.find(
     (c) => c.external_import_key && c.external_import_key === row.external_import_key,
   );
   if (porKey) return decide(porKey, "Reimportación: misma clave de trazabilidad");
+
 
   // 2. Teléfono normalizado exacto
   if (row.telefono_normalizado.length >= 7) {

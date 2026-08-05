@@ -1,0 +1,1 @@
+ALTER TABLE public.clientes ALTER COLUMN codigo_cliente_externo SET DEFAULT '';

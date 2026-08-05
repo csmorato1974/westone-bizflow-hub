@@ -90,6 +90,17 @@ const FILTROS: { key: FiltroEstado; label: string }[] = [
 
 type FormMode = "edit" | "create-from-user";
 
+/** Resultado de public.validar_identidad_cliente */
+interface ConflictoIdentidad {
+  conflicto: string | null;
+  via?: string | null;
+  cliente_id?: string | null;
+  empresa?: string | null;
+  contacto?: string | null;
+  codigo?: string | null;
+  clave?: string | null;
+}
+
 export default function AdminClientes() {
   const { hasRole } = useAuth();
   const isSuper = hasRole("super_admin");
@@ -143,6 +154,15 @@ export default function AdminClientes() {
   const [vendedorId, setVendedorId] = useState<string>("");
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
+  const [ciudad, setCiudad] = useState("");
+  const [alias, setAlias] = useState<{ codigo: string; origen: string | null; created_at: string }[]>([]);
+  const [conflicto, setConflicto] = useState<ConflictoIdentidad | null>(null);
+  const [permitirSinTelefono, setPermitirSinTelefono] = useState(false);
+  const [sinTelefonoMotivo, setSinTelefonoMotivo] = useState("");
+  const [codigoNuevo, setCodigoNuevo] = useState("");
+  const [codigoMotivo, setCodigoMotivo] = useState("");
+  const [corrigiendoCodigo, setCorrigiendoCodigo] = useState(false);
+  const [codigoDialog, setCodigoDialog] = useState(false);
 
   // Acceso de la cuenta vinculada (profiles): username y email de acceso
   const [accesoUsername, setAccesoUsername] = useState("");
@@ -435,6 +455,8 @@ export default function AdminClientes() {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");
     setDireccion(""); setLat(null); setLng(null); setNotas("");
     setActivo(true); setVendedorId(""); setListaPrecioId(""); setUserId("");
+    setCiudad(""); setAlias([]); setConflicto(null);
+    setSinTelefonoMotivo(""); setPermitirSinTelefono(false);
   };
 
   const openEdit = (c: Cliente) => {
@@ -445,6 +467,7 @@ export default function AdminClientes() {
     setCelular(c.celular);
     setEmail(c.email ?? "");
     setDireccion(c.direccion ?? "");
+    setCiudad(c.ciudad ?? "");
     setLat(c.latitud);
     setLng(c.longitud);
     setNotas(c.notas ?? "");
@@ -452,8 +475,20 @@ export default function AdminClientes() {
     setVendedorId(c.vendedor_id ?? "");
     setListaPrecioId(c.lista_precio_id ?? "");
     setUserId(c.user_id ?? "");
+    setConflicto(null);
+    setAlias([]);
+    setPermitirSinTelefono(false);
+    setSinTelefonoMotivo("");
     setOpen(true);
+    supabase
+      .from("cliente_codigos_alias")
+      .select("codigo,origen,created_at")
+      .eq("cliente_id", c.id)
+      .eq("activo", true)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setAlias(data ?? []));
   };
+
 
   // Carga los datos de acceso (usuario / email de acceso) de la cuenta vinculada
   useEffect(() => {
@@ -617,19 +652,82 @@ export default function AdminClientes() {
     }
   };
 
+  /** Consulta previa de conflictos de identidad (código / teléfono / email / clave). */
+  const validarIdentidad = async (): Promise<ConflictoIdentidad | null> => {
+    const { data, error } = await supabase.rpc("validar_identidad_cliente", {
+      _celular: celular.trim() || null,
+      _email: email.trim() || null,
+      _empresa: empresa.trim() || null,
+      _contacto: contacto.trim() || null,
+      _direccion: direccion.trim() || null,
+      _cliente_id: editing?.id ?? null,
+    });
+    if (error) return null;
+    const res = data as unknown as ConflictoIdentidad;
+    return res?.conflicto ? res : null;
+  };
+
+  /** Corrección de código: exclusiva de super_admin, vía RPC, con motivo obligatorio. */
+  const corregirCodigo = async () => {
+    if (!editing) return;
+    if (codigoMotivo.trim().length < 5) return toast.error("El motivo es obligatorio");
+    setCorrigiendoCodigo(true);
+    const { data, error } = await supabase.rpc("corregir_codigo_cliente", {
+      _cliente_id: editing.id,
+      _codigo_nuevo: codigoNuevo.trim(),
+      _motivo: codigoMotivo.trim(),
+    });
+    setCorrigiendoCodigo(false);
+    if (error) return toast.error(error.message);
+    const res = data as unknown as { cambiado: boolean; codigo: string };
+    toast.success(res?.cambiado ? `Código actualizado a ${res.codigo}` : "El código no cambió");
+    setCodigoDialog(false);
+    setOpen(false);
+    load();
+  };
+
   const onSave = async (e: React.FormEvent) => {
+
     e.preventDefault();
-    if (empresa.trim().length < 2) return toast.error("Empresa requerida");
+    if (empresa.trim().length < 2) return toast.error("Empresa (negocio) requerida");
     if (contacto.trim().length < 2) return toast.error("Contacto requerido");
-    if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
+    if (ciudad.trim().length < 2) return toast.error("Ciudad requerida");
+
+    const digits = celular.replace(/\D/g, "");
+    const sinTelefono = digits.length === 0;
+    if (sinTelefono) {
+      if (!isSuper || !permitirSinTelefono) {
+        return toast.error("Celular obligatorio (mínimo 7 dígitos). Un super admin puede autorizar la excepción.");
+      }
+      if (sinTelefonoMotivo.trim().length < 5) {
+        return toast.error("Indicá el motivo de la excepción sin teléfono");
+      }
+    } else if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) {
+      return toast.error("Celular inválido: mínimo 7 dígitos");
+    }
     const emailTrim = email.trim();
     if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
 
     setSaving(true);
+    setConflicto(null);
+    const conflictoPrevio = await validarIdentidad();
+    if (conflictoPrevio) {
+      setSaving(false);
+      setConflicto(conflictoPrevio);
+      await logAudit("identidad_cliente_conflicto", "clientes", editing?.id ?? null, {
+        conflicto: conflictoPrevio.conflicto,
+        cliente_en_conflicto: conflictoPrevio.cliente_id,
+        codigo: conflictoPrevio.codigo,
+        empresa: empresa.trim(),
+      });
+      return toast.error("Conflicto de identidad: revisá el aviso del formulario");
+    }
+
     const patch = {
       empresa: empresa.trim(),
       contacto: contacto.trim(),
       celular: celular.trim(),
+      ciudad: ciudad.trim(),
       email: emailTrim || null,
       direccion: direccion.trim() || null,
       latitud,
@@ -642,16 +740,39 @@ export default function AdminClientes() {
     };
 
     if (mode === "create-from-user") {
-      const { data, error } = await supabase.from("clientes").insert(patch).select("id").single();
+      // El código, el teléfono normalizado y la clave técnica los genera la base de datos.
+      const { data, error } = await supabase
+        .from("clientes")
+        .insert({ ...patch, origen_registro: "manual" })
+        .select("id,codigo_cliente_externo,telefono_normalizado,external_import_key,origen_registro")
+        .single();
       setSaving(false);
-      if (error) return toast.error(error.message);
-      await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, { empresa: patch.empresa, user_id: patch.user_id });
-      toast.success("Ficha creada y vinculada");
+      if (error) {
+        const c = await validarIdentidad();
+        if (c) setConflicto(c);
+        await logAudit("identidad_cliente_rechazo", "clientes", null, {
+          error: error.message,
+          empresa: patch.empresa,
+        });
+        return toast.error(error.message);
+      }
+      await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, {
+        empresa: patch.empresa,
+        user_id: patch.user_id,
+        codigo: data?.codigo_cliente_externo,
+        telefono_normalizado: data?.telefono_normalizado,
+        external_import_key: data?.external_import_key,
+        origen_registro: data?.origen_registro,
+        sin_telefono_autorizado: sinTelefono || undefined,
+        motivo_sin_telefono: sinTelefono ? sinTelefonoMotivo.trim() : undefined,
+      });
+      toast.success(`Ficha creada · ${data?.codigo_cliente_externo ?? ""}`);
       setOpen(false);
       clearFocus();
       load();
       return;
     }
+
 
     if (!editing) { setSaving(false); return; }
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);
@@ -1135,11 +1256,81 @@ export default function AdminClientes() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={onSave} className="space-y-3">
-            <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
-            <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
-            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required placeholder="+593..." /></div>
+            {conflicto && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+                <p className="font-medium text-destructive">
+                  Conflicto de identidad ({conflicto.conflicto}
+                  {conflicto.via ? ` · ${conflicto.via}` : ""})
+                </p>
+                <p className="text-muted-foreground">
+                  Ya existe: {conflicto.empresa ?? "—"} · {conflicto.contacto ?? "—"}
+                  {conflicto.codigo ? ` · ${conflicto.codigo}` : ""}
+                </p>
+              </div>
+            )}
+
+            {mode === "edit" && editing && (
+              <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label>Código de cliente</Label>
+                    <Input value={editing.codigo_cliente_externo ?? "—"} readOnly disabled />
+                  </div>
+                  {isSuper && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCodigoNuevo(editing.codigo_cliente_externo ?? "");
+                        setCodigoMotivo("");
+                        setCodigoDialog(true);
+                      }}
+                    >
+                      Corregir código
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Generado por el sistema. No editable desde el formulario.
+                </p>
+                {alias.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Códigos históricos: {alias.map((a) => a.codigo).join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div><Label>Empresa (negocio) *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /><p className="text-xs text-muted-foreground">Nombre del negocio · dato principal de referencia</p></div>
+            <div><Label>Contacto (persona) *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /><p className="text-xs text-muted-foreground">Nombre de la persona de contacto</p></div>
+            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required={!permitirSinTelefono} placeholder="+593..." /></div>
+            {isSuper && (
+              <div className="rounded-md border border-warning/40 bg-warning/5 p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sin-tel"
+                    checked={permitirSinTelefono}
+                    onCheckedChange={(v) => setPermitirSinTelefono(v === true)}
+                  />
+                  <Label htmlFor="sin-tel" className="cursor-pointer text-xs">
+                    Autorizar excepción sin teléfono (queda pendiente de conciliación)
+                  </Label>
+                </div>
+                {permitirSinTelefono && (
+                  <Input
+                    value={sinTelefonoMotivo}
+                    onChange={(e) => setSinTelefonoMotivo(e.target.value)}
+                    placeholder="Motivo de la excepción (obligatorio)"
+                    maxLength={200}
+                  />
+                )}
+              </div>
+            )}
+            <div><Label>Ciudad *</Label><Input value={ciudad} onChange={(e) => setCiudad(e.target.value)} maxLength={120} required /></div>
             <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" /></div>
             <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
+
             <div className="grid grid-cols-2 gap-2">
               <div><Label>Latitud</Label><Input type="number" step="any" value={latitud ?? ""} onChange={(e) => setLat(e.target.value === "" ? null : Number(e.target.value))} /></div>
               <div><Label>Longitud</Label><Input type="number" step="any" value={longitud ?? ""} onChange={(e) => setLng(e.target.value === "" ? null : Number(e.target.value))} /></div>
@@ -1290,6 +1481,34 @@ export default function AdminClientes() {
 
         </DialogContent>
       </Dialog>
+
+      <Dialog open={codigoDialog} onOpenChange={setCodigoDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">Corregir código de cliente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              El código anterior se conservará como alias histórico y quedará auditado.
+            </p>
+            <div>
+              <Label>Código nuevo</Label>
+              <Input value={codigoNuevo} onChange={(e) => setCodigoNuevo(e.target.value)} maxLength={40} />
+            </div>
+            <div>
+              <Label>Motivo *</Label>
+              <Textarea value={codigoMotivo} onChange={(e) => setCodigoMotivo(e.target.value)} maxLength={300} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCodigoDialog(false)}>Cancelar</Button>
+            <Button type="button" onClick={corregirCodigo} disabled={corrigiendoCodigo}>
+              {corrigiendoCodigo ? <Loader2 className="h-4 w-4 animate-spin" /> : "Corregir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }

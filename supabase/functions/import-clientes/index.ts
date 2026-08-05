@@ -8,6 +8,7 @@ import {
   stableHash,
   buildProvisionalPassword,
   detectarDuplicadosInternos,
+  normalizeCodigoCliente,
   type ExistingCliente,
   type NormalizedRow,
   type RawRow,
@@ -53,6 +54,7 @@ interface ResultRow {
   user_id: string | null;
   profile_id: string | null;
   coincide_con?: { id: string; empresa: string | null; contacto: string | null; email: string | null } | null;
+  conflicto_codigo?: { codigo: string; cliente_id: string; empresa: string | null; contacto: string | null } | null;
   password_provisional?: string;
 }
 
@@ -849,12 +851,15 @@ async function crearFicha(
       user_id,
       vendedor_id,
       lista_precio_id,
-      telefono_normalizado: n.telefono_normalizado || null,
-      codigo_cliente_externo: n.codigo_cliente_externo || null,
       email_provisional: n.email_provisional,
-      external_import_key: n.external_import_key,
+      origen_registro: "importacion",
+      // El código, el teléfono normalizado y la clave técnica los genera
+      // PostgreSQL. Solo se envía el código cuando el archivo lo trae.
+      ...(normalizeCodigoCliente(n.codigo_cliente_externo)
+        ? { codigo_cliente_externo: normalizeCodigoCliente(n.codigo_cliente_externo) }
+        : {}),
     })
-    .select("id")
+    .select("id,codigo_cliente_externo,telefono_normalizado,external_import_key")
     .maybeSingle();
   if (error || !data) throw new Error(`No se pudo crear la ficha: ${error?.message}`);
   return data.id as string;
@@ -868,25 +873,23 @@ async function actualizarFicha(
   lista_precio_id: string | null,
   user_id: string | null,
 ) {
-  const patch: Record<string, unknown> = {
-    external_import_key: n.external_import_key,
-  };
+  // La clave técnica y el código NO se sobrescriben: los mantiene la base de datos.
+  const patch: Record<string, unknown> = {};
   if (n.empresa) patch.empresa = n.empresa;
   const contactoPersona = n.original.nombre_completo?.trim();
   if (contactoPersona) patch.contacto = contactoPersona;
   if (n.original.telefono) {
     patch.celular = n.original.telefono;
-    patch.telefono_normalizado = n.telefono_normalizado;
   }
   if (n.email && !n.email_provisional) patch.email = n.email;
   if (n.direccion) patch.direccion = n.direccion;
   if (n.ciudad) patch.ciudad = n.ciudad;
   if (n.notas) patch.notas = n.notas;
-  if (n.codigo_cliente_externo) patch.codigo_cliente_externo = n.codigo_cliente_externo;
   if (vendedor_id) patch.vendedor_id = vendedor_id;
   if (lista_precio_id) patch.lista_precio_id = lista_precio_id;
   if (user_id) patch.user_id = user_id;
 
+  if (Object.keys(patch).length === 0) return;
   const { error } = await admin.from("clientes").update(patch).eq("id", clienteId);
   if (error) throw new Error(`No se pudo actualizar la ficha: ${error.message}`);
 }
@@ -910,6 +913,7 @@ function identidadKey(r: ResultRow): string {
 /** Clasifica el problema en una taxonomía estable para poder filtrar la bandeja. */
 function clasificarProblema(estado: string, motivo: string, observaciones: string[] = []) {
   const m = `${motivo} ${observaciones.join(" ")}`.toLowerCase();
+  if (m.includes("conflicto_codigo_cliente")) return "conflicto_codigo_cliente";
   if (estado === "coincidencia_probable") return "duplicado_probable";
   if (m.includes("conflicto_por_cambio_desde_preview") || m.includes("desde la validación"))
     return "conflicto_desde_preview";

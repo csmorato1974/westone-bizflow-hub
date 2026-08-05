@@ -335,7 +335,13 @@ export interface ClienteRef {
   id: string;
   empresa: string | null;
   codigo_cliente_externo: string | null;
+  /** Códigos históricos (alias) del cliente. */
+  codigos_alias?: string[];
+  external_import_key?: string | null;
+  telefono_normalizado?: string | null;
+  email?: string | null;
 }
+
 
 /** Clave estable de fila de importación (idempotencia). */
 export function buildPedidoRowKey(input: {

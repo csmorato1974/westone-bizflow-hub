@@ -1236,11 +1236,81 @@ export default function AdminClientes() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={onSave} className="space-y-3">
-            <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
-            <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
-            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required placeholder="+593..." /></div>
+            {conflicto && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+                <p className="font-medium text-destructive">
+                  Conflicto de identidad ({conflicto.conflicto}
+                  {conflicto.via ? ` · ${conflicto.via}` : ""})
+                </p>
+                <p className="text-muted-foreground">
+                  Ya existe: {conflicto.empresa ?? "—"} · {conflicto.contacto ?? "—"}
+                  {conflicto.codigo ? ` · ${conflicto.codigo}` : ""}
+                </p>
+              </div>
+            )}
+
+            {mode === "edit" && editing && (
+              <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label>Código de cliente</Label>
+                    <Input value={editing.codigo_cliente_externo ?? "—"} readOnly disabled />
+                  </div>
+                  {isSuper && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCodigoNuevo(editing.codigo_cliente_externo ?? "");
+                        setCodigoMotivo("");
+                        setCodigoDialog(true);
+                      }}
+                    >
+                      Corregir código
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Generado por el sistema. No editable desde el formulario.
+                </p>
+                {alias.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Códigos históricos: {alias.map((a) => a.codigo).join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div><Label>Empresa (negocio) *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /><p className="text-xs text-muted-foreground">Nombre del negocio · dato principal de referencia</p></div>
+            <div><Label>Contacto (persona) *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /><p className="text-xs text-muted-foreground">Nombre de la persona de contacto</p></div>
+            <div><Label>Celular *</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required={!permitirSinTelefono} placeholder="+593..." /></div>
+            {isSuper && (
+              <div className="rounded-md border border-warning/40 bg-warning/5 p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sin-tel"
+                    checked={permitirSinTelefono}
+                    onCheckedChange={(v) => setPermitirSinTelefono(v === true)}
+                  />
+                  <Label htmlFor="sin-tel" className="cursor-pointer text-xs">
+                    Autorizar excepción sin teléfono (queda pendiente de conciliación)
+                  </Label>
+                </div>
+                {permitirSinTelefono && (
+                  <Input
+                    value={sinTelefonoMotivo}
+                    onChange={(e) => setSinTelefonoMotivo(e.target.value)}
+                    placeholder="Motivo de la excepción (obligatorio)"
+                    maxLength={200}
+                  />
+                )}
+              </div>
+            )}
+            <div><Label>Ciudad *</Label><Input value={ciudad} onChange={(e) => setCiudad(e.target.value)} maxLength={120} required /></div>
             <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" /></div>
             <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
+
             <div className="grid grid-cols-2 gap-2">
               <div><Label>Latitud</Label><Input type="number" step="any" value={latitud ?? ""} onChange={(e) => setLat(e.target.value === "" ? null : Number(e.target.value))} /></div>
               <div><Label>Longitud</Label><Input type="number" step="any" value={longitud ?? ""} onChange={(e) => setLng(e.target.value === "" ? null : Number(e.target.value))} /></div>

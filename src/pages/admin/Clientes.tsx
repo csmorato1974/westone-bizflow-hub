@@ -667,7 +667,27 @@ export default function AdminClientes() {
     return res?.conflicto ? res : null;
   };
 
+  /** Corrección de código: exclusiva de super_admin, vía RPC, con motivo obligatorio. */
+  const corregirCodigo = async () => {
+    if (!editing) return;
+    if (codigoMotivo.trim().length < 5) return toast.error("El motivo es obligatorio");
+    setCorrigiendoCodigo(true);
+    const { data, error } = await supabase.rpc("corregir_codigo_cliente", {
+      _cliente_id: editing.id,
+      _codigo_nuevo: codigoNuevo.trim(),
+      _motivo: codigoMotivo.trim(),
+    });
+    setCorrigiendoCodigo(false);
+    if (error) return toast.error(error.message);
+    const res = data as unknown as { cambiado: boolean; codigo: string };
+    toast.success(res?.cambiado ? `Código actualizado a ${res.codigo}` : "El código no cambió");
+    setCodigoDialog(false);
+    setOpen(false);
+    load();
+  };
+
   const onSave = async (e: React.FormEvent) => {
+
     e.preventDefault();
     if (empresa.trim().length < 2) return toast.error("Empresa (negocio) requerida");
     if (contacto.trim().length < 2) return toast.error("Contacto requerido");

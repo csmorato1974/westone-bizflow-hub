@@ -44,12 +44,50 @@ export type Database = {
         }
         Relationships: []
       }
+      cliente_codigos_alias: {
+        Row: {
+          activo: boolean
+          cliente_id: string
+          codigo: string
+          creado_por: string | null
+          created_at: string
+          id: string
+          origen: string | null
+        }
+        Insert: {
+          activo?: boolean
+          cliente_id: string
+          codigo: string
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          origen?: string | null
+        }
+        Update: {
+          activo?: boolean
+          cliente_id?: string
+          codigo?: string
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          origen?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_codigos_alias_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes: {
         Row: {
           activo: boolean
           celular: string
           ciudad: string | null
-          codigo_cliente_externo: string | null
+          codigo_cliente_externo: string
           contacto: string
           created_at: string
           direccion: string | null
@@ -65,6 +103,7 @@ export type Database = {
           onboarding_canal: string | null
           onboarding_enviado_en: string | null
           onboarding_enviado_por: string | null
+          origen_registro: string
           telefono_normalizado: string | null
           user_id: string | null
           vendedor_id: string | null
@@ -73,7 +112,7 @@ export type Database = {
           activo?: boolean
           celular: string
           ciudad?: string | null
-          codigo_cliente_externo?: string | null
+          codigo_cliente_externo: string
           contacto: string
           created_at?: string
           direccion?: string | null
@@ -89,6 +128,7 @@ export type Database = {
           onboarding_canal?: string | null
           onboarding_enviado_en?: string | null
           onboarding_enviado_por?: string | null
+          origen_registro?: string
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
@@ -97,7 +137,7 @@ export type Database = {
           activo?: boolean
           celular?: string
           ciudad?: string | null
-          codigo_cliente_externo?: string | null
+          codigo_cliente_externo?: string
           contacto?: string
           created_at?: string
           direccion?: string | null
@@ -113,6 +153,7 @@ export type Database = {
           onboarding_canal?: string | null
           onboarding_enviado_en?: string | null
           onboarding_enviado_por?: string | null
+          origen_registro?: string
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
@@ -994,11 +1035,40 @@ export type Database = {
         Args: { _cliente: string }
         Returns: boolean
       }
+      clientes_import_key: {
+        Args: {
+          _direccion_normalizada: string
+          _email: string
+          _nombre_normalizado: string
+          _telefono_normalizado: string
+        }
+        Returns: string
+      }
+      clientes_import_key_fila: {
+        Args: {
+          _celular: string
+          _contacto: string
+          _direccion: string
+          _email: string
+          _empresa: string
+        }
+        Returns: string
+      }
+      clientes_nuevo_codigo: { Args: never; Returns: string }
+      clientes_sync_codigo_seq: { Args: { _n: number }; Returns: undefined }
+      codigo_cliente_numero: { Args: { _v: string }; Returns: number }
+      corregir_codigo_cliente: {
+        Args: { _cliente_id: string; _codigo_nuevo: string; _motivo: string }
+        Returns: Json
+      }
+      email_provisional: { Args: { _v: string }; Returns: boolean }
       es_cuenta_administrativa: { Args: { _user_id: string }; Returns: boolean }
       es_vendedor_de_usuario: {
         Args: { _user: string; _vendedor: string }
         Returns: boolean
       }
+      fnv1a_hex: { Args: { _v: string }; Returns: string }
+      formato_codigo_cliente: { Args: { _n: number }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1011,6 +1081,10 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      normalizar_codigo_cliente: { Args: { _v: string }; Returns: string }
+      normalizar_email: { Args: { _v: string }; Returns: string }
+      normalizar_telefono: { Args: { _v: string }; Returns: string }
+      normalizar_texto: { Args: { _v: string }; Returns: string }
       puede_editar_pedido: {
         Args: { _pedido: string; _user: string }
         Returns: boolean
@@ -1026,6 +1100,18 @@ export type Database = {
       sincronizar_mi_email: { Args: never; Returns: Json }
       username_disponible: { Args: { _username: string }; Returns: boolean }
       username_reservado: { Args: { _username: string }; Returns: boolean }
+      validar_identidad_cliente: {
+        Args: {
+          _celular?: string
+          _cliente_id?: string
+          _codigo?: string
+          _contacto?: string
+          _direccion?: string
+          _email?: string
+          _empresa?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "vendedor" | "logistica" | "cliente"
@@ -1041,6 +1127,7 @@ export type Database = {
         | "error_profile"
         | "error_cliente"
         | "error_desconocido"
+        | "conflicto_codigo_cliente"
       pedido_estado:
         | "borrador"
         | "enviado"
@@ -1195,6 +1282,7 @@ export const Constants = {
         "error_profile",
         "error_cliente",
         "error_desconocido",
+        "conflicto_codigo_cliente",
       ],
       pedido_estado: [
         "borrador",

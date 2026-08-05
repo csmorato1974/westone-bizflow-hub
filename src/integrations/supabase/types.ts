@@ -112,7 +112,7 @@ export type Database = {
           activo?: boolean
           celular: string
           ciudad?: string | null
-          codigo_cliente_externo: string
+          codigo_cliente_externo?: string
           contacto: string
           created_at?: string
           direccion?: string | null

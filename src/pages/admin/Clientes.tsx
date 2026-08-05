@@ -652,19 +652,62 @@ export default function AdminClientes() {
     }
   };
 
+  /** Consulta previa de conflictos de identidad (código / teléfono / email / clave). */
+  const validarIdentidad = async (): Promise<ConflictoIdentidad | null> => {
+    const { data, error } = await supabase.rpc("validar_identidad_cliente", {
+      _celular: celular.trim() || null,
+      _email: email.trim() || null,
+      _empresa: empresa.trim() || null,
+      _contacto: contacto.trim() || null,
+      _direccion: direccion.trim() || null,
+      _cliente_id: editing?.id ?? null,
+    });
+    if (error) return null;
+    const res = data as unknown as ConflictoIdentidad;
+    return res?.conflicto ? res : null;
+  };
+
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (empresa.trim().length < 2) return toast.error("Empresa requerida");
+    if (empresa.trim().length < 2) return toast.error("Empresa (negocio) requerida");
     if (contacto.trim().length < 2) return toast.error("Contacto requerido");
-    if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
+    if (ciudad.trim().length < 2) return toast.error("Ciudad requerida");
+
+    const digits = celular.replace(/\D/g, "");
+    const sinTelefono = digits.length === 0;
+    if (sinTelefono) {
+      if (!isSuper || !permitirSinTelefono) {
+        return toast.error("Celular obligatorio (mínimo 7 dígitos). Un super admin puede autorizar la excepción.");
+      }
+      if (sinTelefonoMotivo.trim().length < 5) {
+        return toast.error("Indicá el motivo de la excepción sin teléfono");
+      }
+    } else if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) {
+      return toast.error("Celular inválido: mínimo 7 dígitos");
+    }
     const emailTrim = email.trim();
     if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
 
     setSaving(true);
+    setConflicto(null);
+    const conflictoPrevio = await validarIdentidad();
+    if (conflictoPrevio) {
+      setSaving(false);
+      setConflicto(conflictoPrevio);
+      await logAudit("identidad_cliente_conflicto", "clientes", editing?.id ?? null, {
+        conflicto: conflictoPrevio.conflicto,
+        cliente_en_conflicto: conflictoPrevio.cliente_id,
+        codigo: conflictoPrevio.codigo,
+        empresa: empresa.trim(),
+      });
+      return toast.error("Conflicto de identidad: revisá el aviso del formulario");
+    }
+
     const patch = {
       empresa: empresa.trim(),
       contacto: contacto.trim(),
       celular: celular.trim(),
+      ciudad: ciudad.trim(),
       email: emailTrim || null,
       direccion: direccion.trim() || null,
       latitud,
@@ -677,16 +720,39 @@ export default function AdminClientes() {
     };
 
     if (mode === "create-from-user") {
-      const { data, error } = await supabase.from("clientes").insert(patch).select("id").single();
+      // El código, el teléfono normalizado y la clave técnica los genera la base de datos.
+      const { data, error } = await supabase
+        .from("clientes")
+        .insert({ ...patch, origen_registro: "manual" })
+        .select("id,codigo_cliente_externo,telefono_normalizado,external_import_key,origen_registro")
+        .single();
       setSaving(false);
-      if (error) return toast.error(error.message);
-      await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, { empresa: patch.empresa, user_id: patch.user_id });
-      toast.success("Ficha creada y vinculada");
+      if (error) {
+        const c = await validarIdentidad();
+        if (c) setConflicto(c);
+        await logAudit("identidad_cliente_rechazo", "clientes", null, {
+          error: error.message,
+          empresa: patch.empresa,
+        });
+        return toast.error(error.message);
+      }
+      await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, {
+        empresa: patch.empresa,
+        user_id: patch.user_id,
+        codigo: data?.codigo_cliente_externo,
+        telefono_normalizado: data?.telefono_normalizado,
+        external_import_key: data?.external_import_key,
+        origen_registro: data?.origen_registro,
+        sin_telefono_autorizado: sinTelefono || undefined,
+        motivo_sin_telefono: sinTelefono ? sinTelefonoMotivo.trim() : undefined,
+      });
+      toast.success(`Ficha creada · ${data?.codigo_cliente_externo ?? ""}`);
       setOpen(false);
       clearFocus();
       load();
       return;
     }
+
 
     if (!editing) { setSaving(false); return; }
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);

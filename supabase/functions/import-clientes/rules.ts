@@ -230,7 +230,19 @@ export interface ExistingCliente {
   lista_precio_id: string | null;
   telefono_normalizado: string | null;
   external_import_key: string | null;
+  codigo_cliente_externo?: string | null;
+  /** Códigos históricos (alias) del cliente, ya normalizados en mayúsculas. */
+  codigos_alias?: string[];
 }
+
+/** Normaliza un código de cliente igual que public.normalizar_codigo_cliente. */
+export function normalizeCodigoCliente(value: string | null | undefined): string {
+  return (value ?? "")
+    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
 
 export interface MatchResult {
   estado: RowEstado;

@@ -435,6 +435,8 @@ export default function AdminClientes() {
     setEmpresa(""); setContacto(""); setCelular(""); setEmail("");
     setDireccion(""); setLat(null); setLng(null); setNotas("");
     setActivo(true); setVendedorId(""); setListaPrecioId(""); setUserId("");
+    setCiudad(""); setAlias([]); setConflicto(null);
+    setSinTelefonoMotivo(""); setPermitirSinTelefono(false);
   };
 
   const openEdit = (c: Cliente) => {
@@ -445,6 +447,7 @@ export default function AdminClientes() {
     setCelular(c.celular);
     setEmail(c.email ?? "");
     setDireccion(c.direccion ?? "");
+    setCiudad(c.ciudad ?? "");
     setLat(c.latitud);
     setLng(c.longitud);
     setNotas(c.notas ?? "");
@@ -452,8 +455,20 @@ export default function AdminClientes() {
     setVendedorId(c.vendedor_id ?? "");
     setListaPrecioId(c.lista_precio_id ?? "");
     setUserId(c.user_id ?? "");
+    setConflicto(null);
+    setAlias([]);
+    setPermitirSinTelefono(false);
+    setSinTelefonoMotivo("");
     setOpen(true);
+    supabase
+      .from("cliente_codigos_alias")
+      .select("codigo,origen,created_at")
+      .eq("cliente_id", c.id)
+      .eq("activo", true)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setAlias(data ?? []));
   };
+
 
   // Carga los datos de acceso (usuario / email de acceso) de la cuenta vinculada
   useEffect(() => {

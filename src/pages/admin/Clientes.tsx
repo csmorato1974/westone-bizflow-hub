@@ -90,6 +90,17 @@ const FILTROS: { key: FiltroEstado; label: string }[] = [
 
 type FormMode = "edit" | "create-from-user";
 
+/** Resultado de public.validar_identidad_cliente */
+interface ConflictoIdentidad {
+  conflicto: string | null;
+  via?: string | null;
+  cliente_id?: string | null;
+  empresa?: string | null;
+  contacto?: string | null;
+  codigo?: string | null;
+  clave?: string | null;
+}
+
 export default function AdminClientes() {
   const { hasRole } = useAuth();
   const isSuper = hasRole("super_admin");

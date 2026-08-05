@@ -118,19 +118,31 @@ Deno.serve(async (req) => {
       return json({ error: "Máximo 50 filas por lote en la importación. Recarga la aplicación." }, 400);
 
     /* -------- Catálogos de referencia -------- */
-    const [{ data: clientesData }, { data: listasData }, { data: rolesData }, { data: profilesData }] =
+    const [{ data: clientesData }, { data: listasData }, { data: rolesData }, { data: profilesData }, { data: aliasData }] =
       await Promise.all([
         admin
           .from("clientes")
           .select(
-            "id,user_id,empresa,contacto,celular,email,direccion,ciudad,vendedor_id,lista_precio_id,telefono_normalizado,external_import_key",
+            "id,user_id,empresa,contacto,celular,email,direccion,ciudad,vendedor_id,lista_precio_id,telefono_normalizado,external_import_key,codigo_cliente_externo",
           ),
         admin.from("listas_precios").select("id,nombre").eq("activa", true),
         admin.from("user_roles").select("user_id,role"),
         admin.from("profiles").select("id,full_name,email,phone"),
+        admin.from("cliente_codigos_alias").select("cliente_id,codigo").eq("activo", true),
       ]);
 
-    const existentes = (clientesData ?? []) as ExistingCliente[];
+    const aliasPorCliente = new Map<string, string[]>();
+    ((aliasData ?? []) as { cliente_id: string; codigo: string }[]).forEach((a) => {
+      const arr = aliasPorCliente.get(a.cliente_id) ?? [];
+      arr.push(a.codigo);
+      aliasPorCliente.set(a.cliente_id, arr);
+    });
+
+    const existentes = ((clientesData ?? []) as ExistingCliente[]).map((c) => ({
+      ...c,
+      codigos_alias: aliasPorCliente.get(c.id) ?? [],
+    }));
+
     const listas = listasData ?? [];
     const vendedorIds = new Set(
       (rolesData ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id),

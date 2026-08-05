@@ -143,6 +143,15 @@ export default function AdminClientes() {
   const [vendedorId, setVendedorId] = useState<string>("");
   const [listaPrecioId, setListaPrecioId] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
+  const [ciudad, setCiudad] = useState("");
+  const [alias, setAlias] = useState<{ codigo: string; origen: string | null; created_at: string }[]>([]);
+  const [conflicto, setConflicto] = useState<ConflictoIdentidad | null>(null);
+  const [permitirSinTelefono, setPermitirSinTelefono] = useState(false);
+  const [sinTelefonoMotivo, setSinTelefonoMotivo] = useState("");
+  const [codigoNuevo, setCodigoNuevo] = useState("");
+  const [codigoMotivo, setCodigoMotivo] = useState("");
+  const [corrigiendoCodigo, setCorrigiendoCodigo] = useState(false);
+  const [codigoDialog, setCodigoDialog] = useState(false);
 
   // Acceso de la cuenta vinculada (profiles): username y email de acceso
   const [accesoUsername, setAccesoUsername] = useState("");

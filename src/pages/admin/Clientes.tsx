@@ -1481,6 +1481,34 @@ export default function AdminClientes() {
 
         </DialogContent>
       </Dialog>
+
+      <Dialog open={codigoDialog} onOpenChange={setCodigoDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="industrial-title">Corregir código de cliente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              El código anterior se conservará como alias histórico y quedará auditado.
+            </p>
+            <div>
+              <Label>Código nuevo</Label>
+              <Input value={codigoNuevo} onChange={(e) => setCodigoNuevo(e.target.value)} maxLength={40} />
+            </div>
+            <div>
+              <Label>Motivo *</Label>
+              <Textarea value={codigoMotivo} onChange={(e) => setCodigoMotivo(e.target.value)} maxLength={300} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCodigoDialog(false)}>Cancelar</Button>
+            <Button type="button" onClick={corregirCodigo} disabled={corrigiendoCodigo}>
+              {corrigiendoCodigo ? <Loader2 className="h-4 w-4 animate-spin" /> : "Corregir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }

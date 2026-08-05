@@ -433,7 +433,7 @@ export function construirDryRun(args: {
 
     filasIncluidas++;
 
-    const cliente = idUni ? porCodigo.get(idUni) ?? null : null;
+    const cliente = resolverCliente(idUni);
     const key = `${r.fila_venta}|${normalizeText(r.fecha)}|${idUni}`;
     const rowKey = buildPedidoRowKey({
       fila_venta: r.fila_venta,

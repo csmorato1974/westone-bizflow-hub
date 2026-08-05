@@ -245,6 +245,31 @@ Deno.serve(async (req) => {
       const vendedor_id = resolveVendedor(n.vendedor_asignado);
       const lista_precio_id = resolveLista(n.lista_precio);
 
+      // Conflicto de código: el archivo trae un código que ya pertenece a otro
+      // cliente (por código principal o alias histórico). No se crea ni se
+      // actualiza nada: la fila va a revisión manual.
+      const codigoArchivo = normalizeCodigoCliente(n.codigo_cliente_externo);
+      if (codigoArchivo && accion !== "ignorar" && accion !== "revisar") {
+        const dueno = existentes.find(
+          (c) =>
+            normalizeCodigoCliente(c.codigo_cliente_externo) === codigoArchivo ||
+            (c.codigos_alias ?? []).some((a) => normalizeCodigoCliente(a) === codigoArchivo),
+        );
+        if (dueno && dueno.id !== clienteTarget) {
+          base.conflicto_codigo = {
+            codigo: codigoArchivo,
+            cliente_id: dueno.id,
+            empresa: dueno.empresa,
+            contacto: dueno.contacto,
+          };
+          throw new Error(
+            `conflicto_codigo_cliente: el código ${codigoArchivo} ya pertenece al cliente ${dueno.empresa ?? dueno.id}`,
+          );
+        }
+      }
+
+
+
       if (accion === "crear") {
         const conciliado = await asegurarCuenta(admin, n, profileByEmail, base.observaciones);
         base.user_id = conciliado.user_id;

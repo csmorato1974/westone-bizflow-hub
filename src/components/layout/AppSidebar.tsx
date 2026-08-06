@@ -2,6 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Truck, Shield,
   ListOrdered, ClipboardList, Settings, MessageCircle, FileText, Upload,
+  Bot, ExternalLink,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,7 +12,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { cn } from "@/lib/utils";
 
-type NavItem = { title: string; url: string; icon: typeof Users };
+type NavItem = {
+  title: string;
+  url: string;
+  icon: typeof Users;
+  external?: boolean;
+  ariaLabel?: string;
+};
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -25,8 +32,16 @@ export function AppSidebar() {
 
   const generalItems: NavItem[] = [
     { title: "Dashboard", url: "/app", icon: LayoutDashboard },
+    {
+      title: "Asistente IA",
+      url: "https://asistente-westone-v1.lovable.app",
+      icon: Bot,
+      external: true,
+      ariaLabel: "Abrir Asistente IA en una nueva pestaña",
+    },
     { title: "Chat", url: "/app/chat", icon: MessageCircle },
   ];
+
 
   const vendedorItems: NavItem[] = hasRole("vendedor")
     ? [

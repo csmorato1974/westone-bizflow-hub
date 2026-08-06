@@ -2,6 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Truck, Shield,
   ListOrdered, ClipboardList, Settings, MessageCircle, FileText, Upload,
+  Bot, ExternalLink,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,7 +12,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { cn } from "@/lib/utils";
 
-type NavItem = { title: string; url: string; icon: typeof Users };
+type NavItem = {
+  title: string;
+  url: string;
+  icon: typeof Users;
+  external?: boolean;
+  ariaLabel?: string;
+};
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -25,8 +32,16 @@ export function AppSidebar() {
 
   const generalItems: NavItem[] = [
     { title: "Dashboard", url: "/app", icon: LayoutDashboard },
+    {
+      title: "Asistente IA",
+      url: "https://asistente-westone-v1.lovable.app",
+      icon: Bot,
+      external: true,
+      ariaLabel: "Abrir Asistente IA en una nueva pestaña",
+    },
     { title: "Chat", url: "/app/chat", icon: MessageCircle },
   ];
+
 
   const vendedorItems: NavItem[] = hasRole("vendedor")
     ? [
@@ -79,27 +94,50 @@ export function AppSidebar() {
         )}
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => (
-              <SidebarMenuItem key={item.url}>
-                <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                  <NavLink
-                    to={item.url}
-                    end={item.url === "/app"}
-                    className={({ isActive: a }) =>
-                      cn(
-                        "flex items-center gap-3 rounded-md transition-colors",
-                        a
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-brand"
-                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
-                      )
-                    }
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {items.map((item) =>
+              item.external ? (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild tooltip={item.title} className="min-h-11">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={item.ariaLabel ?? item.title}
+                      className="flex items-center gap-3 rounded-md border border-brand/40 bg-brand/10 text-sidebar-foreground transition-colors hover:bg-brand/20 hover:text-sidebar-accent-foreground"
+                    >
+                      <item.icon className="h-4 w-4 shrink-0 text-brand" />
+                      {!collapsed && (
+                        <>
+                          <span className="text-sm font-semibold">{item.title}</span>
+                          <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                        </>
+                      )}
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/app"}
+                      className={({ isActive: a }) =>
+                        cn(
+                          "flex items-center gap-3 rounded-md transition-colors",
+                          a
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-brand"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
+                        )
+                      }
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ),
+            )}
+
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

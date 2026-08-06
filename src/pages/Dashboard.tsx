@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ReporteVentas } from "@/components/admin/ReporteVentas";
+import { WhatsAppFloatingButton } from "@/components/WhatsAppFloatingButton";
 
 
 type Motivo =
@@ -383,6 +384,8 @@ export default function Dashboard() {
       </div>
 
       {isAdmin && <ReporteVentas />}
+
+      <WhatsAppFloatingButton />
     </div>
   );
 }

@@ -94,27 +94,50 @@ export function AppSidebar() {
         )}
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => (
-              <SidebarMenuItem key={item.url}>
-                <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                  <NavLink
-                    to={item.url}
-                    end={item.url === "/app"}
-                    className={({ isActive: a }) =>
-                      cn(
-                        "flex items-center gap-3 rounded-md transition-colors",
-                        a
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-brand"
-                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
-                      )
-                    }
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {items.map((item) =>
+              item.external ? (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild tooltip={item.title} className="min-h-11">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={item.ariaLabel ?? item.title}
+                      className="flex items-center gap-3 rounded-md border border-brand/40 bg-brand/10 text-sidebar-foreground transition-colors hover:bg-brand/20 hover:text-sidebar-accent-foreground"
+                    >
+                      <item.icon className="h-4 w-4 shrink-0 text-brand" />
+                      {!collapsed && (
+                        <>
+                          <span className="text-sm font-semibold">{item.title}</span>
+                          <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                        </>
+                      )}
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/app"}
+                      className={({ isActive: a }) =>
+                        cn(
+                          "flex items-center gap-3 rounded-md transition-colors",
+                          a
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-brand"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-accent-foreground",
+                        )
+                      }
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span className="text-sm font-medium">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ),
+            )}
+
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

@@ -594,7 +594,10 @@ export default function AdminClientes() {
     fallidas: number;
     pendientes: number;
     ya_actualizadas: number;
+    completado?: boolean;
   } | null>(null);
+
+  const loteCompletado = !!loteProgreso && loteProgreso.pendientes === 0;
 
   const cargarProgresoLote = useCallback(async () => {
     const { data } = await supabase.functions.invoke("reset-provisional-password", {
@@ -608,6 +611,7 @@ export default function AdminClientes() {
   }, [isSuper, cargarProgresoLote]);
 
   const regenerarClavesEnLote = async () => {
+    if (loteCompletado) return;
     setResetMasivo(true);
     try {
       let batchId = loteProgreso && loteProgreso.pendientes > 0 ? loteProgreso.batch_id : null;
@@ -622,7 +626,7 @@ export default function AdminClientes() {
         setLoteProgreso(data);
         batchId = data.batch_id as string;
         if (!data.pendientes) {
-          toast.success("No hay cuentas pendientes");
+          toast.success("Lote ya completado: no hay cuentas pendientes");
           return;
         }
       }
@@ -652,6 +656,7 @@ export default function AdminClientes() {
       setResetMasivo(false);
     }
   };
+
 
 
 
@@ -942,12 +947,20 @@ export default function AdminClientes() {
         </div>
         {isSuper && (
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={regenerarClavesEnLote} disabled={resetMasivo}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={regenerarClavesEnLote}
+              disabled={resetMasivo || loteCompletado}
+            >
               {resetMasivo
                 ? "Procesando…"
-                : loteProgreso && loteProgreso.pendientes > 0
-                  ? "Continuar claves provisionales"
-                  : "Reaplicar claves provisionales"}
+                : loteCompletado
+                  ? "Lote ya completado"
+                  : loteProgreso && loteProgreso.pendientes > 0
+                    ? "Continuar claves provisionales"
+                    : "Reaplicar claves provisionales"}
             </Button>
             {loteProgreso && (
               <span className="text-xs text-muted-foreground">

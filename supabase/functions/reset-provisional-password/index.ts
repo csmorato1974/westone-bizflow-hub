@@ -74,25 +74,37 @@ Deno.serve(async (req) => {
       if (body.accion === "estado") {
         const batchId = body.batch_id ?? (await ultimoBatch(admin));
         if (!batchId) return json({ ok: true, batch_id: null });
-        return json({ ok: true, ...(await progreso(admin, batchId)) });
+        const estado = await progreso(admin, batchId);
+        return json({ ok: true, ...estado, completado: estado.pendientes === 0 });
       }
 
       if (body.accion === "iniciar") {
-        // Si hay un lote en curso, se continúa ese: no se duplica ni se reinicia trabajo.
-        const { data: enCurso } = await admin
-          .from("password_reset_batches")
-          .select("id")
-          .eq("estado", "en_curso")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (enCurso?.id) {
-          return json({
-            ok: true,
-            reanudado: true,
-            ...(await progreso(admin, enCurso.id as string)),
-          });
+        // Sin `forzar`, nunca se crea un lote nuevo si ya existe uno:
+        // - con pendientes reales -> se reanuda
+        // - sin pendientes -> se cierra como completado y se devuelve su contador final
+        if (!body.forzar) {
+          const ultimo = await ultimoBatchFila(admin);
+          if (ultimo) {
+            const estado = await progreso(admin, ultimo.id);
+            if (estado.pendientes > 0) {
+              return json({ ok: true, reanudado: true, ...estado, completado: false });
+            }
+            if (ultimo.estado !== "completado") {
+              await admin
+                .from("password_reset_batches")
+                .update({
+                  procesadas: estado.procesadas,
+                  fallidas: estado.fallidas,
+                  estado: "completado",
+                  finalizado_en: new Date().toISOString(),
+                  detalle: { ya_actualizadas: estado.ya_actualizadas },
+                })
+                .eq("id", ultimo.id);
+            }
+            return json({ ok: true, ya_completado: true, ...estado, completado: true });
+          }
         }
+
 
         const { data: batch, error: bErr } = await admin
           .from("password_reset_batches")

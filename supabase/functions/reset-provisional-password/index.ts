@@ -20,6 +20,8 @@ const BodySchema = z.union([
   z.object({
     accion: z.literal("iniciar"),
     tamano: z.number().int().min(1).max(TANDA_MAX).optional(),
+    // Fuerza la creación de un lote nuevo aunque exista uno completado. No expuesto en la UI.
+    forzar: z.boolean().optional(),
   }),
   z.object({
     accion: z.literal("continuar"),

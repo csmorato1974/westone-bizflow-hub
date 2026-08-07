@@ -8,7 +8,10 @@ const corsHeaders = {
 
 const PROVISIONAL_DOMAIN = "@clientes-temp.local";
 
-const BodySchema = z.object({ user_id: z.string().uuid() });
+const BodySchema = z.union([
+  z.object({ user_id: z.string().uuid() }),
+  z.object({ todos: z.literal(true) }),
+]);
 
 // Regenera la clave provisional estándar (Wst-{parte-local}-26) para cuentas con
 // email provisional y fuerza el cambio de contraseña. Solo admin / super admin.

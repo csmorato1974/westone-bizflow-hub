@@ -937,10 +937,23 @@ export default function AdminClientes() {
           </Button>
         </div>
         {isSuper && (
-          <Button type="button" size="sm" variant="outline" onClick={regenerarClavesEnLote} disabled={resetMasivo}>
-            {resetMasivo ? "Regenerando…" : "Reaplicar claves provisionales"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={regenerarClavesEnLote} disabled={resetMasivo}>
+              {resetMasivo
+                ? "Procesando…"
+                : loteProgreso && loteProgreso.pendientes > 0
+                  ? "Continuar claves provisionales"
+                  : "Reaplicar claves provisionales"}
+            </Button>
+            {loteProgreso && (
+              <span className="text-xs text-muted-foreground">
+                {loteProgreso.procesadas}/{loteProgreso.total} · pendientes {loteProgreso.pendientes}
+                {loteProgreso.fallidas > 0 ? ` · fallidas ${loteProgreso.fallidas}` : ""}
+              </span>
+            )}
+          </div>
         )}
+
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

@@ -8,7 +8,10 @@ const corsHeaders = {
 
 const PROVISIONAL_DOMAIN = "@clientes-temp.local";
 
-const BodySchema = z.object({ user_id: z.string().uuid() });
+const BodySchema = z.union([
+  z.object({ user_id: z.string().uuid() }),
+  z.object({ todos: z.literal(true) }),
+]);
 
 // Regenera la clave provisional estándar (Wst-{parte-local}-26) para cuentas con
 // email provisional y fuerza el cambio de contraseña. Solo admin / super admin.
@@ -37,6 +40,53 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) return json({ error: "Datos inválidos" }, 400);
+
+    // Modo masivo: reaplica la clave estándar a todas las cuentas con email provisional.
+    if ("todos" in parsed.data) {
+      const { data: esSuper } = await admin.rpc("has_role", {
+        _user_id: actor.id,
+        _role: "super_admin",
+      });
+      if (!esSuper) return json({ error: "Requiere super administrador" }, 403);
+
+      let page = 1;
+      let actualizadas = 0;
+      const fallidas: string[] = [];
+      for (;;) {
+        const { data: lista, error: listErr } = await admin.auth.admin.listUsers({
+          page,
+          perPage: 200,
+        });
+        if (listErr) return json({ error: listErr.message }, 400);
+        const usuarios = lista?.users ?? [];
+        if (usuarios.length === 0) break;
+        for (const u of usuarios) {
+          const mail = u.email ?? "";
+          if (!mail.endsWith(PROVISIONAL_DOMAIN)) continue;
+          const loc = mail.slice(0, mail.length - PROVISIONAL_DOMAIN.length);
+          if (!loc) continue;
+          const { error } = await admin.auth.admin.updateUserById(u.id, {
+            password: `Wst-${loc}-26`,
+          });
+          if (error) fallidas.push(mail);
+          else {
+            actualizadas++;
+            await admin.from("profiles").update({ must_change_password: true }).eq("id", u.id);
+          }
+        }
+        if (usuarios.length < 200) break;
+        page++;
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: actor.id,
+        accion: "regenerar_clave_provisional_masivo",
+        entidad: "profiles",
+        detalle: { actualizadas, fallidas },
+      });
+
+      return json({ ok: true, actualizadas, fallidas });
+    }
 
     const { data: cuenta } = await admin.auth.admin.getUserById(parsed.data.user_id);
     const email = cuenta?.user?.email ?? "";

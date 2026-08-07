@@ -129,10 +129,12 @@ export function buildProvisionalEmail(nombreNormalizado: string, telefono: strin
  * Las cuentas quedan con `must_change_password = true`, por lo que se obliga
  * a cambiarla en el primer ingreso.
  */
-export const PROVISIONAL_PASSWORD = "Wst-prueba-2026";
+export const PROVISIONAL_PASSWORD_FALLBACK = "Wst-prueba-2026";
 
-export function buildProvisionalPassword(_email?: string, _telefono?: string): string {
-  return PROVISIONAL_PASSWORD;
+/** Clave provisional estándar: Wst-{parte-local-del-email}-26 */
+export function buildProvisionalPassword(email?: string, _telefono?: string): string {
+  const local = String(email ?? "").split("@")[0].trim().toLowerCase();
+  return local ? `Wst-${local}-26` : PROVISIONAL_PASSWORD_FALLBACK;
 }
 
 

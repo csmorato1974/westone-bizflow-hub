@@ -583,8 +583,8 @@ export default function AdminClientes() {
   };
 
   /**
-   * Reaplica la clave provisional estándar por lotes pequeños y reanudables.
-   * Cada invocación procesa un bloque; las cuentas ya procesadas nunca se repiten.
+   * Reaplica la clave provisional estándar por tandas pequeñas y reanudables.
+   * Las cuentas ya procesadas nunca se repiten (idempotente por batch_id + user_id).
    */
   const [resetMasivo, setResetMasivo] = useState(false);
   const [loteProgreso, setLoteProgreso] = useState<{
@@ -593,6 +593,7 @@ export default function AdminClientes() {
     procesadas: number;
     fallidas: number;
     pendientes: number;
+    ya_actualizadas: number;
   } | null>(null);
 
   const cargarProgresoLote = useCallback(async () => {
@@ -609,7 +610,7 @@ export default function AdminClientes() {
   const regenerarClavesEnLote = async () => {
     setResetMasivo(true);
     try {
-      let batchId = loteProgreso?.pendientes ? loteProgreso.batch_id : null;
+      let batchId = loteProgreso && loteProgreso.pendientes > 0 ? loteProgreso.batch_id : null;
       if (!batchId) {
         const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
           body: { accion: "iniciar" },
@@ -626,10 +627,10 @@ export default function AdminClientes() {
         }
       }
 
-      // Reanuda tanda por tanda hasta terminar; si una falla, el progreso queda guardado.
+      // Encadena tandas hasta terminar; si una falla, el progreso queda guardado.
       for (;;) {
         const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
-          body: { accion: "continuar", batch_id: batchId, tamano: 30 },
+          body: { accion: "continuar", batch_id: batchId, tamano: 25 },
         });
         if (error || data?.error) {
           toast.error(
@@ -641,7 +642,9 @@ export default function AdminClientes() {
         }
         setLoteProgreso(data);
         if (data.completado) {
-          toast.success(`Lote completado: ${data.procesadas} claves regeneradas, ${data.fallidas} con error`);
+          toast.success(
+            `Lote completado: ${data.procesadas} regeneradas, ${data.ya_actualizadas} ya estaban al día, ${data.fallidas} con error`,
+          );
           return;
         }
       }
@@ -649,6 +652,7 @@ export default function AdminClientes() {
       setResetMasivo(false);
     }
   };
+
 
 
 
@@ -948,9 +952,11 @@ export default function AdminClientes() {
             {loteProgreso && (
               <span className="text-xs text-muted-foreground">
                 {loteProgreso.procesadas}/{loteProgreso.total} · pendientes {loteProgreso.pendientes}
+                {loteProgreso.ya_actualizadas > 0 ? ` · ya al día ${loteProgreso.ya_actualizadas}` : ""}
                 {loteProgreso.fallidas > 0 ? ` · fallidas ${loteProgreso.fallidas}` : ""}
               </span>
             )}
+
           </div>
         )}
 

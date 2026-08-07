@@ -582,17 +582,74 @@ export default function AdminClientes() {
     toast.success("Clave provisional regenerada");
   };
 
-  /** Reaplica la clave provisional estándar a todas las cuentas con email provisional. */
+  /**
+   * Reaplica la clave provisional estándar por lotes pequeños y reanudables.
+   * Cada invocación procesa un bloque; las cuentas ya procesadas nunca se repiten.
+   */
   const [resetMasivo, setResetMasivo] = useState(false);
+  const [loteProgreso, setLoteProgreso] = useState<{
+    batch_id: string;
+    total: number;
+    procesadas: number;
+    fallidas: number;
+    pendientes: number;
+  } | null>(null);
+
+  const cargarProgresoLote = useCallback(async () => {
+    const { data } = await supabase.functions.invoke("reset-provisional-password", {
+      body: { accion: "estado" },
+    });
+    if (data?.batch_id) setLoteProgreso(data);
+  }, []);
+
+  useEffect(() => {
+    if (isSuper) void cargarProgresoLote();
+  }, [isSuper, cargarProgresoLote]);
+
   const regenerarClavesEnLote = async () => {
     setResetMasivo(true);
-    const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
-      body: { todos: true },
-    });
-    setResetMasivo(false);
-    if (error || data?.error) return toast.error(data?.error ?? "No se pudieron regenerar las claves");
-    toast.success(`Claves regeneradas: ${data.actualizadas}`);
+    try {
+      let batchId = loteProgreso?.pendientes ? loteProgreso.batch_id : null;
+      if (!batchId) {
+        const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
+          body: { accion: "iniciar" },
+        });
+        if (error || data?.error) {
+          toast.error(data?.error ?? "No se pudo iniciar el lote");
+          return;
+        }
+        setLoteProgreso(data);
+        batchId = data.batch_id as string;
+        if (!data.pendientes) {
+          toast.success("No hay cuentas pendientes");
+          return;
+        }
+      }
+
+      // Reanuda tanda por tanda hasta terminar; si una falla, el progreso queda guardado.
+      for (;;) {
+        const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
+          body: { accion: "continuar", batch_id: batchId, tamano: 30 },
+        });
+        if (error || data?.error) {
+          toast.error(
+            (data?.error as string) ??
+              "Se interrumpió el lote. Volvé a pulsar el botón para continuar donde quedó",
+          );
+          await cargarProgresoLote();
+          return;
+        }
+        setLoteProgreso(data);
+        if (data.completado) {
+          toast.success(`Lote completado: ${data.procesadas} claves regeneradas, ${data.fallidas} con error`);
+          return;
+        }
+      }
+    } finally {
+      setResetMasivo(false);
+    }
   };
+
 
 
 

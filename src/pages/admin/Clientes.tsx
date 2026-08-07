@@ -594,7 +594,10 @@ export default function AdminClientes() {
     fallidas: number;
     pendientes: number;
     ya_actualizadas: number;
+    completado?: boolean;
   } | null>(null);
+
+  const loteCompletado = !!loteProgreso && loteProgreso.pendientes === 0;
 
   const cargarProgresoLote = useCallback(async () => {
     const { data } = await supabase.functions.invoke("reset-provisional-password", {
@@ -608,6 +611,7 @@ export default function AdminClientes() {
   }, [isSuper, cargarProgresoLote]);
 
   const regenerarClavesEnLote = async () => {
+    if (loteCompletado) return;
     setResetMasivo(true);
     try {
       let batchId = loteProgreso && loteProgreso.pendientes > 0 ? loteProgreso.batch_id : null;
@@ -622,7 +626,7 @@ export default function AdminClientes() {
         setLoteProgreso(data);
         batchId = data.batch_id as string;
         if (!data.pendientes) {
-          toast.success("No hay cuentas pendientes");
+          toast.success("Lote ya completado: no hay cuentas pendientes");
           return;
         }
       }
@@ -652,6 +656,7 @@ export default function AdminClientes() {
       setResetMasivo(false);
     }
   };
+
 
 
 

@@ -1,14 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import {
+  claveProvisional,
+  normalizarTanda,
+  PRESUPUESTO_MS,
+  PROVISIONAL_DOMAIN,
+  TANDA_MAX,
+} from "./clave.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const PROVISIONAL_DOMAIN = "@clientes-temp.local";
-const TAMANO_LOTE_MAX = 50;
-const TAMANO_LOTE_DEFECTO = 30;
 
 const BodySchema = z.union([
   // Cuenta individual (admin o super admin)
@@ -16,27 +19,22 @@ const BodySchema = z.union([
   // Lote reanudable (solo super admin)
   z.object({
     accion: z.literal("iniciar"),
-    tamano: z.number().int().min(1).max(TAMANO_LOTE_MAX).optional(),
+    tamano: z.number().int().min(1).max(TANDA_MAX).optional(),
   }),
   z.object({
     accion: z.literal("continuar"),
     batch_id: z.string().uuid(),
-    tamano: z.number().int().min(1).max(TAMANO_LOTE_MAX).optional(),
+    tamano: z.number().int().min(1).max(TANDA_MAX).optional(),
   }),
   z.object({ accion: z.literal("estado"), batch_id: z.string().uuid().optional() }),
 ]);
 
 type Admin = ReturnType<typeof createClient>;
 
-/** Clave provisional estándar a partir del email de acceso provisional. */
-function clave(email: string): string | null {
-  if (!email.endsWith(PROVISIONAL_DOMAIN)) return null;
-  const local = email.slice(0, email.length - PROVISIONAL_DOMAIN.length);
-  return local ? `Wst-${local}-26` : null;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const inicio = Date.now();
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -46,6 +44,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) return json({ error: "No autorizado" }, 401);
 
+    // El actor se deriva SIEMPRE del token verificado, nunca del cuerpo de la petición.
     const asUser = createClient(SUPABASE_URL, ANON, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
@@ -72,12 +71,12 @@ Deno.serve(async (req) => {
 
       if (body.accion === "estado") {
         const batchId = body.batch_id ?? (await ultimoBatch(admin));
-        if (!batchId) return json({ ok: true, batch: null });
+        if (!batchId) return json({ ok: true, batch_id: null });
         return json({ ok: true, ...(await progreso(admin, batchId)) });
       }
 
       if (body.accion === "iniciar") {
-        // Si ya hay un lote en curso, se continúa ese en vez de duplicar trabajo.
+        // Si hay un lote en curso, se continúa ese: no se duplica ni se reinicia trabajo.
         const { data: enCurso } = await admin
           .from("password_reset_batches")
           .select("id")
@@ -86,7 +85,11 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
         if (enCurso?.id) {
-          return json({ ok: true, reanudado: true, ...(await progreso(admin, enCurso.id as string)) });
+          return json({
+            ok: true,
+            reanudado: true,
+            ...(await progreso(admin, enCurso.id as string)),
+          });
         }
 
         const { data: batch, error: bErr } = await admin
@@ -97,7 +100,7 @@ Deno.serve(async (req) => {
         if (bErr || !batch) return json({ error: bErr?.message ?? "No se pudo crear el lote" }, 400);
         const batchId = batch.id as string;
 
-        // Enumerar todas las cuentas con email provisional y registrarlas como pendientes.
+        // Censo de cuentas con email de acceso provisional -> filas pendientes.
         let page = 1;
         let total = 0;
         for (;;) {
@@ -109,7 +112,7 @@ Deno.serve(async (req) => {
           const usuarios = lista?.users ?? [];
           if (usuarios.length === 0) break;
           const filas = usuarios
-            .filter((u) => (u.email ?? "").endsWith(PROVISIONAL_DOMAIN) && clave(u.email ?? ""))
+            .filter((u) => claveProvisional(u.email) !== null)
             .map((u) => ({ batch_id: batchId, user_id: u.id, email_acceso: u.email }));
           if (filas.length > 0) {
             const { error: insErr } = await admin
@@ -128,15 +131,15 @@ Deno.serve(async (req) => {
           accion: "regenerar_clave_provisional_lote_iniciado",
           entidad: "password_reset_batches",
           entidad_id: batchId,
-          detalle: { total },
+          detalle: { total, dominio: PROVISIONAL_DOMAIN },
         });
 
         return json({ ok: true, iniciado: true, ...(await progreso(admin, batchId)) });
       }
 
-      // continuar: procesa un bloque pequeño de pendientes
+      // ---------- continuar: una tanda pequeña, con presupuesto de tiempo ----------
       const batchId = body.batch_id;
-      const tamano = body.tamano ?? TAMANO_LOTE_DEFECTO;
+      const tamano = normalizarTanda(body.tamano);
 
       const { data: pendientes, error: pErr } = await admin
         .from("password_reset_batch_items")
@@ -149,58 +152,92 @@ Deno.serve(async (req) => {
 
       let ok = 0;
       let err = 0;
+      let yaEstaban = 0;
+      let cortadoPorTiempo = false;
+      const auditoria: Record<string, unknown>[] = [];
+
       for (const item of pendientes ?? []) {
+        // Corta antes de acercarse al límite de la plataforma; lo pendiente sigue pendiente.
+        if (Date.now() - inicio > PRESUPUESTO_MS) {
+          cortadoPorTiempo = true;
+          break;
+        }
+
+        const userId = item.user_id as string;
         const email = (item.email_acceso as string | null) ?? "";
-        const pass = clave(email);
+        const pass = claveProvisional(email);
         if (!pass) {
           err++;
           await marcar(admin, item.id as string, "error", "Email de acceso no provisional");
+          auditoria.push({ user_id: userId, resultado: "error", motivo: "email_no_provisional" });
           continue;
         }
-        const { error: upErr } = await admin.auth.admin.updateUserById(item.user_id as string, {
-          password: pass,
-        });
+
+        // ¿La cuenta ya tiene la clave estándar (tanda anterior)? Entonces no se toca.
+        const yaOk = await claveYaAplicada(SUPABASE_URL, ANON, email, pass);
+        if (yaOk) {
+          yaEstaban++;
+          await marcar(admin, item.id as string, "ya_actualizada", null);
+          auditoria.push({ user_id: userId, resultado: "ya_actualizada" });
+          continue;
+        }
+
+        const { error: upErr } = await admin.auth.admin.updateUserById(userId, { password: pass });
         if (upErr) {
           err++;
           await marcar(admin, item.id as string, "error", upErr.message);
+          auditoria.push({ user_id: userId, resultado: "error", motivo: upErr.message });
           continue;
         }
-        await admin
-          .from("profiles")
-          .update({ must_change_password: true })
-          .eq("id", item.user_id as string);
+        await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
         ok++;
         await marcar(admin, item.id as string, "procesada", null);
+        auditoria.push({ user_id: userId, resultado: "procesada", email_acceso: email });
       }
 
-      // El resumen se recalcula desde las filas: queda escrito aunque falle otra invocación.
+      // Auditoría individual: una entrada por cuenta tocada en esta tanda.
+      if (auditoria.length > 0) {
+        await admin.from("audit_logs").insert(
+          auditoria.map((a) => ({
+            user_id: actor.id,
+            accion: "regenerar_clave_provisional_item",
+            entidad: "password_reset_batch_items",
+            entidad_id: batchId,
+            detalle: a,
+          })),
+        );
+      }
+
+      // El resumen se recalcula desde las filas: queda escrito aunque otra invocación falle.
       const estado = await progreso(admin, batchId);
+      const completado = estado.pendientes === 0;
       await admin
         .from("password_reset_batches")
         .update({
           procesadas: estado.procesadas,
           fallidas: estado.fallidas,
-          estado: estado.pendientes === 0 ? "completado" : "en_curso",
-          finalizado_en: estado.pendientes === 0 ? new Date().toISOString() : null,
+          estado: completado ? "completado" : "en_curso",
+          finalizado_en: completado ? new Date().toISOString() : null,
+          detalle: { ya_actualizadas: estado.ya_actualizadas },
         })
         .eq("id", batchId);
 
-      if (estado.pendientes === 0) {
+      if (completado) {
         await admin.from("audit_logs").insert({
           user_id: actor.id,
           accion: "regenerar_clave_provisional_lote_completado",
           entidad: "password_reset_batches",
           entidad_id: batchId,
-          detalle: { procesadas: estado.procesadas, fallidas: estado.fallidas, total: estado.total },
+          detalle: estado,
         });
       }
 
       return json({
         ok: true,
-        procesadas_en_esta_tanda: ok,
-        fallidas_en_esta_tanda: err,
+        tanda: { procesadas: ok, fallidas: err, ya_actualizadas: yaEstaban },
+        cortado_por_tiempo: cortadoPorTiempo,
         ...estado,
-        completado: estado.pendientes === 0,
+        completado,
       });
     }
 
@@ -208,7 +245,7 @@ Deno.serve(async (req) => {
     const { data: cuenta } = await admin.auth.admin.getUserById(body.user_id);
     const email = cuenta?.user?.email ?? "";
     if (!email) return json({ error: "La cuenta no existe" }, 404);
-    const pass = clave(email);
+    const pass = claveProvisional(email);
     if (!pass) {
       return json(
         { error: "La cuenta tiene un email real: usá el enlace de recuperación por correo" },
@@ -245,6 +282,25 @@ Deno.serve(async (req) => {
   }
 });
 
+/**
+ * Comprueba sin modificar nada si la cuenta ya acepta la clave estándar.
+ * Usa un cliente aislado y cierra la sesión creada, para no arrastrar estado.
+ */
+async function claveYaAplicada(
+  url: string,
+  anon: string,
+  email: string,
+  password: string,
+): Promise<boolean> {
+  const probe = createClient(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await probe.auth.signInWithPassword({ email, password });
+  if (error || !data?.session) return false;
+  await probe.auth.signOut();
+  return true;
+}
+
 async function marcar(admin: Admin, id: string, estado: string, error: string | null) {
   await admin
     .from("password_reset_batch_items")
@@ -272,13 +328,21 @@ async function progreso(admin: Admin, batchId: string) {
     const { count } = await q;
     return count ?? 0;
   };
-  const [total, procesadas, fallidas, pendientes] = await Promise.all([
+  const [total, procesadas, fallidas, pendientes, yaActualizadas] = await Promise.all([
     cuenta(),
     cuenta("procesada"),
     cuenta("error"),
     cuenta("pendiente"),
+    cuenta("ya_actualizada"),
   ]);
-  return { batch_id: batchId, total, procesadas, fallidas, pendientes };
+  return {
+    batch_id: batchId,
+    total,
+    procesadas,
+    fallidas,
+    pendientes,
+    ya_actualizadas: yaActualizadas,
+  };
 }
 
 function json(data: unknown, status = 200) {

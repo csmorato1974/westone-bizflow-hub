@@ -582,6 +582,19 @@ export default function AdminClientes() {
     toast.success("Clave provisional regenerada");
   };
 
+  /** Reaplica la clave provisional estándar a todas las cuentas con email provisional. */
+  const [resetMasivo, setResetMasivo] = useState(false);
+  const regenerarClavesEnLote = async () => {
+    setResetMasivo(true);
+    const { data, error } = await supabase.functions.invoke("reset-provisional-password", {
+      body: { todos: true },
+    });
+    setResetMasivo(false);
+    if (error || data?.error) return toast.error(data?.error ?? "No se pudieron regenerar las claves");
+    toast.success(`Claves regeneradas: ${data.actualizadas}`);
+  };
+
+
 
   const abrirFicha = (id: string) => {
     const next = new URLSearchParams(searchParams);

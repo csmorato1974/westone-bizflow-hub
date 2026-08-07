@@ -954,8 +954,9 @@ export default function AdminClientes() {
                 {loteProgreso.procesadas}/{loteProgreso.total} · pendientes {loteProgreso.pendientes}
                 {loteProgreso.ya_actualizadas > 0 ? ` · ya al día ${loteProgreso.ya_actualizadas}` : ""}
                 {loteProgreso.fallidas > 0 ? ` · fallidas ${loteProgreso.fallidas}` : ""}
-
+              </span>
             )}
+
           </div>
         )}
 

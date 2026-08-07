@@ -879,6 +879,11 @@ export default function AdminClientes() {
             <List className="h-4 w-4" /> Lista
           </Button>
         </div>
+        {isSuper && (
+          <Button type="button" size="sm" variant="outline" onClick={regenerarClavesEnLote} disabled={resetMasivo}>
+            {resetMasivo ? "Regenerando…" : "Reaplicar claves provisionales"}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

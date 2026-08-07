@@ -332,6 +332,20 @@ async function ultimoBatch(admin: Admin): Promise<string | null> {
   return (data?.id as string | undefined) ?? null;
 }
 
+/** Última fila de lote (id + estado), para decidir si se reanuda o ya está completada. */
+async function ultimoBatchFila(
+  admin: Admin,
+): Promise<{ id: string; estado: string } | null> {
+  const { data } = await admin
+    .from("password_reset_batches")
+    .select("id, estado")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.id) return null;
+  return { id: data.id as string, estado: (data.estado as string) ?? "" };
+}
+
 async function progreso(admin: Admin, batchId: string) {
   const cuenta = async (estado?: string) => {
     let q = admin

@@ -677,6 +677,89 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_batch_items: {
+        Row: {
+          batch_id: string
+          created_at: string
+          email_acceso: string | null
+          error: string | null
+          estado: string
+          id: string
+          procesado_en: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          email_acceso?: string | null
+          error?: string | null
+          estado?: string
+          id?: string
+          procesado_en?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          email_acceso?: string | null
+          error?: string | null
+          estado?: string
+          id?: string
+          procesado_en?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "password_reset_batch_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "password_reset_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      password_reset_batches: {
+        Row: {
+          actor_id: string
+          created_at: string
+          detalle: Json
+          estado: string
+          fallidas: number
+          finalizado_en: string | null
+          id: string
+          procesadas: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          detalle?: Json
+          estado?: string
+          fallidas?: number
+          finalizado_en?: string | null
+          id?: string
+          procesadas?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          detalle?: Json
+          estado?: string
+          fallidas?: number
+          finalizado_en?: string | null
+          id?: string
+          procesadas?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pedido_items: {
         Row: {
           cantidad: number

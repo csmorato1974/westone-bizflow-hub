@@ -7,14 +7,34 @@ const corsHeaders = {
 };
 
 const PROVISIONAL_DOMAIN = "@clientes-temp.local";
+const TAMANO_LOTE_MAX = 50;
+const TAMANO_LOTE_DEFECTO = 30;
 
 const BodySchema = z.union([
+  // Cuenta individual (admin o super admin)
   z.object({ user_id: z.string().uuid() }),
-  z.object({ todos: z.literal(true) }),
+  // Lote reanudable (solo super admin)
+  z.object({
+    accion: z.literal("iniciar"),
+    tamano: z.number().int().min(1).max(TAMANO_LOTE_MAX).optional(),
+  }),
+  z.object({
+    accion: z.literal("continuar"),
+    batch_id: z.string().uuid(),
+    tamano: z.number().int().min(1).max(TAMANO_LOTE_MAX).optional(),
+  }),
+  z.object({ accion: z.literal("estado"), batch_id: z.string().uuid().optional() }),
 ]);
 
-// Regenera la clave provisional estándar (Wst-{parte-local}-26) para cuentas con
-// email provisional y fuerza el cambio de contraseña. Solo admin / super admin.
+type Admin = ReturnType<typeof createClient>;
+
+/** Clave provisional estándar a partir del email de acceso provisional. */
+function clave(email: string): string | null {
+  if (!email.endsWith(PROVISIONAL_DOMAIN)) return null;
+  const local = email.slice(0, email.length - PROVISIONAL_DOMAIN.length);
+  return local ? `Wst-${local}-26` : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -40,93 +60,226 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) return json({ error: "Datos inválidos" }, 400);
+    const body = parsed.data;
 
-    // Modo masivo: reaplica la clave estándar a todas las cuentas con email provisional.
-    if ("todos" in parsed.data) {
+    // ---------- Modo lote reanudable (solo super admin) ----------
+    if ("accion" in body) {
       const { data: esSuper } = await admin.rpc("has_role", {
         _user_id: actor.id,
         _role: "super_admin",
       });
       if (!esSuper) return json({ error: "Requiere super administrador" }, 403);
 
-      let page = 1;
-      let actualizadas = 0;
-      const fallidas: string[] = [];
-      for (;;) {
-        const { data: lista, error: listErr } = await admin.auth.admin.listUsers({
-          page,
-          perPage: 200,
-        });
-        if (listErr) return json({ error: listErr.message }, 400);
-        const usuarios = lista?.users ?? [];
-        if (usuarios.length === 0) break;
-        for (const u of usuarios) {
-          const mail = u.email ?? "";
-          if (!mail.endsWith(PROVISIONAL_DOMAIN)) continue;
-          const loc = mail.slice(0, mail.length - PROVISIONAL_DOMAIN.length);
-          if (!loc) continue;
-          const { error } = await admin.auth.admin.updateUserById(u.id, {
-            password: `Wst-${loc}-26`,
-          });
-          if (error) fallidas.push(mail);
-          else {
-            actualizadas++;
-            await admin.from("profiles").update({ must_change_password: true }).eq("id", u.id);
-          }
-        }
-        if (usuarios.length < 200) break;
-        page++;
+      if (body.accion === "estado") {
+        const batchId = body.batch_id ?? (await ultimoBatch(admin));
+        if (!batchId) return json({ ok: true, batch: null });
+        return json({ ok: true, ...(await progreso(admin, batchId)) });
       }
 
-      await admin.from("audit_logs").insert({
-        user_id: actor.id,
-        accion: "regenerar_clave_provisional_masivo",
-        entidad: "profiles",
-        detalle: { actualizadas, fallidas },
-      });
+      if (body.accion === "iniciar") {
+        // Si ya hay un lote en curso, se continúa ese en vez de duplicar trabajo.
+        const { data: enCurso } = await admin
+          .from("password_reset_batches")
+          .select("id")
+          .eq("estado", "en_curso")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (enCurso?.id) {
+          return json({ ok: true, reanudado: true, ...(await progreso(admin, enCurso.id as string)) });
+        }
 
-      return json({ ok: true, actualizadas, fallidas });
+        const { data: batch, error: bErr } = await admin
+          .from("password_reset_batches")
+          .insert({ actor_id: actor.id, estado: "en_curso" })
+          .select("id")
+          .single();
+        if (bErr || !batch) return json({ error: bErr?.message ?? "No se pudo crear el lote" }, 400);
+        const batchId = batch.id as string;
+
+        // Enumerar todas las cuentas con email provisional y registrarlas como pendientes.
+        let page = 1;
+        let total = 0;
+        for (;;) {
+          const { data: lista, error: listErr } = await admin.auth.admin.listUsers({
+            page,
+            perPage: 200,
+          });
+          if (listErr) return json({ error: listErr.message }, 400);
+          const usuarios = lista?.users ?? [];
+          if (usuarios.length === 0) break;
+          const filas = usuarios
+            .filter((u) => (u.email ?? "").endsWith(PROVISIONAL_DOMAIN) && clave(u.email ?? ""))
+            .map((u) => ({ batch_id: batchId, user_id: u.id, email_acceso: u.email }));
+          if (filas.length > 0) {
+            const { error: insErr } = await admin
+              .from("password_reset_batch_items")
+              .upsert(filas, { onConflict: "batch_id,user_id", ignoreDuplicates: true });
+            if (insErr) return json({ error: insErr.message }, 400);
+            total += filas.length;
+          }
+          if (usuarios.length < 200) break;
+          page++;
+        }
+
+        await admin.from("password_reset_batches").update({ total }).eq("id", batchId);
+        await admin.from("audit_logs").insert({
+          user_id: actor.id,
+          accion: "regenerar_clave_provisional_lote_iniciado",
+          entidad: "password_reset_batches",
+          entidad_id: batchId,
+          detalle: { total },
+        });
+
+        return json({ ok: true, iniciado: true, ...(await progreso(admin, batchId)) });
+      }
+
+      // continuar: procesa un bloque pequeño de pendientes
+      const batchId = body.batch_id;
+      const tamano = body.tamano ?? TAMANO_LOTE_DEFECTO;
+
+      const { data: pendientes, error: pErr } = await admin
+        .from("password_reset_batch_items")
+        .select("id, user_id, email_acceso")
+        .eq("batch_id", batchId)
+        .eq("estado", "pendiente")
+        .order("created_at", { ascending: true })
+        .limit(tamano);
+      if (pErr) return json({ error: pErr.message }, 400);
+
+      let ok = 0;
+      let err = 0;
+      for (const item of pendientes ?? []) {
+        const email = (item.email_acceso as string | null) ?? "";
+        const pass = clave(email);
+        if (!pass) {
+          err++;
+          await marcar(admin, item.id as string, "error", "Email de acceso no provisional");
+          continue;
+        }
+        const { error: upErr } = await admin.auth.admin.updateUserById(item.user_id as string, {
+          password: pass,
+        });
+        if (upErr) {
+          err++;
+          await marcar(admin, item.id as string, "error", upErr.message);
+          continue;
+        }
+        await admin
+          .from("profiles")
+          .update({ must_change_password: true })
+          .eq("id", item.user_id as string);
+        ok++;
+        await marcar(admin, item.id as string, "procesada", null);
+      }
+
+      // El resumen se recalcula desde las filas: queda escrito aunque falle otra invocación.
+      const estado = await progreso(admin, batchId);
+      await admin
+        .from("password_reset_batches")
+        .update({
+          procesadas: estado.procesadas,
+          fallidas: estado.fallidas,
+          estado: estado.pendientes === 0 ? "completado" : "en_curso",
+          finalizado_en: estado.pendientes === 0 ? new Date().toISOString() : null,
+        })
+        .eq("id", batchId);
+
+      if (estado.pendientes === 0) {
+        await admin.from("audit_logs").insert({
+          user_id: actor.id,
+          accion: "regenerar_clave_provisional_lote_completado",
+          entidad: "password_reset_batches",
+          entidad_id: batchId,
+          detalle: { procesadas: estado.procesadas, fallidas: estado.fallidas, total: estado.total },
+        });
+      }
+
+      return json({
+        ok: true,
+        procesadas_en_esta_tanda: ok,
+        fallidas_en_esta_tanda: err,
+        ...estado,
+        completado: estado.pendientes === 0,
+      });
     }
 
-    const { data: cuenta } = await admin.auth.admin.getUserById(parsed.data.user_id);
+    // ---------- Modo cuenta individual ----------
+    const { data: cuenta } = await admin.auth.admin.getUserById(body.user_id);
     const email = cuenta?.user?.email ?? "";
     if (!email) return json({ error: "La cuenta no existe" }, 404);
-    if (!email.endsWith(PROVISIONAL_DOMAIN)) {
+    const pass = clave(email);
+    if (!pass) {
       return json(
         { error: "La cuenta tiene un email real: usá el enlace de recuperación por correo" },
         400,
       );
     }
 
-    const local = email.slice(0, email.length - PROVISIONAL_DOMAIN.length);
-    if (!local) return json({ error: "Email provisional inválido" }, 400);
-    const password = `Wst-${local}-26`;
-
-    const { error: upErr } = await admin.auth.admin.updateUserById(parsed.data.user_id, {
-      password,
-    });
+    const { error: upErr } = await admin.auth.admin.updateUserById(body.user_id, { password: pass });
     if (upErr) return json({ error: upErr.message }, 400);
 
-    await admin.from("profiles").update({ must_change_password: true }).eq("id", parsed.data.user_id);
+    await admin.from("profiles").update({ must_change_password: true }).eq("id", body.user_id);
 
-    await admin.from("password_recovery_requests")
-      .update({ estado: "resuelto_clave", resuelto_por: actor.id, resuelto_en: new Date().toISOString() })
-      .eq("user_id", parsed.data.user_id)
+    await admin
+      .from("password_recovery_requests")
+      .update({
+        estado: "resuelto_clave",
+        resuelto_por: actor.id,
+        resuelto_en: new Date().toISOString(),
+      })
+      .eq("user_id", body.user_id)
       .eq("estado", "pendiente");
 
     await admin.from("audit_logs").insert({
       user_id: actor.id,
       accion: "regenerar_clave_provisional",
       entidad: "profiles",
-      entidad_id: parsed.data.user_id,
+      entidad_id: body.user_id,
       detalle: { email_acceso: email },
     });
 
-    return json({ ok: true, password });
+    return json({ ok: true, password: pass });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Error inesperado" }, 500);
   }
 });
+
+async function marcar(admin: Admin, id: string, estado: string, error: string | null) {
+  await admin
+    .from("password_reset_batch_items")
+    .update({ estado, error, procesado_en: new Date().toISOString() })
+    .eq("id", id);
+}
+
+async function ultimoBatch(admin: Admin): Promise<string | null> {
+  const { data } = await admin
+    .from("password_reset_batches")
+    .select("id")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+async function progreso(admin: Admin, batchId: string) {
+  const cuenta = async (estado?: string) => {
+    let q = admin
+      .from("password_reset_batch_items")
+      .select("id", { count: "exact", head: true })
+      .eq("batch_id", batchId);
+    if (estado) q = q.eq("estado", estado);
+    const { count } = await q;
+    return count ?? 0;
+  };
+  const [total, procesadas, fallidas, pendientes] = await Promise.all([
+    cuenta(),
+    cuenta("procesada"),
+    cuenta("error"),
+    cuenta("pendiente"),
+  ]);
+  return { batch_id: batchId, total, procesadas, fallidas, pendientes };
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {

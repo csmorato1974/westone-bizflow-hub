@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink, waLink } from "@/lib/whatsapp";
+import { UbicacionGps } from "@/components/cliente/UbicacionGps";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   buildVars,

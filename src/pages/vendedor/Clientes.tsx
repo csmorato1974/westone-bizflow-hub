@@ -15,6 +15,7 @@ import { MapPin, Plus, MessageCircle, Loader2, Pencil, Package } from "lucide-re
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { UbicacionGps } from "@/components/cliente/UbicacionGps";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;

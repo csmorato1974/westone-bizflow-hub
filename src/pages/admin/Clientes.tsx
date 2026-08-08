@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { mapsLink, waLink } from "@/lib/whatsapp";
+import { UbicacionGps } from "@/components/cliente/UbicacionGps";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   buildVars,
@@ -52,6 +53,10 @@ interface Cliente {
   direccion: string | null;
   latitud: number | null;
   longitud: number | null;
+  precision_metros?: number | null;
+  gps_capturado_en?: string | null;
+  gps_capturado_por?: string | null;
+  gps_verificado?: boolean | null;
   notas: string | null;
   activo: boolean;
   created_at: string;
@@ -1202,6 +1207,17 @@ export default function AdminClientes() {
                             </Badge>
                           )}
                         </div>
+                        <UbicacionGps
+                          clienteId={c.id}
+                          empresa={c.empresa}
+                          latitud={c.latitud}
+                          longitud={c.longitud}
+                          precisionMetros={c.precision_metros ?? null}
+                          capturadoEn={c.gps_capturado_en ?? null}
+                          capturadoPorNombre={c.gps_capturado_por ? vendedorMap.get(c.gps_capturado_por) ?? null : null}
+                          nombrePorUsuario={vendedorMap}
+                          onGuardado={load}
+                        />
                         {ob.vars && (
                           <div className="space-y-1 rounded-md border border-dashed p-2">
                             <p className="text-xs text-muted-foreground">

@@ -82,6 +82,53 @@ export type Database = {
           },
         ]
       }
+      cliente_ubicaciones: {
+        Row: {
+          capturado_en: string
+          capturado_por: string | null
+          cliente_id: string
+          confirmado: boolean
+          created_at: string
+          fuente: string
+          id: string
+          latitud: number
+          longitud: number
+          precision_metros: number | null
+        }
+        Insert: {
+          capturado_en?: string
+          capturado_por?: string | null
+          cliente_id: string
+          confirmado?: boolean
+          created_at?: string
+          fuente?: string
+          id?: string
+          latitud: number
+          longitud: number
+          precision_metros?: number | null
+        }
+        Update: {
+          capturado_en?: string
+          capturado_por?: string | null
+          cliente_id?: string
+          confirmado?: boolean
+          created_at?: string
+          fuente?: string
+          id?: string
+          latitud?: number
+          longitud?: number
+          precision_metros?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_ubicaciones_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes: {
         Row: {
           activo: boolean
@@ -95,6 +142,9 @@ export type Database = {
           email_provisional: boolean
           empresa: string
           external_import_key: string | null
+          gps_capturado_en: string | null
+          gps_capturado_por: string | null
+          gps_verificado: boolean
           id: string
           latitud: number | null
           lista_precio_id: string | null
@@ -104,6 +154,7 @@ export type Database = {
           onboarding_enviado_en: string | null
           onboarding_enviado_por: string | null
           origen_registro: string
+          precision_metros: number | null
           telefono_normalizado: string | null
           user_id: string | null
           vendedor_id: string | null
@@ -120,6 +171,9 @@ export type Database = {
           email_provisional?: boolean
           empresa: string
           external_import_key?: string | null
+          gps_capturado_en?: string | null
+          gps_capturado_por?: string | null
+          gps_verificado?: boolean
           id?: string
           latitud?: number | null
           lista_precio_id?: string | null
@@ -129,6 +183,7 @@ export type Database = {
           onboarding_enviado_en?: string | null
           onboarding_enviado_por?: string | null
           origen_registro?: string
+          precision_metros?: number | null
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
@@ -145,6 +200,9 @@ export type Database = {
           email_provisional?: boolean
           empresa?: string
           external_import_key?: string | null
+          gps_capturado_en?: string | null
+          gps_capturado_por?: string | null
+          gps_verificado?: boolean
           id?: string
           latitud?: number | null
           lista_precio_id?: string | null
@@ -154,6 +212,7 @@ export type Database = {
           onboarding_enviado_en?: string | null
           onboarding_enviado_por?: string | null
           origen_registro?: string
+          precision_metros?: number | null
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
@@ -1152,6 +1211,16 @@ export type Database = {
       }
       fnv1a_hex: { Args: { _v: string }; Returns: string }
       formato_codigo_cliente: { Args: { _n: number }; Returns: string }
+      guardar_ubicacion_cliente: {
+        Args: {
+          _cliente_id: string
+          _fuente?: string
+          _latitud: number
+          _longitud: number
+          _precision_metros?: number
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

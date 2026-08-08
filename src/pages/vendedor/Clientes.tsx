@@ -15,11 +15,13 @@ import { MapPin, Plus, MessageCircle, Loader2, Pencil, Package } from "lucide-re
 import { logAudit } from "@/lib/audit";
 import { waLink, fillTemplate, mapsLink } from "@/lib/whatsapp";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
+import { UbicacionGps } from "@/components/cliente/UbicacionGps";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   email: string | null;
   direccion: string | null; latitud: number | null; longitud: number | null;
+  precision_metros?: number | null; gps_capturado_en?: string | null;
   lista_precio_id: string | null; notas: string | null;
   user_id: string | null;
 }
@@ -234,6 +236,15 @@ export default function VendedorClientes() {
                       </Badge>
                     )}
                   </div>
+                  <UbicacionGps
+                    clienteId={c.id}
+                    empresa={c.empresa}
+                    latitud={c.latitud}
+                    longitud={c.longitud}
+                    precisionMetros={c.precision_metros ?? null}
+                    capturadoEn={c.gps_capturado_en ?? null}
+                    onGuardado={load}
+                  />
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar

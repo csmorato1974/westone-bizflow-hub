@@ -234,6 +234,15 @@ export default function VendedorClientes() {
                       </Badge>
                     )}
                   </div>
+                  <UbicacionGps
+                    clienteId={c.id}
+                    empresa={c.empresa}
+                    latitud={c.latitud}
+                    longitud={c.longitud}
+                    precisionMetros={c.precision_metros ?? null}
+                    capturadoEn={c.gps_capturado_en ?? null}
+                    onGuardado={load}
+                  />
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar

@@ -21,6 +21,7 @@ interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   email: string | null;
   direccion: string | null; latitud: number | null; longitud: number | null;
+  precision_metros?: number | null; gps_capturado_en?: string | null;
   lista_precio_id: string | null; notas: string | null;
   user_id: string | null;
 }

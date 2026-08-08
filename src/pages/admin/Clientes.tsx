@@ -52,6 +52,10 @@ interface Cliente {
   direccion: string | null;
   latitud: number | null;
   longitud: number | null;
+  precision_metros?: number | null;
+  gps_capturado_en?: string | null;
+  gps_capturado_por?: string | null;
+  gps_verificado?: boolean | null;
   notas: string | null;
   activo: boolean;
   created_at: string;

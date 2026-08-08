@@ -55,6 +55,6 @@ describe("validación de coordenadas GPS", () => {
     expect(mensajeErrorGeo(1)).toMatch(/[Pp]ermiso/);
     expect(mensajeErrorGeo(2)).toMatch(/señal|ubicación/);
     expect(mensajeErrorGeo(3)).toMatch(/tardó/);
-    expect(mensajeErrorGeo(undefined, "algo")).toBe("algo");
+    expect(mensajeErrorGeo(99, "algo")).toBe("algo");
   });
 });

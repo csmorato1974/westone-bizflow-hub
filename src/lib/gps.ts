@@ -41,7 +41,7 @@ export function formatearCoordenada(v?: number | null): string {
 
 /** Mensaje claro para los errores del navegador. */
 export function mensajeErrorGeo(code?: number, mensaje?: string): string {
-  if (typeof navigator !== "undefined" && !navigator.geolocation) {
+  if (code === undefined && typeof navigator !== "undefined" && !navigator.geolocation) {
     return "Este navegador no ofrece geolocalización.";
   }
   switch (code) {

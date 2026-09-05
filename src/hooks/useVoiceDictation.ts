@@ -44,13 +44,17 @@ declare global {
 
 const errorMessage = (error: string) => {
   if (error === "not-allowed" || error === "service-not-allowed") return "No se concedió acceso al micrófono.";
-  if (error === "no-speech") return "No se detectó voz. Intentá nuevamente.";
+  if (error === "no-speech") return "No se detectó voz. Intenta nuevamente.";
   if (error === "network") return "El servicio de reconocimiento no está disponible.";
   return "No se pudo completar el dictado.";
 };
 
+const limpiarEspacios = (value: string) => value.replace(/\s+/g, " ").trim();
+
 export function useVoiceDictation() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const baseTranscriptRef = useRef("");
+  const finalSegmentsRef = useRef<Map<number, string>>(new Map());
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -65,26 +69,41 @@ export function useVoiceDictation() {
   const start = useCallback(() => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) {
-      setError("Este navegador no permite dictado por voz. Podés pegar o escribir los datos.");
+      setError("Este navegador no permite dictado por voz. Puedes pegar o escribir los datos.");
       return;
     }
 
     recognitionRef.current?.abort();
+    baseTranscriptRef.current = limpiarEspacios(transcript);
+    finalSegmentsRef.current.clear();
+
     const recognition = new Recognition();
     recognition.lang = "es-BO";
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      let finalText = "";
       let interimText = "";
+
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
-        if (result.isFinal) finalText += `${result[0].transcript} `;
-        else interimText += result[0].transcript;
+        const text = limpiarEspacios(result[0].transcript);
+
+        if (result.isFinal) {
+          if (text) finalSegmentsRef.current.set(index, text);
+          else finalSegmentsRef.current.delete(index);
+        } else if (text) {
+          interimText += `${interimText ? " " : ""}${text}`;
+        }
       }
-      if (finalText) setTranscript((current) => `${current}${current ? " " : ""}${finalText.trim()}`);
-      setInterimTranscript(interimText.trim());
+
+      const finalText = Array.from(finalSegmentsRef.current.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([, text]) => text)
+        .join(" ");
+
+      setTranscript(limpiarEspacios([baseTranscriptRef.current, finalText].filter(Boolean).join(" ")));
+      setInterimTranscript(limpiarEspacios(interimText));
     };
     recognition.onerror = (event) => {
       setError(errorMessage(event.error));
@@ -102,12 +121,14 @@ export function useVoiceDictation() {
       recognition.start();
       setListening(true);
     } catch {
-      setError("El dictado ya está activo en otra ventana. Cerralo e intentá de nuevo.");
+      setError("El dictado ya está activo en otra ventana. Ciérralo e intenta de nuevo.");
     }
-  }, []);
+  }, [transcript]);
 
   const stop = useCallback(() => recognitionRef.current?.stop(), []);
   const reset = useCallback(() => {
+    baseTranscriptRef.current = "";
+    finalSegmentsRef.current.clear();
     setTranscript("");
     setInterimTranscript("");
     setError(null);

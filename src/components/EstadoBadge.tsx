@@ -3,10 +3,10 @@ import { cn } from "@/lib/utils";
 
 const LABELS: Record<string, string> = {
   borrador: "Borrador",
-  enviado: "Enviado",
-  aprobado: "Aprobado",
-  listo_despacho: "Listo despacho",
-  en_ruta: "En ruta",
+  enviado: "Solicitud recibida",
+  aprobado: "Confirmado",
+  listo_despacho: "Preparación",
+  en_ruta: "Despachado",
   entregado: "Entregado",
   cancelado: "Cancelado",
 };

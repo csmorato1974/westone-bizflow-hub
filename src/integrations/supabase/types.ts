@@ -227,6 +227,50 @@ export type Database = {
           },
         ]
       }
+      cliente_portal_tokens: {
+        Row: {
+          actualizado_en: string
+          cliente_id: string
+          creado_en: string
+          creado_por: string
+          id: string
+          revocado_en: string | null
+          token_hash: string
+          ultimo_uso_en: string | null
+          version: string
+        }
+        Insert: {
+          actualizado_en?: string
+          cliente_id: string
+          creado_en?: string
+          creado_por: string
+          id?: string
+          revocado_en?: string | null
+          token_hash: string
+          ultimo_uso_en?: string | null
+          version?: string
+        }
+        Update: {
+          actualizado_en?: string
+          cliente_id?: string
+          creado_en?: string
+          creado_por?: string
+          id?: string
+          revocado_en?: string | null
+          token_hash?: string
+          ultimo_uso_en?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_portal_tokens_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: true
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -946,45 +990,66 @@ export type Database = {
       pedidos: {
         Row: {
           cliente_id: string
-          creado_por: string
+          creado_por: string | null
           created_at: string
           estado: Database["public"]["Enums"]["pedido_estado"]
           id: string
           import_batch_id: string | null
           import_row_key: string | null
+          lista_precio_id_snapshot: string | null
+          lista_precio_nombre_snapshot: string | null
           notas: string | null
           numero: number
+          origen: string
           origen_importacion: string | null
+          portal_token_id: string | null
+          stock_consumido_at: string | null
+          stock_liberado_at: string | null
+          stock_reservado_at: string | null
           total: number
           updated_at: string
           vendedor_id: string | null
         }
         Insert: {
           cliente_id: string
-          creado_por: string
+          creado_por?: string | null
           created_at?: string
           estado?: Database["public"]["Enums"]["pedido_estado"]
           id?: string
           import_batch_id?: string | null
           import_row_key?: string | null
+          lista_precio_id_snapshot?: string | null
+          lista_precio_nombre_snapshot?: string | null
           notas?: string | null
           numero?: number
+          origen?: string
           origen_importacion?: string | null
+          portal_token_id?: string | null
+          stock_consumido_at?: string | null
+          stock_liberado_at?: string | null
+          stock_reservado_at?: string | null
           total?: number
           updated_at?: string
           vendedor_id?: string | null
         }
         Update: {
           cliente_id?: string
-          creado_por?: string
+          creado_por?: string | null
           created_at?: string
           estado?: Database["public"]["Enums"]["pedido_estado"]
           id?: string
           import_batch_id?: string | null
           import_row_key?: string | null
+          lista_precio_id_snapshot?: string | null
+          lista_precio_nombre_snapshot?: string | null
           notas?: string | null
           numero?: number
+          origen?: string
           origen_importacion?: string | null
+          portal_token_id?: string | null
+          stock_consumido_at?: string | null
+          stock_liberado_at?: string | null
+          stock_reservado_at?: string | null
           total?: number
           updated_at?: string
           vendedor_id?: string | null
@@ -995,6 +1060,20 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_lista_precio_id_snapshot_fkey"
+            columns: ["lista_precio_id_snapshot"]
+            isOneToOne: false
+            referencedRelation: "listas_precios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_portal_token_id_fkey"
+            columns: ["portal_token_id"]
+            isOneToOne: false
+            referencedRelation: "cliente_portal_tokens"
             referencedColumns: ["id"]
           },
         ]
@@ -1175,18 +1254,21 @@ export type Database = {
         Row: {
           cantidad: number
           id: string
+          reservado: number
           updated_at: string
           variante_id: string
         }
         Insert: {
           cantidad?: number
           id?: string
+          reservado?: number
           updated_at?: string
           variante_id: string
         }
         Update: {
           cantidad?: number
           id?: string
+          reservado?: number
           updated_at?: string
           variante_id?: string
         }
@@ -1290,6 +1372,10 @@ export type Database = {
         }
         Returns: Json
       }
+      generar_portal_cliente: {
+        Args: { _cliente_id: string; _rotar?: boolean }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1314,9 +1400,19 @@ export type Database = {
         Args: { _pedido: string; _user: string }
         Returns: boolean
       }
+      portal_catalogo: { Args: { _token: string }; Returns: Json }
+      portal_crear_pedido: {
+        Args: { _items: Json; _notas?: string; _token: string }
+        Returns: Json
+      }
+      portal_pedidos: { Args: { _token: string }; Returns: Json }
       reporte_ventas: {
         Args: { _desde?: string; _hasta?: string }
         Returns: Json
+      }
+      revocar_portal_cliente: {
+        Args: { _cliente_id: string }
+        Returns: undefined
       }
       sincronizar_mi_email: { Args: never; Returns: Json }
       username_disponible: { Args: { _username: string }; Returns: boolean }

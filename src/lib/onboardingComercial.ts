@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { APP_LOGIN_URL } from "@/lib/onboarding";
+import { construirPortalUrl, obtenerPortalCliente } from "@/lib/portalCliente";
 
 export interface PrecioOnboardingSnapshot {
   producto_id: string;
@@ -144,7 +145,8 @@ export async function generarOnboardingComercial(input: {
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || a.presentacion.localeCompare(b.presentacion, "es"));
 
   const generadoEn = new Date().toISOString();
-  const portalUrl = APP_LOGIN_URL;
+  const portalToken = await obtenerPortalCliente(cliente.id);
+  const portalUrl = construirPortalUrl(portalToken, APP_LOGIN_URL);
   const vendedorNombre = input.vendedorNombre.trim() || "tu asesor comercial";
   const mensaje = mensajeOnboardingComercial({
     contacto: cliente.contacto,

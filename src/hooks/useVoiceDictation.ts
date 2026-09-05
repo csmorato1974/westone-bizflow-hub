@@ -9,6 +9,44 @@ interface SpeechRecognitionResultLike {
   0: SpeechRecognitionAlternativeLike;
 }
 
+type FinalResults = Record<number, string>;
+
+export function reconstruirDictado(
+  base: string,
+  previousFinalResults: FinalResults,
+  results: ArrayLike<SpeechRecognitionResultLike>,
+) {
+  const finalResults = { ...previousFinalResults };
+  let interimTranscript = "";
+
+  for (const index of Object.keys(finalResults).map(Number)) {
+    if (index >= results.length) delete finalResults[index];
+  }
+
+  for (let index = 0; index < results.length; index += 1) {
+    const result = results[index];
+    const fragment = result[0].transcript.trim().replace(/\s+/g, " ");
+    if (result.isFinal) {
+      finalResults[index] = fragment;
+    } else {
+      delete finalResults[index];
+      if (fragment) interimTranscript += `${interimTranscript ? " " : ""}${fragment}`;
+    }
+  }
+
+  const confirmedTranscript = Object.entries(finalResults)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([, fragment]) => fragment)
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    finalResults,
+    interimTranscript,
+    transcript: [base.trim(), confirmedTranscript].filter(Boolean).join(" "),
+  };
+}
+
 interface SpeechRecognitionEventLike extends Event {
   resultIndex: number;
   results: ArrayLike<SpeechRecognitionResultLike>;
@@ -51,6 +89,8 @@ const errorMessage = (error: string) => {
 
 export function useVoiceDictation() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const baseTranscriptRef = useRef("");
+  const finalResultsRef = useRef<FinalResults>({});
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -69,34 +109,37 @@ export function useVoiceDictation() {
       return;
     }
 
-    recognitionRef.current?.abort();
+    const previousRecognition = recognitionRef.current;
+    recognitionRef.current = null;
+    previousRecognition?.abort();
     const recognition = new Recognition();
     recognition.lang = "es-BO";
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      let finalText = "";
-      let interimText = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        if (result.isFinal) finalText += `${result[0].transcript} `;
-        else interimText += result[0].transcript;
-      }
-      if (finalText) setTranscript((current) => `${current}${current ? " " : ""}${finalText.trim()}`);
-      setInterimTranscript(interimText.trim());
+      if (recognitionRef.current !== recognition) return;
+      const next = reconstruirDictado(baseTranscriptRef.current, finalResultsRef.current, event.results);
+      finalResultsRef.current = next.finalResults;
+      setTranscript(next.transcript);
+      setInterimTranscript(next.interimTranscript);
     };
     recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
       setError(errorMessage(event.error));
       setListening(false);
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
       setListening(false);
       setInterimTranscript("");
+      recognitionRef.current = null;
     };
 
     setError(null);
     setInterimTranscript("");
+    baseTranscriptRef.current = transcript.trim();
+    finalResultsRef.current = {};
     recognitionRef.current = recognition;
     try {
       recognition.start();
@@ -104,10 +147,12 @@ export function useVoiceDictation() {
     } catch {
       setError("El dictado ya está activo en otra ventana. Cerralo e intentá de nuevo.");
     }
-  }, []);
+  }, [transcript]);
 
   const stop = useCallback(() => recognitionRef.current?.stop(), []);
   const reset = useCallback(() => {
+    baseTranscriptRef.current = "";
+    finalResultsRef.current = {};
     setTranscript("");
     setInterimTranscript("");
     setError(null);

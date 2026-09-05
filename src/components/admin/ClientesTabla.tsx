@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Package, Pencil, Trash2, FileText, MessageCircle, Mail } from "lucide-react";
+import { ExternalLink, Loader2, Package, Pencil, Trash2, FileText, MessageCircle, Mail } from "lucide-react";
 import type { ClienteEstado } from "@/lib/clienteEstado";
 import { fechaEnvio } from "@/lib/onboarding";
 
@@ -50,6 +50,7 @@ interface Props {
   onEliminar: (id: string) => void;
   onWhatsapp: (id: string) => void;
   onEmail: (id: string) => void;
+  onPortal: (id: string) => void;
 }
 
 const fecha = (iso: string) =>
@@ -70,6 +71,7 @@ export function ClientesTabla({
   onEliminar,
   onWhatsapp,
   onEmail,
+  onPortal,
 }: Props) {
   const seleccionables = rows.filter((r) => r.onboardingListo);
   const allSelected =
@@ -202,6 +204,14 @@ export function ClientesTabla({
                         </Button>
                       </>
                     )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Generar portal personalizado"
+                      onClick={() => onPortal(r.id)}
+                    >
+                      <ExternalLink className="h-4 w-4 text-brand" />
+                    </Button>
                     <Button size="icon" variant="ghost" title="Ver ficha" onClick={() => onFicha(r.id)}>
                       <FileText className="h-4 w-4" />
                     </Button>

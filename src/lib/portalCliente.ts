@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PUBLIC_APP_ORIGIN } from "@/lib/appUrls";
 
 export type DisponibilidadPortal = "disponible" | "poco_stock" | "consultar";
 
@@ -69,9 +70,8 @@ export const DISPONIBILIDAD_LABEL: Record<DisponibilidadPortal, string> = {
   consultar: "Consultar",
 };
 
-export function construirPortalUrl(token: string, baseUrl: string): string {
-  const base = new URL(baseUrl, window.location.origin);
-  return `${base.origin}/portal/${token}`;
+export function construirPortalUrl(token: string): string {
+  return `${PUBLIC_APP_ORIGIN}/portal/${encodeURIComponent(token)}`;
 }
 
 export function calcularTotalCarrito(items: ItemCarritoPortal[]): number {

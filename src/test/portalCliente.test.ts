@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   calcularTotalCarrito,
   construirPortalUrl,
@@ -6,6 +6,7 @@ import {
   normalizarTelefonoWhatsapp,
   type ItemCarritoPortal,
 } from "@/lib/portalCliente";
+import { APP_LOGIN_URL } from "@/lib/onboarding";
 
 const item = (precio: number, cantidad: number): ItemCarritoPortal => ({
   variante_id: crypto.randomUUID(),
@@ -17,9 +18,20 @@ const item = (precio: number, cantidad: number): ItemCarritoPortal => ({
 });
 
 describe("portal personalizado", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
   it("construye el enlace en el dominio de la app y no conserva /login", () => {
-    const url = construirPortalUrl("a".repeat(64), "https://westone.vinculovirtual.com/login");
+    const url = construirPortalUrl("a".repeat(64));
     expect(url).toBe(`https://westone.vinculovirtual.com/portal/${"a".repeat(64)}`);
+  });
+
+  it.each([
+    "http://127.0.0.1:8080", "http://localhost:8080",
+    "https://preview--westone-bizflow-hub.lovable.app",
+    "https://westone.vinculovirtual.com",
+  ])("comparte enlaces públicos incluso desde %s", (origin) => {
+    vi.stubGlobal("window", { location: { origin } });
+    expect(construirPortalUrl("b".repeat(64))).toBe(`https://westone.vinculovirtual.com/portal/${"b".repeat(64)}`);
+    expect(APP_LOGIN_URL).toBe("https://westone.vinculovirtual.com/login");
   });
 
   it("calcula el total referencial del carrito", () => {

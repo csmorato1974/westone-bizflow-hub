@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus, Send, MessageCircle, Mail } from "lucide-react";
+import { ExternalLink, Loader2, MapPin, Package, Pencil, Search, Trash2, UserPlus, Send, MessageCircle, Mail } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,9 +40,14 @@ import { ClienteEstadisticas } from "@/components/admin/ClienteEstadisticas";
 import { norm } from "@/lib/reportes";
 
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
+import { OnboardingComercialPreview } from "@/components/vendedor/OnboardingComercialPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
 import { computeEstado, matchFiltro, PROVISIONAL_DOMAIN, type FiltroEstado } from "@/lib/clienteEstado";
 import { mensajeErrorGuardarCliente } from "@/lib/clienteErrores";
+import {
+  generarOnboardingComercial,
+  type OnboardingComercialGenerado,
+} from "@/lib/onboardingComercial";
 import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
@@ -108,7 +113,7 @@ interface ConflictoIdentidad {
 }
 
 export default function AdminClientes() {
-  const { hasRole } = useAuth();
+  const { hasRole, user, profile } = useAuth();
   const isSuper = hasRole("super_admin");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendedores, setVendedores] = useState<User[]>([]);
@@ -177,6 +182,8 @@ export default function AdminClientes() {
   const [accesoEmailPendiente, setAccesoEmailPendiente] = useState<string | null>(null);
   const [savingAcceso, setSavingAcceso] = useState(false);
   const [claveRegenerada, setClaveRegenerada] = useState<string | null>(null);
+  const [onboardingComercialActual, setOnboardingComercialActual] = useState<OnboardingComercialGenerado | null>(null);
+  const [onboardingComercialBusyId, setOnboardingComercialBusyId] = useState<string | null>(null);
 
 
 
@@ -446,6 +453,47 @@ export default function AdminClientes() {
     setPreviewId(null);
     await marcarEnviado(c, "email");
     toast.success("Correo abierto en tu cliente de email");
+  };
+
+  const prepararOnboardingComercial = async (cliente: Cliente) => {
+    if (!user) return toast.error("La sesión administrativa no está disponible");
+    if (!cliente.vendedor_id) return toast.error("Asigna un vendedor antes de generar el portal personalizado");
+    if (!cliente.lista_precio_id) return toast.error("Asigna una lista de precios antes de generar el portal personalizado");
+
+    setOnboardingComercialBusyId(cliente.id);
+    try {
+      const generado = await generarOnboardingComercial({
+        cliente,
+        vendedorNombre: vendedorMap.get(cliente.vendedor_id) ?? profile?.full_name ?? "tu asesor comercial",
+        creadoPor: user.id,
+      });
+      setOnboardingComercialActual(generado);
+      await logAudit("onboarding_comercial_generado_admin", "clientes", cliente.id, {
+        snapshot_id: generado.id,
+        portal_url: generado.portalUrl,
+        precios_guardados: generado.items.length,
+      });
+      toast.success("Onboarding comercial generado con portal personalizado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo generar el onboarding comercial");
+    } finally {
+      setOnboardingComercialBusyId(null);
+    }
+  };
+
+  const abrirWhatsappOnboardingComercial = async (data: OnboardingComercialGenerado) => {
+    window.open(waLink(data.celular, data.mensaje), "_blank", "noopener,noreferrer");
+    setOnboardingComercialActual(null);
+    if (!user) return;
+
+    const ahora = new Date().toISOString();
+    const { error } = await supabase
+      .from("clientes")
+      .update({ onboarding_enviado_en: ahora, onboarding_canal: "whatsapp", onboarding_enviado_por: user.id })
+      .eq("id", data.clienteId);
+    if (error) toast.warning("WhatsApp se abrió, pero no se pudo actualizar el estado: " + error.message);
+    await logAudit("onboarding_comercial_whatsapp_admin", "clientes", data.clienteId, { snapshot_id: data.id });
+    await load();
   };
 
 
@@ -854,7 +902,15 @@ export default function AdminClientes() {
       toast.success(`Ficha creada · ${data?.codigo_cliente_externo ?? ""}`);
       setOpen(false);
       clearFocus();
-      load();
+      await load();
+      if (data?.id) {
+        const { data: clienteNuevo } = await supabase.from("clientes").select("*").eq("id", data.id).single();
+        if (clienteNuevo?.vendedor_id && clienteNuevo.lista_precio_id) {
+          await prepararOnboardingComercial(clienteNuevo as Cliente);
+        } else {
+          toast.message("Ficha creada. Asigna vendedor y lista de precios para generar su portal personalizado.");
+        }
+      }
       return;
     }
 
@@ -1136,6 +1192,10 @@ export default function AdminClientes() {
               onToggleAll={toggleAll}
               onWhatsapp={(id) => abrirPreview(id, "whatsapp")}
               onEmail={(id) => abrirPreview(id, "email")}
+              onPortal={(id) => {
+                const c = clientes.find((x) => x.id === id);
+                if (c) void prepararOnboardingComercial(c);
+              }}
               onFicha={abrirFicha}
 
               onPedidos={(id) => {
@@ -1240,6 +1300,25 @@ export default function AdminClientes() {
                             </div>
                           </div>
                         )}
+                        <div className="space-y-1 rounded-md border border-brand/30 bg-brand/5 p-2">
+                          <p className="text-xs text-muted-foreground">
+                            Portal personalizado y snapshot de precios
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={onboardingComercialBusyId === c.id}
+                            title={!c.vendedor_id || !c.lista_precio_id ? "Asigna vendedor y lista de precios" : "Generar portal personalizado"}
+                            onClick={() => void prepararOnboardingComercial(c)}
+                          >
+                            {onboardingComercialBusyId === c.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <ExternalLink className="h-3 w-3" />
+                            )}
+                            Portal + onboarding
+                          </Button>
+                        </div>
                         <div className="flex gap-2 flex-wrap">
 
                           <Button size="sm" variant="outline" onClick={() => setPedidosCliente({ id: c.id, empresa: c.empresa })}>
@@ -1292,6 +1371,12 @@ export default function AdminClientes() {
         onOpenChange={(o) => { if (!o) setPreviewId(null); }}
         onConfirmWhatsapp={() => previewId && enviarWhatsapp(previewId)}
         onConfirmEmail={() => previewId && enviarEmail(previewId)}
+      />
+
+      <OnboardingComercialPreview
+        data={onboardingComercialActual}
+        onClose={() => setOnboardingComercialActual(null)}
+        onWhatsapp={abrirWhatsappOnboardingComercial}
       />
 
       {/* Envío en secuencia: el admin confirma cada mensaje manualmente */}

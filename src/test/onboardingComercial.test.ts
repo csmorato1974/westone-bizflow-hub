@@ -20,7 +20,7 @@ describe("onboarding comercial", () => {
       empresa: "Repuestos Norte",
       vendedorNombre: "Sergio",
       listaNombre: "Mayorista",
-      portalUrl: "https://westone.vinculovirtual.com/login",
+      portalUrl: `https://westone.vinculovirtual.com/portal/${"a".repeat(64)}`,
       items: [item(1), item(2)],
       generadoEn: "2026-09-04T12:00:00.000Z",
     });
@@ -29,7 +29,7 @@ describe("onboarding comercial", () => {
     expect(mensaje).toContain("Soy Sergio");
     expect(mensaje).toContain("lista Mayorista");
     expect(mensaje).toContain("Producto 1 1L — Bs 10.00");
-    expect(mensaje).toContain("https://westone.vinculovirtual.com/login");
+    expect(mensaje).toContain(`https://westone.vinculovirtual.com/portal/${"a".repeat(64)}`);
   });
 
   it("resume el mensaje pero informa los productos adicionales", () => {
@@ -38,7 +38,7 @@ describe("onboarding comercial", () => {
       empresa: "Repuestos Norte",
       vendedorNombre: "Sergio",
       listaNombre: "Mayorista",
-      portalUrl: "https://westone.vinculovirtual.com/login",
+      portalUrl: `https://westone.vinculovirtual.com/portal/${"a".repeat(64)}`,
       items: [1, 2, 3, 4, 5, 6, 7].map(item),
       generadoEn: "2026-09-04T12:00:00.000Z",
     });

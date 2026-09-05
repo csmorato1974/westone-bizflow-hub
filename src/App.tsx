@@ -12,6 +12,7 @@ import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
+import PortalCliente from "./pages/PortalCliente";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/portal/:token" element={<PortalCliente />} />
             <Route path="/cambiar-password" element={<RequireAuth allowPasswordChange><CambiarPassword /></RequireAuth>} />
             <Route path="/no-autorizado" element={<Unauthorized />} />
 

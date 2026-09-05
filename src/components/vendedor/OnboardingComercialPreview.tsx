@@ -110,12 +110,12 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
 
             <Button asChild variant="outline" className="w-full">
               <a href={data.portalUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" /> Abrir enlace de acceso
+                <ExternalLink className="h-4 w-4" /> Abrir portal personalizado
               </a>
             </Button>
 
             <div>
-              <p className="mb-2 text-sm font-semibold">Snapshot de precios y stock</p>
+              <p className="mb-2 text-sm font-semibold">Snapshot histórico de precios y stock</p>
               <ScrollArea className="h-44 rounded-md border">
                 <div className="divide-y">
                   {data.items.map((item) => (

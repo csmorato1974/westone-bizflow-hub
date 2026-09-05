@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#141414" />
+    <title>WESTONE sin conexión</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; background: #141414; color: #f5f5f5; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+      main { width: min(420px, 100%); text-align: center; }
+      img { width: 112px; height: 112px; }
+      h1 { margin: 24px 0 8px; color: #ffcc00; letter-spacing: .08em; }
+      p { color: #c7c7c7; line-height: 1.55; }
+      button { margin-top: 18px; border: 0; border-radius: 10px; padding: 12px 20px; background: #ffcc00; color: #141414; font-weight: 700; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/westone-icon.svg" alt="WESTONE" />
+      <h1>SIN CONEXIÓN</h1>
+      <p>La aplicación está instalada, pero necesitas conexión a Internet para consultar o actualizar los datos comerciales.</p>
+      <button type="button" onclick="location.reload()">Volver a intentar</button>
+    </main>
+  </body>
+</html>

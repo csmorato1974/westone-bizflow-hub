@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import CambiarPassword from "./pages/CambiarPassword";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -44,6 +45,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PwaInstallPrompt />
       <BrowserRouter>
         <AuthProvider>
           <Routes>

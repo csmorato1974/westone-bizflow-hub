@@ -7,18 +7,10 @@
  */
 
 import { PROVISIONAL_DOMAIN } from "@/lib/clienteEstado";
+import { PUBLIC_LOGIN_URL } from "@/lib/appUrls";
 
-/**
- * URL de acceso usada en todas las plantillas. Por defecto sigue el dominio
- * donde está desplegada la aplicación; VITE_APP_LOGIN_URL permite fijar un
- * dominio comercial cuando sea necesario.
- */
-const runtimeLoginUrl = () =>
-  typeof window === "undefined" ? "/login" : new URL("/login", window.location.origin).toString();
-
-export const APP_LOGIN_URL: string =
-  (import.meta.env.VITE_APP_LOGIN_URL as string | undefined)?.trim() ||
-  runtimeLoginUrl();
+/** Los mensajes externos siempre enlazan a la aplicación pública. */
+export const APP_LOGIN_URL: string = PUBLIC_LOGIN_URL;
 
 const LEGACY_LOGIN_URL = /https:\/\/westone-bizflow-hub\.lovable\.app(?:\/login)?/gi;
 

@@ -42,6 +42,7 @@ import { norm } from "@/lib/reportes";
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { ClientesTabla, type ClienteRow } from "@/components/admin/ClientesTabla";
 import { computeEstado, matchFiltro, PROVISIONAL_DOMAIN, type FiltroEstado } from "@/lib/clienteEstado";
+import { mensajeErrorGuardarCliente } from "@/lib/clienteErrores";
 import { LayoutGrid, List } from "lucide-react";
 
 interface Cliente {
@@ -838,7 +839,7 @@ export default function AdminClientes() {
           error: error.message,
           empresa: patch.empresa,
         });
-        return toast.error(error.message);
+        return toast.error(mensajeErrorGuardarCliente(error));
       }
       await logAudit("crear_cliente_admin", "clientes", data?.id ?? null, {
         empresa: patch.empresa,
@@ -861,7 +862,7 @@ export default function AdminClientes() {
     if (!editing) { setSaving(false); return; }
     const { error } = await supabase.from("clientes").update(patch).eq("id", editing.id);
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(mensajeErrorGuardarCliente(error));
 
     const changes: Record<string, unknown> = { empresa: editing.empresa };
     if (editing.vendedor_id !== patch.vendedor_id) {

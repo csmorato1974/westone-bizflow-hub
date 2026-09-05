@@ -9,13 +9,18 @@
 import { PROVISIONAL_DOMAIN } from "@/lib/clienteEstado";
 
 /**
- * URL de acceso usada en todas las plantillas.
- * Centralizada: cambiar acá (o definir VITE_APP_LOGIN_URL) para apuntar a un
- * dominio propio en el futuro, sin tocar los textos.
+ * URL de acceso usada en todas las plantillas. Por defecto sigue el dominio
+ * donde está desplegada la aplicación; VITE_APP_LOGIN_URL permite fijar un
+ * dominio comercial cuando sea necesario.
  */
+const runtimeLoginUrl = () =>
+  typeof window === "undefined" ? "/login" : new URL("/login", window.location.origin).toString();
+
 export const APP_LOGIN_URL: string =
   (import.meta.env.VITE_APP_LOGIN_URL as string | undefined)?.trim() ||
-  "https://westone-bizflow-hub.lovable.app/login";
+  runtimeLoginUrl();
+
+const LEGACY_LOGIN_URL = /https:\/\/westone-bizflow-hub\.lovable\.app(?:\/login)?/gi;
 
 /**
  * WhatsApp de soporte de Westone (solo dígitos con código de país).
@@ -82,6 +87,16 @@ Al ingresar por primera vez, el sistema le pedirá crear una nueva contraseña p
 Ante cualquier duda, quedamos atentos.
 
 Equipo Westone Performance`;
+}
+
+/**
+ * Mantiene operativas las plantillas antiguas hasta que se actualicen desde
+ * Administración, sin volver a compartir el dominio anterior.
+ */
+export function mensajeBienvenida(template: string, vars: Record<string, string>): string {
+  return template
+    .replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? "")
+    .replace(LEGACY_LOGIN_URL, APP_LOGIN_URL);
 }
 
 export const ASUNTO_EMAIL = "Acceso a tu cuenta en Westone Performance – Portal de Clientes";

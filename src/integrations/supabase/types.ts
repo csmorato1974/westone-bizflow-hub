@@ -691,6 +691,75 @@ export type Database = {
         }
         Relationships: []
       }
+      onboarding_snapshots: {
+        Row: {
+          canal: string
+          cliente_celular: string
+          cliente_contacto: string
+          cliente_empresa: string
+          cliente_id: string | null
+          creado_por: string | null
+          generado_en: string
+          id: string
+          items_total: number
+          lista_precio_id: string | null
+          lista_precio_nombre: string
+          mensaje: string
+          portal_url: string
+          precios_snapshot: Json
+          vendedor_id: string | null
+        }
+        Insert: {
+          canal?: string
+          cliente_celular: string
+          cliente_contacto: string
+          cliente_empresa: string
+          cliente_id?: string | null
+          creado_por: string
+          generado_en?: string
+          id?: string
+          items_total?: number
+          lista_precio_id?: string | null
+          lista_precio_nombre: string
+          mensaje: string
+          portal_url: string
+          precios_snapshot?: Json
+          vendedor_id?: string | null
+        }
+        Update: {
+          canal?: string
+          cliente_celular?: string
+          cliente_contacto?: string
+          cliente_empresa?: string
+          cliente_id?: string | null
+          creado_por?: string
+          generado_en?: string
+          id?: string
+          items_total?: number
+          lista_precio_id?: string | null
+          lista_precio_nombre?: string
+          mensaje?: string
+          portal_url?: string
+          precios_snapshot?: Json
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_snapshots_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_snapshots_lista_precio_id_fkey"
+            columns: ["lista_precio_id"]
+            isOneToOne: false
+            referencedRelation: "listas_precios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       password_recovery_requests: {
         Row: {
           created_at: string

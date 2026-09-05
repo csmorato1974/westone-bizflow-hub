@@ -1,0 +1,13 @@
+{
+  "name": "Westone Performance Ecosystem",
+  "short_name": "Westone",
+  "description": "Plataforma B2B Westone para fuerza de ventas, pedidos y logística.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141414",
+  "theme_color": "#141414",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/westone-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

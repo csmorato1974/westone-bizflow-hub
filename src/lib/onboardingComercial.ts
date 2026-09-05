@@ -82,15 +82,18 @@ export function mensajeOnboardingComercial(input: {
 
 Soy ${input.vendedorNombre}, de Westone Performance.
 
-Preparamos para ${input.empresa} nuestro catálogo con la lista ${input.listaNombre}:
+Te comparto el portal de pedidos de ${input.empresa}, con nuestro catálogo y la lista ${input.listaNombre}:
 
 ${destacados}${adicionales ? `\n• Y ${adicionales} presentación(es) más en el portal` : ""}
 
-🌐 Acceso al portal: ${input.portalUrl}
+🛒 Abre tu portal de pedidos personalizado:
+${input.portalUrl}
+
+Aquí puedes consultar productos, precios y disponibilidad, añadirlos al carrito y solicitar tu pedido. Guarda este enlace para tus próximos pedidos.
 
 Los precios y la disponibilidad corresponden al ${fechaLegible(input.generadoEn)} y quedan registrados en tu historial comercial.
 
-Quedo atento para ayudarte con tu primer pedido.`;
+Quedo atento para ayudarte con tu próximo pedido.`;
 }
 
 export async function generarOnboardingComercial(input: {

@@ -11,6 +11,42 @@ interface SpeechRecognitionResultLike {
 
 type FinalResults = Record<number, string>;
 
+const clavePalabra = (palabra: string) =>
+  palabra
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9@._+-]/g, "");
+
+const limpiarFragmento = (fragmento: string) => {
+  const palabras = fragmento.trim().replace(/\s+/g, " ").split(" ").filter(Boolean);
+  return palabras.filter((palabra, indice) => {
+    if (indice === 0) return true;
+    const actual = clavePalabra(palabra);
+    return !actual || actual !== clavePalabra(palabras[indice - 1]);
+  });
+};
+
+export function combinarFragmentosDictado(base: string, fragmentos: string[]) {
+  const resultado = limpiarFragmento(base);
+
+  for (const fragmento of fragmentos) {
+    const palabras = limpiarFragmento(fragmento);
+    let solapamiento = Math.min(resultado.length, palabras.length);
+
+    while (solapamiento > 0) {
+      const anteriores = resultado.slice(-solapamiento).map(clavePalabra);
+      const nuevas = palabras.slice(0, solapamiento).map(clavePalabra);
+      if (anteriores.every((palabra, indice) => palabra && palabra === nuevas[indice])) break;
+      solapamiento -= 1;
+    }
+
+    resultado.push(...palabras.slice(solapamiento));
+  }
+
+  return resultado.join(" ");
+}
+
 export function reconstruirDictado(
   base: string,
   previousFinalResults: FinalResults,
@@ -37,13 +73,12 @@ export function reconstruirDictado(
   const confirmedTranscript = Object.entries(finalResults)
     .sort(([left], [right]) => Number(left) - Number(right))
     .map(([, fragment]) => fragment)
-    .filter(Boolean)
-    .join(" ");
+    .filter(Boolean);
 
   return {
     finalResults,
     interimTranscript,
-    transcript: [base.trim(), confirmedTranscript].filter(Boolean).join(" "),
+    transcript: combinarFragmentosDictado(base, confirmedTranscript),
   };
 }
 

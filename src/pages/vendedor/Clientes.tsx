@@ -159,6 +159,7 @@ export default function VendedorClientes() {
     if (datos.empresa) setEmpresa(datos.empresa);
     if (datos.contacto) setContacto(datos.contacto);
     if (datos.celular) setCelular(datos.celular);
+    if (datos.email) setEmail(datos.email);
     if (datos.direccion) setDireccion(datos.direccion);
     if (datos.notas) setNotas(datos.notas);
     if (datos.listaPrecio) {
@@ -314,7 +315,7 @@ export default function VendedorClientes() {
                   value={dictado.transcript}
                   onChange={(event) => dictado.setTranscript(event.target.value)}
                   rows={3}
-                  placeholder="Ejemplo: Empresa Repuestos Norte. Contacto Ana Pérez. Celular 591 700 12345. Dirección Avenida Blanco Galindo 123."
+                  placeholder="Ejemplo: Empresa Repuestos Norte. Contacto Ana Pérez. Celular 591 700 12345. Email ventas arroba empresa punto com. Dirección Avenida Blanco Galindo 123."
                 />
                 {dictado.listening && (
                   <p className="text-xs text-brand">Escuchando… {dictado.interimTranscript}</p>

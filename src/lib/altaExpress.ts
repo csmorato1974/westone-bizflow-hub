@@ -1,4 +1,4 @@
-export type CampoAltaExpress = "empresa" | "contacto" | "celular" | "direccion" | "notas" | "listaPrecio";
+export type CampoAltaExpress = "empresa" | "contacto" | "celular" | "email" | "direccion" | "notas" | "listaPrecio";
 
 export type DatosAltaExpress = Partial<Record<CampoAltaExpress, string>>;
 
@@ -6,6 +6,7 @@ const etiquetas: Array<{ campo: CampoAltaExpress; patron: string }> = [
   { campo: "empresa", patron: "empresa|negocio|raz[oó]n social" },
   { campo: "contacto", patron: "contacto|nombre(?: del contacto)?" },
   { campo: "celular", patron: "celular|tel[eé]fono|whatsapp" },
+  { campo: "email", patron: "e[- ]?mail|correo(?: electr[oó]nico)?" },
   { campo: "direccion", patron: "direcci[oó]n|ubicaci[oó]n" },
   { campo: "listaPrecio", patron: "lista(?: de)? precios?" },
   { campo: "notas", patron: "notas?|observaciones?" },
@@ -29,6 +30,18 @@ export function normalizarCelularDictado(valor: string): string {
   return digitos ? `${tieneMas ? "+" : ""}${digitos}` : "";
 }
 
+export function normalizarEmailDictado(valor: string): string {
+  return valor
+    .trim()
+    .toLowerCase()
+    .replace(/\bguion\s+bajo\b/gi, "_")
+    .replace(/\bguion\b/gi, "-")
+    .replace(/\barroba\b/gi, "@")
+    .replace(/\bpunto\b/gi, ".")
+    .replace(/\s+/g, "")
+    .replace(/^[,;:.-]+|[,;:.-]+$/g, "");
+}
+
 /** Extrae campos cuando el vendedor dicta frases etiquetadas, por ejemplo:
  * "Empresa Repuestos Norte. Contacto Ana Pérez. Celular 591 700 00000."
  */
@@ -45,7 +58,9 @@ export function extraerDatosAltaExpress(transcripcion: string): DatosAltaExpress
     const valor = limpiarValor(transcripcion.slice(inicio, fin));
     if (!valor) return;
 
-    resultado[campo] = campo === "celular" ? normalizarCelularDictado(valor) : valor;
+    if (campo === "celular") resultado[campo] = normalizarCelularDictado(valor);
+    else if (campo === "email") resultado[campo] = normalizarEmailDictado(valor);
+    else resultado[campo] = valor;
   });
 
   return resultado;

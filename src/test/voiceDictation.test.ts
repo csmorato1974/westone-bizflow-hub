@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconstruirDictado } from "@/hooks/useVoiceDictation";
+import { combinarFragmentosDictado, reconstruirDictado } from "@/hooks/useVoiceDictation";
 
 const resultado = (transcript: string, isFinal: boolean) => ({
   isFinal,
@@ -29,5 +29,15 @@ describe("dictado por voz", () => {
     const next = reconstruirDictado("Empresa Lubricantes", {}, [resultado("contacto Ana Pérez", true)]);
 
     expect(next.transcript).toBe("Empresa Lubricantes contacto Ana Pérez");
+  });
+
+  it("une fragmentos acumulativos sin repetir palabras en la transcripción visible", () => {
+    expect(combinarFragmentosDictado("", ["empresa", "empresa", "empresa lubricantes", "número", "número 5"]))
+      .toBe("empresa lubricantes número 5");
+  });
+
+  it("limpia repeticiones consecutivas incluidas en un mismo resultado", () => {
+    expect(combinarFragmentosDictado("", ["empresa empresa empresa lubricantes número número 5"]))
+      .toBe("empresa lubricantes número 5");
   });
 });

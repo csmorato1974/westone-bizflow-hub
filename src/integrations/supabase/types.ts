@@ -1354,6 +1354,15 @@ export type Database = {
         Args: { _cliente_id: string; _codigo_nuevo: string; _motivo: string }
         Returns: Json
       }
+      dashboard_comercial: {
+        Args: {
+          _ciudad?: string | null
+          _desde?: string | null
+          _hasta?: string | null
+          _vendedor_id?: string | null
+        }
+        Returns: Json
+      }
       email_provisional: { Args: { _v: string }; Returns: boolean }
       es_cuenta_administrativa: { Args: { _user_id: string }; Returns: boolean }
       es_vendedor_de_usuario: {

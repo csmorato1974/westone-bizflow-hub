@@ -68,6 +68,15 @@ BEGIN
     FROM pedidos_filtrados AS p
     GROUP BY p.cliente_id
   ),
+  ultima_compra_historica AS MATERIALIZED (
+    SELECT p.cliente_id, max(p.created_at) AS ultima_compra
+    FROM public.pedidos AS p
+    JOIN clientes_filtrados AS c ON c.id = p.cliente_id
+    WHERE p.estado <> 'cancelado'::public.pedido_estado
+      AND p.created_at <= v_hasta
+      AND (v_vendedor_id IS NULL OR p.vendedor_id = v_vendedor_id)
+    GROUP BY p.cliente_id
+  ),
   ciudades AS (
     SELECT DISTINCT c.ciudad
     FROM clientes_filtrados AS c
@@ -170,12 +179,12 @@ BEGIN
   oportunidades AS (
     SELECT COALESCE(jsonb_agg(to_jsonb(o) ORDER BY o.ultima_compra NULLS FIRST, o.empresa), '[]'::jsonb) AS value
     FROM (
-      SELECT c.id, c.empresa, c.ciudad, v.ultima_compra
+      SELECT c.id, c.empresa, c.ciudad, u.ultima_compra
       FROM clientes_filtrados AS c
-      LEFT JOIN ventas_cliente AS v ON v.cliente_id = c.id
+      LEFT JOIN ultima_compra_historica AS u ON u.cliente_id = c.id
       WHERE c.activo
-        AND (v.ultima_compra IS NULL OR v.ultima_compra < v_hasta - interval '90 days')
-      ORDER BY v.ultima_compra NULLS FIRST, c.empresa
+        AND (u.ultima_compra IS NULL OR u.ultima_compra < v_hasta - interval '90 days')
+      ORDER BY u.ultima_compra NULLS FIRST, c.empresa
       LIMIT 5
     ) AS o
   )

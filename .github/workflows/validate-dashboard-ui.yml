@@ -20,9 +20,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies
+      - name: Install dependencies and refresh lockfile
         run: npm install
       - name: Run tests
         run: npm test
       - name: Build
         run: npm run build
+      - name: Upload refreshed lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1

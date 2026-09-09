@@ -1,4 +1,4 @@
-const CACHE_VERSION = "westone-pwa-v1";
+const CACHE_VERSION = "westone-pwa-v20260909-off0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const APP_SHELL = "/";
@@ -15,14 +15,21 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(SHELL_CACHE)
+      .then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("westone-") && !key.startsWith(CACHE_VERSION)).map((key) => caches.delete(key))))
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith("westone-") && !key.startsWith(CACHE_VERSION))
+          .map((key) => caches.delete(key)),
+      ))
       .then(() => self.clients.claim()),
   );
 });
@@ -42,7 +49,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request, { cache: "no-store" })
         .then((response) => {
-          if (response.ok) caches.open(SHELL_CACHE).then((cache) => cache.put(APP_SHELL, response.clone()));
+          if (response.ok) {
+            caches.open(SHELL_CACHE).then((cache) => cache.put(APP_SHELL, response.clone()));
+          }
           return response;
         })
         .catch(async () => (await caches.match(APP_SHELL)) || caches.match("/offline.html")),

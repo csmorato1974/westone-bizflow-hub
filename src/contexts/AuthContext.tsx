@@ -2,6 +2,7 @@ import { useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthContext, type AppRole, type ProfileInfo } from "@/contexts/auth-core";
+import { clearUserOfflineData } from "@/lib/offlineDb";
 
 export { useAuth, AuthContext } from "@/contexts/auth-core";
 export type { AppRole, AuthContextValue, ProfileInfo } from "@/contexts/auth-core";
@@ -108,7 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const userId = user?.id;
     await supabase.auth.signOut();
+    if (userId) {
+      try {
+        await clearUserOfflineData(userId);
+      } catch (error) {
+        console.warn("No se pudo limpiar la caché offline del usuario", error);
+      }
+    }
   };
 
   /** Acepta usuario o email. Devuelve sinEmail cuando la cuenta no tiene correo real. */

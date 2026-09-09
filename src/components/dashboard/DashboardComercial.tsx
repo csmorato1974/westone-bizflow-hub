@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, BarChart3, Loader2, MapPinned, Package, ShoppingCart, Trophy, Users } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { bs, mesLabel } from "@/lib/reportes";
 import { DASHBOARD_FILTROS_INICIALES, DASHBOARD_PERIODOS, dashboardRpcParams, type DashboardComercialData, type DashboardFiltrosValue } from "@/lib/dashboardComercial";
 import { MapaComercial } from "@/components/dashboard/MapaComercial";
@@ -60,25 +60,49 @@ export function DashboardComercial() {
     </div>
 
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <Card className="xl:col-span-2"><CardHeader><CardTitle className="text-base">Evolución de ventas</CardTitle></CardHeader><CardContent><div className="h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={datos.serie}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="mes" tickFormatter={mesLabel} fontSize={10}/><YAxis fontSize={10}/><Tooltip formatter={(value: number) => bs(value)} labelFormatter={mesLabel}/><Line dataKey="total" type="monotone" stroke="currentColor" strokeWidth={2} dot={false}/></LineChart></ResponsiveContainer></div></CardContent></Card>
+      <Card className="xl:col-span-2 overflow-hidden"><CardHeader className="pb-3"><CardTitle className="text-base">Evolución de ventas</CardTitle></CardHeader><CardContent className="px-2 pb-4 sm:px-6"><div className="h-72"><ResponsiveContainer width="100%" height="100%"><AreaChart data={datos.serie} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}><defs><linearGradient id="ventasArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--brand))" stopOpacity={0.3}/><stop offset="100%" stopColor="hsl(var(--brand))" stopOpacity={0.02}/></linearGradient></defs><CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="mes" tickFormatter={mesLabel} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} minTickGap={22}/><YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickLine={false} axisLine={false} width={48}/><Tooltip content={<VentasTooltip />}/><Area dataKey="total" type="monotone" stroke="hsl(var(--brand-dark))" strokeWidth={3} fill="url(#ventasArea)" dot={{ r: 4, fill: "hsl(var(--brand))", stroke: "hsl(var(--card))", strokeWidth: 2 }} activeDot={{ r: 6, fill: "hsl(var(--brand))", stroke: "hsl(var(--foreground))", strokeWidth: 2 }}/></AreaChart></ResponsiveContainer></div></CardContent></Card>
       <Card><CardHeader><CardTitle className="text-base flex gap-2 items-center"><MapPinned className="h-4 w-4"/> Mapa comercial</CardTitle></CardHeader><CardContent><MapaComercial clientes={datos.mapa} /><p className="mt-2 text-xs text-muted-foreground">{datos.mapa.length} clientes ubicados. Selecciona un marcador para ver sus ventas en el período.</p></CardContent></Card>
     </div>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card><CardHeader><CardTitle className="text-base">Ventas por ciudad / zona</CardTitle></CardHeader><CardContent><div className="h-60"><ResponsiveContainer width="100%" height="100%"><BarChart data={datos.ventas_ciudad} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" fontSize={10}/><YAxis type="category" dataKey="ciudad" width={100} fontSize={10}/><Tooltip formatter={(value: number) => bs(value)}/><Bar dataKey="total" fill="currentColor" radius={[0,3,3,0]}/></BarChart></ResponsiveContainer></div></CardContent></Card>
-      <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-4 w-4"/> Ranking vendedores</CardTitle></CardHeader><CardContent className="space-y-2">{datos.ranking.length === 0 ? <Empty /> : datos.ranking.map((r, i) => <div key={r.vendedor_id} className="flex items-center gap-3 border-b last:border-0 pb-2"><span className="font-bold w-5">{i + 1}</span><span className="flex-1 truncate">{r.nombre}</span><span className="text-xs text-muted-foreground">{r.pedidos} ped.</span><strong>{bs(r.total)}</strong></div>)}</CardContent></Card>
+      <Card className="overflow-hidden"><CardHeader className="pb-3"><CardTitle className="text-base">Ventas por ciudad / zona</CardTitle></CardHeader><CardContent className="px-2 pb-4 sm:px-6"><div className="h-60"><ResponsiveContainer width="100%" height="100%"><BarChart data={datos.ventas_ciudad} layout="vertical" margin={{ left: 4, right: 16 }}><CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" horizontal={false}/><XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }}/><YAxis type="category" dataKey="ciudad" width={100} tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }} tickLine={false} axisLine={false}/><Tooltip content={<CiudadTooltip />}/><Bar dataKey="total" fill="hsl(var(--brand))" radius={[0,4,4,0]} maxBarSize={28}/></BarChart></ResponsiveContainer></div></CardContent></Card>
+      <Card className="overflow-hidden"><CardHeader className="border-b bg-muted/30 py-4"><CardTitle className="text-base flex gap-2 items-center"><Trophy className="h-4 w-4 text-brand"/> Ranking vendedores</CardTitle></CardHeader><CardContent className="p-0">{datos.ranking.length === 0 ? <div className="p-5"><Empty /></div> : datos.ranking.map((r, i) => <div key={r.vendedor_id} className="group flex items-center gap-3 border-b px-4 py-3.5 transition-colors last:border-0 hover:bg-muted/40"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-foreground">{i + 1}</span><span className="min-w-0 flex-1 truncate text-sm font-medium">{r.nombre}</span><div className="shrink-0 text-right"><strong className="block text-sm tabular-nums">{bs(r.total)}</strong><span className="text-xs text-muted-foreground">{r.pedidos} ped.</span></div></div>)}</CardContent></Card>
     </div>
 
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <Card><CardHeader><CardTitle className="text-base">Top clientes</CardTitle></CardHeader><CardContent className="space-y-2">{datos.top_clientes.length === 0 ? <Empty /> : datos.top_clientes.map((c, i) => <div key={c.cliente_id} className="flex gap-2 text-sm"><span>{i + 1}</span><Link className="flex-1 truncate hover:underline" to={`${clienteBase}?focus=${c.cliente_id}`}>{c.empresa}</Link><strong>{bs(c.total)}</strong></div>)}</CardContent></Card>
-      <Card><CardHeader><CardTitle className="text-base">Top productos</CardTitle></CardHeader><CardContent className="space-y-2">{datos.top_productos.length === 0 ? <Empty /> : datos.top_productos.map((p, i) => <div key={p.producto_id} className="flex gap-2 text-sm"><span>{i + 1}</span><span className="flex-1 truncate">{p.nombre}</span><span className="text-muted-foreground">{p.cantidad} u.</span></div>)}</CardContent></Card>
-      <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4"/> Oportunidades</CardTitle></CardHeader><CardContent className="space-y-2">{datos.oportunidades.length === 0 ? <p className="text-sm text-muted-foreground">Sin alertas de inactividad en este filtro.</p> : datos.oportunidades.map((c) => <div key={c.id} className="border-b last:border-0 pb-2"><Link className="text-sm font-medium hover:underline" to={`${clienteBase}?focus=${c.id}`}>{c.empresa}</Link><p className="text-xs text-muted-foreground">Sin compra reciente dentro del período seleccionado.</p></div>)}</CardContent></Card>
+      <Card className="overflow-hidden"><SectionHeader title="Top clientes"/><CardContent className="p-0">{datos.top_clientes.length === 0 ? <div className="p-5"><Empty /></div> : datos.top_clientes.map((c, i) => <div key={c.cliente_id} className="flex items-center gap-3 border-b px-4 py-3.5 transition-colors last:border-0 hover:bg-muted/40"><Position value={i + 1}/><Link className="min-w-0 flex-1 truncate text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" to={`${clienteBase}?focus=${c.cliente_id}`}>{c.empresa}</Link><strong className="shrink-0 text-sm tabular-nums">{bs(c.total)}</strong></div>)}</CardContent></Card>
+      <Card className="overflow-hidden"><SectionHeader title="Top productos"/><CardContent className="p-0">{datos.top_productos.length === 0 ? <div className="p-5"><Empty /></div> : datos.top_productos.map((p, i) => <div key={p.producto_id} className="flex items-center gap-3 border-b px-4 py-3.5 transition-colors last:border-0 hover:bg-muted/40"><Position value={i + 1}/><span className="min-w-0 flex-1 truncate text-sm font-medium">{p.nombre}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{p.cantidad} u.</span></div>)}</CardContent></Card>
+      <Card className="overflow-hidden"><CardHeader className="border-b bg-muted/30 py-4"><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-brand-dark"/> Oportunidades</CardTitle></CardHeader><CardContent className="p-0">{datos.oportunidades.length === 0 ? <p className="p-5 text-sm text-muted-foreground">Sin alertas de inactividad en este filtro.</p> : datos.oportunidades.map((c) => <div key={c.id} className="border-b px-4 py-3.5 transition-colors last:border-0 hover:bg-muted/40"><Link className="inline-block text-sm font-semibold outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" to={`${clienteBase}?focus=${c.id}`}>{c.empresa}</Link><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Sin compra reciente dentro del período seleccionado.</p></div>)}</CardContent></Card>
     </div>
   </div>;
 }
 
 function Empty() {
   return <p className="text-sm text-muted-foreground">Sin datos en el período.</p>;
+}
+
+function Position({ value }: { value: number }) {
+  return <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand/15 text-sm font-bold">{value}</span>;
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return <CardHeader className="border-b bg-muted/30 py-4"><CardTitle className="text-base">{title}</CardTitle></CardHeader>;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ value?: number }>;
+}
+
+function VentasTooltip({ active, label, payload }: ChartTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return <div className="rounded-md border bg-popover px-3 py-2 text-popover-foreground shadow-md"><p className="text-xs text-muted-foreground">{label ? mesLabel(label) : ""}</p><p className="mt-1 text-sm font-semibold">{bs(payload[0]?.value)}</p></div>;
+}
+
+function CiudadTooltip({ active, label, payload }: ChartTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return <div className="rounded-md border bg-popover px-3 py-2 text-popover-foreground shadow-md"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold">{bs(payload[0]?.value)}</p></div>;
 }
 
 function Kpi({ icon: Icon, label, value }: { icon: typeof BarChart3; label: string; value: string }) {

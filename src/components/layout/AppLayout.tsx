@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { SyncStatus } from "@/components/offline/SyncStatus";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +56,7 @@ export function AppLayout() {
               </span>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              <SyncStatus />
               {primaryRole && (
                 <Badge className="bg-brand text-brand-foreground border-0 font-semibold uppercase tracking-wide hidden sm:inline-flex">
                   {ROLE_LABEL[primaryRole] ?? primaryRole}

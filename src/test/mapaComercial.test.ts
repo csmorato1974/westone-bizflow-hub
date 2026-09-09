@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ZOOM_MAX, ZOOM_MIN, calcularViewport, normalizarIntensidad, posicionEnViewport, tilesDeViewport } from "@/lib/mapaComercial";
+import { boundsDeClientes, coordenadaValida, normalizarIntensidad, puntosValidos, radioIntensidad } from "@/lib/mapaComercial";
 
 describe("normalizarIntensidad", () => {
   it("no deja invisibles a los clientes menores cuando hay un valor extremo", () => {
-    const valores = [100, 200, 300, 400, 500, 1_000_000];
-    const f = normalizarIntensidad(valores);
+    const f = normalizarIntensidad([100, 200, 300, 400, 500, 1_000_000]);
     expect(f(1_000_000)).toBe(1);
     expect(f(100)).toBeGreaterThan(0.1);
     expect(f(500)).toBeGreaterThan(f(100));
@@ -22,42 +21,45 @@ describe("normalizarIntensidad", () => {
     expect(f(10)).toBeLessThanOrEqual(f(50));
     expect(f(50)).toBeLessThanOrEqual(f(90));
   });
+
+  it("el radio crece con la intensidad", () => {
+    expect(radioIntensidad(1)).toBeGreaterThan(radioIntensidad(0.2));
+  });
 });
 
-describe("calcularViewport", () => {
+describe("coordenadas", () => {
+  it("descarta coordenadas ausentes, fuera de rango y (0,0)", () => {
+    expect(coordenadaValida({ latitud: -16.5, longitud: -68.15 })).toBe(true);
+    expect(coordenadaValida({ latitud: 0, longitud: 0 })).toBe(false);
+    expect(coordenadaValida({ latitud: 120, longitud: 10 })).toBe(false);
+    expect(coordenadaValida({ latitud: NaN, longitud: 10 })).toBe(false);
+    expect(puntosValidos([{ latitud: 0, longitud: 0 }, { latitud: -17.78, longitud: -63.18 }])).toHaveLength(1);
+  });
+});
+
+describe("boundsDeClientes", () => {
   const laPaz = { latitud: -16.5, longitud: -68.15 };
   const santaCruz = { latitud: -17.78, longitud: -63.18 };
 
-  it("devuelve null sin puntos", () => {
-    expect(calcularViewport([], 400, 288)).toBeNull();
+  it("devuelve null sin puntos válidos", () => {
+    expect(boundsDeClientes([])).toBeNull();
+    expect(boundsDeClientes([{ latitud: 0, longitud: 0 }])).toBeNull();
   });
 
-  it("encuadra clientes dispersos dentro del contenedor", () => {
-    const vp = calcularViewport([laPaz, santaCruz, { latitud: -21.53, longitud: -64.73 }], 400, 288)!;
-    expect(vp.zoom).toBeGreaterThanOrEqual(ZOOM_MIN);
-    expect(vp.zoom).toBeLessThanOrEqual(ZOOM_MAX);
-    for (const p of [laPaz, santaCruz]) {
-      const { left, top } = posicionEnViewport(p, vp);
-      expect(left).toBeGreaterThan(0);
-      expect(left).toBeLessThan(400);
-      expect(top).toBeGreaterThan(0);
-      expect(top).toBeLessThan(288);
-    }
+  it("encierra a todos los clientes", () => {
+    const b = boundsDeClientes([laPaz, santaCruz, { latitud: -21.53, longitud: -64.73 }])!;
+    const [[sur, oeste], [norte, este]] = b;
+    expect(sur).toBeCloseTo(-21.53, 5);
+    expect(norte).toBeCloseTo(-16.5, 5);
+    expect(oeste).toBeCloseTo(-68.15, 5);
+    expect(este).toBeCloseTo(-63.18, 5);
   });
 
-  it("con un único cliente usa zoom de detalle y lo centra", () => {
-    const vp = calcularViewport([laPaz], 400, 288)!;
-    expect(vp.zoom).toBe(ZOOM_MAX - 3);
-    const { left, top } = posicionEnViewport(laPaz, vp);
-    expect(left).toBeCloseTo(200, 5);
-    expect(top).toBeCloseTo(144, 5);
-  });
-
-  it("genera tiles que cubren todo el contenedor", () => {
-    const vp = calcularViewport([laPaz, santaCruz], 400, 288)!;
-    const tiles = tilesDeViewport(vp);
-    expect(tiles.length).toBeGreaterThan(0);
-    expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(0);
-    expect(Math.max(...tiles.map((t) => t.left + 256))).toBeGreaterThanOrEqual(400);
+  it("con un único cliente agrega margen mínimo alrededor", () => {
+    const [[sur, oeste], [norte, este]] = boundsDeClientes([laPaz])!;
+    expect(norte - sur).toBeCloseTo(0.02, 6);
+    expect(este - oeste).toBeCloseTo(0.02, 6);
+    expect((norte + sur) / 2).toBeCloseTo(laPaz.latitud, 6);
+    expect((este + oeste) / 2).toBeCloseTo(laPaz.longitud, 6);
   });
 });

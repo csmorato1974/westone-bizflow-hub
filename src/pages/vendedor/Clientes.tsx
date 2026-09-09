@@ -25,6 +25,8 @@ import {
   type OnboardingComercialGenerado,
 } from "@/lib/onboardingComercial";
 import { useVoiceDictation } from "@/hooks/useVoiceDictation";
+import { getClientesCache, getOfflineMetadata, putClientesCache } from "@/lib/offlineDb";
+import { useConnectivity } from "@/hooks/useConnectivity";
 
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
@@ -61,22 +63,55 @@ export default function VendedorClientes() {
   const [notas, setNotas] = useState("");
   const [gpsBusy, setGpsBusy] = useState(false);
   const dictado = useVoiceDictation();
+  const online = useConnectivity();
+  const [usingOfflineCache, setUsingOfflineCache] = useState(false);
+  const [offlineSyncedAt, setOfflineSyncedAt] = useState<string | null>(null);
 
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: cs }, { data: lp }] = await Promise.all([
+
+    const loadCache = async () => {
+      const [cached, meta] = await Promise.all([
+        getClientesCache<Cliente>(user.id),
+        getOfflineMetadata(user.id, "clientes"),
+      ]);
+      setClientes(cached);
+      setUsingOfflineCache(true);
+      setOfflineSyncedAt(meta?.synced_at ?? null);
+      setLoading(false);
+    };
+
+    if (!online) {
+      await loadCache();
+      return;
+    }
+
+    const [csResult, lpResult] = await Promise.all([
       supabase.from("clientes").select("*").eq("vendedor_id", user.id).order("created_at", { ascending: false }),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
     ]);
-    setClientes(cs ?? []);
-    setListas(lp ?? []);
+
+    if (csResult.error) {
+      await loadCache();
+      return;
+    }
+
+    const fresh = (csResult.data ?? []) as Cliente[];
+    setClientes(fresh);
+    setListas(lpResult.data ?? []);
+    setUsingOfflineCache(false);
+    setOfflineSyncedAt(new Date().toISOString());
+    await putClientesCache(user.id, fresh);
+    window.dispatchEvent(new CustomEvent("westone:offline-stats"));
     setLoading(false);
   };
   useEffect(() => {
     load();
     const onFocus = () => load();
+    const onSyncRequest = () => load();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("westone:sync-request", onSyncRequest);
 
     const channel = supabase
       .channel("vendedor-clientes")
@@ -89,6 +124,7 @@ export default function VendedorClientes() {
 
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("westone:sync-request", onSyncRequest);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,6 +164,7 @@ export default function VendedorClientes() {
   };
 
   const openEdit = (c: Cliente & { notas?: string | null }) => {
+    if (!online) return toast.info("La edición offline se habilitará en una fase posterior.");
     setEditingId(c.id);
     setEmpresa(c.empresa);
     setContacto(c.contacto);
@@ -214,6 +251,7 @@ export default function VendedorClientes() {
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!online) return toast.info("Las altas y ediciones offline se habilitarán en una fase posterior.");
     if (!user) return;
     if (empresa.trim().length < 2) return toast.error("Empresa requerida");
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
@@ -277,6 +315,8 @@ export default function VendedorClientes() {
 
   return (
     <div className="space-y-6">
+      {usingOfflineCache && <Card className="border-warning/50 bg-warning/5"><CardContent className="p-3 text-sm"><strong>Modo sin conexión.</strong> Mostrando clientes de la última sincronización{offlineSyncedAt ? ` (${new Date(offlineSyncedAt).toLocaleString("es-BO")})` : ""}. Las altas y ediciones requieren conexión.</CardContent></Card>}
+      {usingOfflineCache && clientes.length === 0 && <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Sin datos disponibles offline todavía. Conéctate una vez para sincronizar.</CardContent></Card>}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="industrial-title text-3xl">Mis Clientes</h1>
@@ -284,7 +324,7 @@ export default function VendedorClientes() {
         </div>
         <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogTrigger asChild>
-            <Button onClick={() => { reset(); }} className="bg-primary text-brand hover:bg-primary/90">
+            <Button onClick={() => { reset(); }} disabled={!online} className="bg-primary text-brand hover:bg-primary/90">
               <Plus className="h-4 w-4" /> Nuevo cliente
             </Button>
           </DialogTrigger>

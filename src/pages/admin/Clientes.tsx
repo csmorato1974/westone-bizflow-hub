@@ -38,6 +38,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 import { ClienteEstadisticas } from "@/components/admin/ClienteEstadisticas";
 import { norm } from "@/lib/reportes";
+import { getClientesCache, getOfflineMetadata, putClientesCache } from "@/lib/offlineDb";
+import { useConnectivity } from "@/hooks/useConnectivity";
 
 import { OnboardingPreview } from "@/components/admin/OnboardingPreview";
 import { OnboardingComercialPreview } from "@/components/vendedor/OnboardingComercialPreview";
@@ -132,6 +134,9 @@ export default function AdminClientes() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLElement | null>>({});
   const fichaAbiertaRef = useRef<string | null>(null);
+  const online = useConnectivity();
+  const [usingOfflineCache, setUsingOfflineCache] = useState(false);
+  const [offlineSyncedAt, setOfflineSyncedAt] = useState<string | null>(null);
 
   const setView = (v: "cards" | "list") => {
     const next = new URLSearchParams(searchParams);
@@ -188,41 +193,78 @@ export default function AdminClientes() {
 
 
   const load = async () => {
+    if (!user) return;
     setLoading(true);
-    const [{ data: cs }, { data: ur }, { data: lp }, { data: profs }] = await Promise.all([
+
+    const loadCache = async () => {
+      const [cached, meta] = await Promise.all([
+        getClientesCache<Cliente>(user.id),
+        getOfflineMetadata(user.id, "clientes"),
+      ]);
+      setClientes(cached);
+      setVendedores([]);
+      setClienteUsers([]);
+      setAllProfiles([]);
+      setListas([]);
+      setUsingOfflineCache(true);
+      setOfflineSyncedAt(meta?.synced_at ?? null);
+      setLoading(false);
+    };
+
+    if (!online) {
+      await loadCache();
+      return;
+    }
+
+    const [csResult, urResult, lpResult, profsResult] = await Promise.all([
       supabase.from("clientes").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id,role"),
       supabase.from("listas_precios").select("id,nombre").eq("activa", true),
       supabase.from("profiles").select("id,full_name,email,phone,must_change_password,email_provisional,username,username_provisional"),
     ]);
+    if (csResult.error) {
+      await loadCache();
+      return;
+    }
+    const cs = (csResult.data ?? []) as Cliente[];
+    const ur = urResult.data ?? [];
+    const lp = lpResult.data ?? [];
+    const profs = profsResult.data ?? [];
     const rolesByUser = new Map<string, AppRole[]>();
-    (ur ?? []).forEach((r: { user_id: string; role: string }) => {
+    ur.forEach((r: { user_id: string; role: string }) => {
       const arr = rolesByUser.get(r.user_id) ?? [];
       arr.push(r.role as AppRole);
       rolesByUser.set(r.user_id, arr);
     });
-    const vIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
-    const cIds = new Set((ur ?? []).filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
-    const profsWithRoles: User[] = (profs ?? []).map((p) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] }));
+    const vIds = new Set(ur.filter((r: { role: string }) => r.role === "vendedor").map((r: { user_id: string }) => r.user_id));
+    const cIds = new Set(ur.filter((r: { role: string }) => r.role === "cliente").map((r: { user_id: string }) => r.user_id));
+    const profsWithRoles: User[] = profs.map((p) => ({ ...p, roles: rolesByUser.get(p.id) ?? [] }));
     setVendedores(profsWithRoles.filter((p) => vIds.has(p.id)));
     setClienteUsers(profsWithRoles.filter((p) => cIds.has(p.id)));
     setAllProfiles(profsWithRoles);
-    setListas(lp ?? []);
-    setClientes((cs ?? []) as Cliente[]);
+    setListas(lp);
+    setClientes(cs);
+    setUsingOfflineCache(false);
+    setOfflineSyncedAt(new Date().toISOString());
+    await putClientesCache(user.id, cs);
+    window.dispatchEvent(new CustomEvent("westone:offline-stats"));
     setLoading(false);
   };
   useEffect(() => {
     load();
-    const channel = supabase
+    const onSyncRequest = () => load();
+    window.addEventListener("westone:sync-request", onSyncRequest);
+    const channel = online ? supabase
       .channel("admin-clientes-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
-      .subscribe();
+      .subscribe() : null;
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener("westone:sync-request", onSyncRequest);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id, online]);
 
   // Si llegamos con ?focus=, scrollear y resaltar la ficha
   useEffect(() => {
@@ -942,6 +984,7 @@ export default function AdminClientes() {
   };
 
   const deleteCliente = async (c: Cliente) => {
+    if (!online) return toast.info("La gestión de clientes requiere conexión.");
     setDeletingId(c.id);
     // check pedidos
     const { count } = await supabase
@@ -974,6 +1017,8 @@ export default function AdminClientes() {
 
   return (
     <div className="space-y-4">
+      {usingOfflineCache && <Card className="border-warning/50 bg-warning/5"><CardContent className="p-3 text-sm"><strong>Modo sin conexión.</strong> Mostrando la cartera guardada en este dispositivo{offlineSyncedAt ? ` (${new Date(offlineSyncedAt).toLocaleString("es-BO")})` : ""}. La gestión administrativa requiere conexión.</CardContent></Card>}
+      {usingOfflineCache && clientes.length === 0 && <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Sin datos disponibles offline todavía. Conéctate una vez para sincronizar.</CardContent></Card>}
       <div>
         <h1 className="industrial-title text-3xl">Clientes</h1>
         <p className="text-sm text-muted-foreground">Vista global · datos completos, asignación y edición</p>

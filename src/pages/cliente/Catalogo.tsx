@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { productImageUrl } from "@/lib/productImage";
 import { Image as ImageIcon } from "lucide-react";
+import { getCatalogoCache, getOfflineMetadata, putCatalogoCache } from "@/lib/offlineDb";
+import { useConnectivity } from "@/hooks/useConnectivity";
 
 interface Variante {
   id: string;
@@ -65,14 +67,36 @@ export default function ClienteCatalogo() {
   const [saving, setSaving] = useState(false);
   // selected variante per producto
   const [selectedVar, setSelectedVar] = useState<Record<string, string>>({});
+  const online = useConnectivity();
+  const [usingOfflineCache, setUsingOfflineCache] = useState(false);
+  const [offlineSyncedAt, setOfflineSyncedAt] = useState<string | null>(null);
 
   const loadProductos = useCallback(async (listaId: string) => {
+    if (!user) return;
+    const loadCache = async () => {
+      const [cached, meta] = await Promise.all([
+        getCatalogoCache<Producto>(user.id),
+        getOfflineMetadata(user.id, "catalogo"),
+      ]);
+      setProductos(cached);
+      setUsingOfflineCache(true);
+      setOfflineSyncedAt(meta?.synced_at ?? null);
+      return cached;
+    };
+    if (!online) {
+      await loadCache();
+      return;
+    }
     // Consulta dividida: primero precios+variantes+productos, luego stock por separado
     const { data: items, error: itemsErr } = await supabase
       .from("lista_precio_variante_items")
       .select("precio, producto_variantes!inner(id,presentacion,activa,producto_id,productos!inner(id,nombre,sku,descripcion,ficha_tecnica,linea,activo,imagen_url))")
       .eq("lista_id", listaId);
-    if (itemsErr) { toast.error(itemsErr.message); return; }
+    if (itemsErr) {
+      const cached = await loadCache();
+      if (cached.length === 0) toast.error("No se pudo cargar el catálogo y todavía no hay datos offline.");
+      return;
+    }
 
     const varianteIds = (items ?? [])
       .map((row: any) => row.producto_variantes?.id)
@@ -110,6 +134,10 @@ export default function ClienteCatalogo() {
       .map((p) => ({ ...p, variantes: p.variantes.sort((a, b) => a.presentacion.localeCompare(b.presentacion)) }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
     setProductos(list);
+    setUsingOfflineCache(false);
+    setOfflineSyncedAt(new Date().toISOString());
+    await putCatalogoCache(user.id, list);
+    window.dispatchEvent(new CustomEvent("westone:offline-stats"));
     // pre-seleccionar primera variante con stock (o la primera)
     setSelectedVar((prev) => {
       const next = { ...prev };
@@ -121,11 +149,16 @@ export default function ClienteCatalogo() {
       });
       return next;
     });
-  }, []);
+  }, [online, user?.id]);
 
   useEffect(() => {
     (async () => {
       if (!user) return;
+      if (!online) {
+        await loadProductos("offline");
+        setLoading(false);
+        return;
+      }
       const { data: c } = await supabase.from("clientes").select("id,lista_precio_id,vendedor_id").eq("user_id", user.id).maybeSingle();
       if (!c) { setLoading(false); return; }
       setCliente(c);
@@ -137,11 +170,11 @@ export default function ClienteCatalogo() {
       await loadProductos(c.lista_precio_id);
       setLoading(false);
     })();
-  }, [user, loadProductos]);
+  }, [user, loadProductos, online]);
 
   // Realtime: stock por variante
   useEffect(() => {
-    if (!cliente?.lista_precio_id) return;
+    if (!online || !cliente?.lista_precio_id) return;
     const channel = supabase
       .channel("vstock-cliente")
       .on("postgres_changes", { event: "*", schema: "public", table: "variante_stock" }, (payload: any) => {
@@ -154,9 +187,10 @@ export default function ClienteCatalogo() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [cliente?.lista_precio_id]);
+  }, [cliente?.lista_precio_id, online]);
 
   const refresh = async () => {
+    if (!online) return toast.info("Conéctate para actualizar precios y stock.");
     if (!cliente?.lista_precio_id) return;
     setRefreshing(true);
     await loadProductos(cliente.lista_precio_id);
@@ -189,6 +223,7 @@ export default function ClienteCatalogo() {
   const total = useMemo(() => cart.reduce((s, x) => s + x.cantidad * x.precio, 0), [cart]);
 
   const submit = async () => {
+    if (!online) return toast.info("Los pedidos offline se habilitarán en una fase posterior.");
     if (!user || !cliente) return;
     if (cart.length === 0) return toast.error("Carrito vacío");
     setSaving(true);
@@ -240,19 +275,21 @@ export default function ClienteCatalogo() {
   };
 
   if (loading) return <Loader2 className="h-6 w-6 animate-spin" />;
-  if (!cliente) return <Card><CardContent className="p-8 text-center text-muted-foreground">Tu cuenta de cliente aún no está vinculada. Contacta a tu vendedor.</CardContent></Card>;
-  if (!cliente.lista_precio_id) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada.</CardContent></Card>;
+  if (!cliente && !usingOfflineCache) return <Card><CardContent className="p-8 text-center text-muted-foreground">Tu cuenta de cliente aún no está vinculada. Contacta a tu vendedor.</CardContent></Card>;
+  if (!cliente?.lista_precio_id && !usingOfflineCache) return <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes una lista de precios asignada.</CardContent></Card>;
 
   const waLink = vendedor?.phone ? `https://wa.me/${vendedor.phone.replace(/\D/g, "")}` : null;
 
   return (
     <div className="space-y-4">
+      {usingOfflineCache && <Card className="border-warning/50 bg-warning/5"><CardContent className="p-3 text-sm"><strong>Catálogo offline.</strong> Precios y stock corresponden a la última sincronización{offlineSyncedAt ? ` (${new Date(offlineSyncedAt).toLocaleString("es-BO")})` : ""}. Los pedidos requieren conexión en esta fase.</CardContent></Card>}
+      {usingOfflineCache && productos.length === 0 && <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Sin datos disponibles offline todavía. Conéctate una vez para sincronizar.</CardContent></Card>}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="industrial-title text-3xl">Catálogo Westone</h1>
           <p className="text-sm text-muted-foreground">Productos y precios autorizados</p>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+        <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing || !online}>
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           <span className="ml-2">Actualizar stock</span>
         </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ interface Cliente {
 
 export default function VendedorClientes() {
   const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +94,17 @@ export default function VendedorClientes() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    const focusClienteId = searchParams.get("focus");
+    if (!focusClienteId || loading) return;
+    const cliente = clientes.find((c) => c.id === focusClienteId);
+    if (!cliente) return;
+    setPedidosCliente(cliente);
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+  }, [clientes, loading, searchParams, setSearchParams]);
 
   const captureGps = () => {
     if (!contextoSeguro()) return toast.error("La ubicación requiere una conexión segura (HTTPS).");
@@ -429,16 +441,26 @@ export default function VendedorClientes() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="industrial-title">
-              Pedidos de {pedidosCliente?.empresa}
+              Ficha de {pedidosCliente?.empresa}
             </DialogTitle>
           </DialogHeader>
           {pedidosCliente && (
-            <PedidosRecientes
-              clienteId={pedidosCliente.id}
-              limit={20}
-              hideViewAll
-              title="Historial de pedidos"
-            />
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="grid gap-2 p-4 text-sm md:grid-cols-2">
+                  <div><span className="text-muted-foreground">Contacto:</span> {pedidosCliente.contacto}</div>
+                  <div><span className="text-muted-foreground">Celular:</span> {pedidosCliente.celular}</div>
+                  {pedidosCliente.email && <div><span className="text-muted-foreground">Email:</span> {pedidosCliente.email}</div>}
+                  {pedidosCliente.direccion && <div className="md:col-span-2"><span className="text-muted-foreground">Dirección:</span> {pedidosCliente.direccion}</div>}
+                </CardContent>
+              </Card>
+              <PedidosRecientes
+                clienteId={pedidosCliente.id}
+                limit={20}
+                hideViewAll
+                title="Historial de pedidos"
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

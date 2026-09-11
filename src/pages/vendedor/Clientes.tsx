@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { MapPin, Plus, MessageCircle, Loader2, Pencil, Package, Mic, Square, Wand2 } from "lucide-react";
+import { LayoutGrid, List, MapPin, Plus, MessageCircle, Loader2, Pencil, Package, Mic, Square, Wand2 } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 import { waLink, mapsLink } from "@/lib/whatsapp";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
@@ -39,6 +39,7 @@ interface Cliente {
 export default function VendedorClientes() {
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "list" ? "list" : "cards";
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [listas, setListas] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +106,12 @@ export default function VendedorClientes() {
     next.delete("focus");
     setSearchParams(next, { replace: true });
   }, [clientes, loading, searchParams, setSearchParams]);
+
+  const setView = (nextView: "cards" | "list") => {
+    const next = new URLSearchParams(searchParams);
+    next.set("view", nextView);
+    setSearchParams(next, { replace: true });
+  };
 
   const captureGps = () => {
     if (!contextoSeguro()) return toast.error("La ubicación requiere una conexión segura (HTTPS).");
@@ -294,7 +301,16 @@ export default function VendedorClientes() {
           <h1 className="industrial-title text-3xl">Mis Clientes</h1>
           <p className="text-sm text-muted-foreground">Cartera asignada a tu cuenta</p>
         </div>
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Vista de clientes">
+            <Button type="button" size="sm" variant={view === "cards" ? "default" : "ghost"} onClick={() => setView("cards")}>
+              <LayoutGrid className="h-4 w-4" /> Tarjetas
+            </Button>
+            <Button type="button" size="sm" variant={view === "list" ? "default" : "ghost"} onClick={() => setView("list")}>
+              <List className="h-4 w-4" /> Lista
+            </Button>
+          </div>
+          <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogTrigger asChild>
             <Button onClick={() => { reset(); }} className="bg-primary text-brand hover:bg-primary/90">
               <Plus className="h-4 w-4" /> Nuevo cliente
@@ -365,12 +381,38 @@ export default function VendedorClientes() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : clientes.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">No tienes clientes registrados</CardContent></Card>
       ) : (
+        view === "list" ? (
+          <div className="overflow-hidden rounded-lg border divide-y">
+            {clientes.map((c) => {
+              const maps = mapsLink(c.latitud, c.longitud);
+              return (
+                <div key={c.id} className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
+                  <div className="min-w-[220px] flex-1">
+                    <p className="industrial-title text-base truncate">{c.empresa}</p>
+                    <p className="text-sm text-muted-foreground">{c.contacto} · {c.celular}</p>
+                    {c.direccion && <p className="text-xs text-muted-foreground truncate">{c.direccion}</p>}
+                  </div>
+                  <Badge variant="outline" className={c.user_id ? "border-success text-success" : "text-muted-foreground"}>
+                    {c.user_id ? "Cuenta vinculada" : "Sin cuenta"}
+                  </Badge>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /> Editar</Button>
+                    <Button size="sm" variant="outline" onClick={() => setPedidosCliente(c)}><Package className="h-3 w-3" /> Ficha</Button>
+                    {maps && <Button asChild size="sm" variant="outline"><a href={maps} target="_blank" rel="noopener noreferrer"><MapPin className="h-3 w-3" /> Maps</a></Button>}
+                    <Button asChild size="sm" className="bg-brand text-brand-foreground hover:bg-brand-dark"><Link to={`/app/pedidos/nuevo/${c.id}`}>Pedido</Link></Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {clientes.map((c) => {
             const maps = mapsLink(c.latitud, c.longitud);
@@ -435,6 +477,7 @@ export default function VendedorClientes() {
             );
           })}
         </div>
+        )
       )}
 
       <Dialog open={!!pedidosCliente} onOpenChange={(o) => !o && setPedidosCliente(null)}>

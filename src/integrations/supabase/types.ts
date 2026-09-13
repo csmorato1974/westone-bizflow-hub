@@ -82,6 +82,50 @@ export type Database = {
           },
         ]
       }
+      cliente_portal_tokens: {
+        Row: {
+          actualizado_en: string
+          cliente_id: string
+          creado_en: string
+          creado_por: string
+          id: string
+          revocado_en: string | null
+          token_hash: string
+          ultimo_uso_en: string | null
+          version: string
+        }
+        Insert: {
+          actualizado_en?: string
+          cliente_id: string
+          creado_en?: string
+          creado_por: string
+          id?: string
+          revocado_en?: string | null
+          token_hash: string
+          ultimo_uso_en?: string | null
+          version?: string
+        }
+        Update: {
+          actualizado_en?: string
+          cliente_id?: string
+          creado_en?: string
+          creado_por?: string
+          id?: string
+          revocado_en?: string | null
+          token_hash?: string
+          ultimo_uso_en?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cliente_portal_tokens_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: true
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cliente_ubicaciones: {
         Row: {
           capturado_en: string
@@ -223,50 +267,6 @@ export type Database = {
             columns: ["lista_precio_id"]
             isOneToOne: false
             referencedRelation: "listas_precios"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cliente_portal_tokens: {
-        Row: {
-          actualizado_en: string
-          cliente_id: string
-          creado_en: string
-          creado_por: string
-          id: string
-          revocado_en: string | null
-          token_hash: string
-          ultimo_uso_en: string | null
-          version: string
-        }
-        Insert: {
-          actualizado_en?: string
-          cliente_id: string
-          creado_en?: string
-          creado_por: string
-          id?: string
-          revocado_en?: string | null
-          token_hash: string
-          ultimo_uso_en?: string | null
-          version?: string
-        }
-        Update: {
-          actualizado_en?: string
-          cliente_id?: string
-          creado_en?: string
-          creado_por?: string
-          id?: string
-          revocado_en?: string | null
-          token_hash?: string
-          ultimo_uso_en?: string | null
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cliente_portal_tokens_cliente_id_fkey"
-            columns: ["cliente_id"]
-            isOneToOne: true
-            referencedRelation: "clientes"
             referencedColumns: ["id"]
           },
         ]
@@ -759,7 +759,7 @@ export type Database = {
           cliente_contacto: string
           cliente_empresa: string
           cliente_id?: string | null
-          creado_por: string
+          creado_por?: string | null
           generado_en?: string
           id?: string
           items_total?: number
@@ -776,7 +776,7 @@ export type Database = {
           cliente_contacto?: string
           cliente_empresa?: string
           cliente_id?: string | null
-          creado_por?: string
+          creado_por?: string | null
           generado_en?: string
           id?: string
           items_total?: number
@@ -1356,10 +1356,10 @@ export type Database = {
       }
       dashboard_comercial: {
         Args: {
-          _ciudad?: string | null
-          _desde?: string | null
-          _hasta?: string | null
-          _vendedor_id?: string | null
+          _ciudad?: string
+          _desde?: string
+          _hasta?: string
+          _vendedor_id?: string
         }
         Returns: Json
       }
@@ -1371,6 +1371,10 @@ export type Database = {
       }
       fnv1a_hex: { Args: { _v: string }; Returns: string }
       formato_codigo_cliente: { Args: { _n: number }; Returns: string }
+      generar_portal_cliente: {
+        Args: { _cliente_id: string; _rotar?: boolean }
+        Returns: Json
+      }
       guardar_ubicacion_cliente: {
         Args: {
           _cliente_id: string
@@ -1379,10 +1383,6 @@ export type Database = {
           _longitud: number
           _precision_metros?: number
         }
-        Returns: Json
-      }
-      generar_portal_cliente: {
-        Args: { _cliente_id: string; _rotar?: boolean }
         Returns: Json
       }
       has_role: {
@@ -1401,6 +1401,12 @@ export type Database = {
       normalizar_email: { Args: { _v: string }; Returns: string }
       normalizar_telefono: { Args: { _v: string }; Returns: string }
       normalizar_texto: { Args: { _v: string }; Returns: string }
+      portal_catalogo: { Args: { _token: string }; Returns: Json }
+      portal_crear_pedido: {
+        Args: { _items: Json; _notas?: string; _token: string }
+        Returns: Json
+      }
+      portal_pedidos: { Args: { _token: string }; Returns: Json }
       puede_editar_pedido: {
         Args: { _pedido: string; _user: string }
         Returns: boolean
@@ -1409,12 +1415,6 @@ export type Database = {
         Args: { _pedido: string; _user: string }
         Returns: boolean
       }
-      portal_catalogo: { Args: { _token: string }; Returns: Json }
-      portal_crear_pedido: {
-        Args: { _items: Json; _notas?: string; _token: string }
-        Returns: Json
-      }
-      portal_pedidos: { Args: { _token: string }; Returns: Json }
       reporte_ventas: {
         Args: { _desde?: string; _hasta?: string }
         Returns: Json
@@ -1483,12 +1483,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1512,11 +1512,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1537,11 +1537,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1562,11 +1562,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1579,11 +1579,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

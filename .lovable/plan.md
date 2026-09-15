@@ -1,36 +1,37 @@
-# Reparación controlada del preview — restaurar `.env`
+# Reconciliación controlada con GitHub `main` — sin publicar
 
-## Estado actual (verificado)
+## Estado verificado
 
-- `.env` ya existe y contiene las 3 variables del backend Lovable Cloud de este proyecto:
-  `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
-  (procedencia verificada: coinciden con el proyecto vinculado).
-- El preview ya carga sin el error "supabaseUrl is required" (verificado en navegador).
-- Faltan dos variables: `VITE_APP_LOGIN_URL` y `VITE_SOPORTE_WHATSAPP`.
-  - `VITE_APP_LOGIN_URL`: ningún archivo de `src/` la lee (la URL pública está fijada en `src/lib/appUrls.ts`); se añade por completitud.
-  - `VITE_SOPORTE_WHATSAPP`: la lee `src/lib/onboarding.ts`; activa el botón de contacto directo por WhatsApp en la pantalla de acceso.
+- `origin/main` importa `brokeredPreviewStorage` desde `src/integrations/supabase/previewAuthStorage.ts` y lo usa como almacenamiento de sesión.
+- `origin/main` también contiene `src/integrations/supabase/previewAuthStorage.ts`.
+- La copia local coincide con `origin/main` en esos dos puntos.
+- `.gitignore` ya contiene `.env`, `.env.*` y `!.env.example`.
+- `.env` existe localmente, no está versionado y las tres variables `VITE_SUPABASE_*` requeridas tienen contenido; no se expondrán sus valores.
+- La telemetría disponible no registra actualmente `supabaseUrl is required`; solo muestra avisos no bloqueantes de React Router.
 
-## Cambios (alcance único)
+## Decisión aplicada
 
-Solo se toca el archivo `.env` (raíz del proyecto):
+GitHub `main` es la fuente de verdad elegida. Por ello:
 
-1. Mantener intactas las 3 variables Supabase existentes (sin mostrar valores en la respuesta).
-2. Añadir:
-   - `VITE_APP_LOGIN_URL=https://westone.vinculovirtual.com/login`
-   - `VITE_SOPORTE_WHATSAPP=59170000000`
+- No se modificará `src/integrations/supabase/client.ts`.
+- No se eliminará `src/integrations/supabase/previewAuthStorage.ts`.
+- No se modificará `.gitignore`.
+- No se modificará `.env` mientras las tres variables sigan presentes.
 
-Nada más. No se toca: `src/`, `supabase/`, `.gitignore`, base de datos, migraciones, Raiola. No se publica ni se despliega. El `.env` no se versiona (está excluido por `.gitignore`).
+Retirar el adaptador y usar `localStorage` directamente contradiría el contenido actual de `origin/main`, así que queda fuera del alcance aprobado.
 
-## Verificación
+## Verificación segura
 
-1. Reiniciar el servidor de preview para que Vite relea `.env`.
-2. Esperar a que el build marque OK.
-3. Abrir el preview en navegador de prueba y confirmar:
-   - la pantalla inicial de WESTONE renderiza (botón "INICIAR SESIÓN"),
-   - la consola no muestra "supabaseUrl is required" ni otros errores.
+1. Confirmar nuevamente que `.env` sigue sin versionarse y conserva las tres variables requeridas, sin mostrar valores.
+2. Esperar el resultado automático de compilación del estado actual.
+3. Abrir el preview en una sesión limpia de navegador, eliminar únicamente el Service Worker y almacenamiento del dominio de prueba, y recargar.
+4. Verificar que `#root` contiene la pantalla inicial de WESTONE y que la consola no registra `supabaseUrl is required`.
+5. Si el error continúa solo en la sesión del usuario, reportarlo como diferencia de caché/sesión del navegador con evidencia, sin alterar el código.
 
-## Reporte final
+## Límites y reporte
 
-- Archivos tocados: únicamente `.env`.
-- Publicación: no. Base de datos: no tocada.
-- Resultado del preview y errores restantes si los hay.
+- Sin publicación ni despliegue.
+- Sin cambios en Raiola.
+- Sin cambios de base de datos, migraciones, esquema o datos.
+- Archivos previstos a modificar: ninguno.
+- El reporte final incluirá archivos tocados, publicación, base de datos, resultado del preview y errores restantes.

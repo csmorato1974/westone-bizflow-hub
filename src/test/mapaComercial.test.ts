@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ZOOM_MAX, ZOOM_MIN, calcularViewport, normalizarIntensidad, posicionEnViewport, tilesDeViewport } from "@/lib/mapaComercial";
+import {
+  ZOOM_DETALLE,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  boundsDeClientes,
+  colorIntensidad,
+  coordenadaValida,
+  normalizarIntensidad,
+  puntosValidos,
+  radioIntensidad,
+} from "@/lib/mapaComercial";
 
 describe("normalizarIntensidad", () => {
   it("no deja invisibles a los clientes menores cuando hay un valor extremo", () => {
@@ -24,40 +34,64 @@ describe("normalizarIntensidad", () => {
   });
 });
 
-describe("calcularViewport", () => {
+describe("helpers Leaflet del mapa comercial", () => {
   const laPaz = { latitud: -16.5, longitud: -68.15 };
   const santaCruz = { latitud: -17.78, longitud: -63.18 };
+  const tarija = { latitud: -21.53, longitud: -64.73 };
 
-  it("devuelve null sin puntos", () => {
-    expect(calcularViewport([], 400, 288)).toBeNull();
+  it("mantiene constantes de zoom válidas", () => {
+    expect(ZOOM_MIN).toBeLessThan(ZOOM_DETALLE);
+    expect(ZOOM_DETALLE).toBeLessThanOrEqual(ZOOM_MAX);
   });
 
-  it("encuadra clientes dispersos dentro del contenedor", () => {
-    const vp = calcularViewport([laPaz, santaCruz, { latitud: -21.53, longitud: -64.73 }], 400, 288)!;
-    expect(vp.zoom).toBeGreaterThanOrEqual(ZOOM_MIN);
-    expect(vp.zoom).toBeLessThanOrEqual(ZOOM_MAX);
-    for (const p of [laPaz, santaCruz]) {
-      const { left, top } = posicionEnViewport(p, vp);
-      expect(left).toBeGreaterThan(0);
-      expect(left).toBeLessThan(400);
-      expect(top).toBeGreaterThan(0);
-      expect(top).toBeLessThan(288);
-    }
+  it("valida coordenadas utilizables", () => {
+    expect(coordenadaValida(laPaz)).toBe(true);
+    expect(coordenadaValida({ latitud: 0, longitud: 0 })).toBe(false);
+    expect(coordenadaValida({ latitud: 91, longitud: -68.15 })).toBe(false);
+    expect(coordenadaValida({ latitud: -16.5, longitud: 181 })).toBe(false);
+    expect(coordenadaValida({ latitud: Number.NaN, longitud: -68.15 })).toBe(false);
   });
 
-  it("con un único cliente usa zoom de detalle y lo centra", () => {
-    const vp = calcularViewport([laPaz], 400, 288)!;
-    expect(vp.zoom).toBe(ZOOM_MAX - 3);
-    const { left, top } = posicionEnViewport(laPaz, vp);
-    expect(left).toBeCloseTo(200, 5);
-    expect(top).toBeCloseTo(144, 5);
+  it("filtra puntos sin coordenadas válidas", () => {
+    const puntos = puntosValidos([
+      laPaz,
+      { latitud: 0, longitud: 0 },
+      santaCruz,
+      { latitud: 95, longitud: -63.18 },
+    ]);
+
+    expect(puntos).toEqual([laPaz, santaCruz]);
   });
 
-  it("genera tiles que cubren todo el contenedor", () => {
-    const vp = calcularViewport([laPaz, santaCruz], 400, 288)!;
-    const tiles = tilesDeViewport(vp);
-    expect(tiles.length).toBeGreaterThan(0);
-    expect(Math.min(...tiles.map((t) => t.left))).toBeLessThanOrEqual(0);
-    expect(Math.max(...tiles.map((t) => t.left + 256))).toBeGreaterThanOrEqual(400);
+  it("devuelve null si no hay puntos válidos", () => {
+    expect(boundsDeClientes([])).toBeNull();
+    expect(boundsDeClientes([{ latitud: 0, longitud: 0 }])).toBeNull();
+  });
+
+  it("calcula bounds que contienen clientes dispersos", () => {
+    const bounds = boundsDeClientes([laPaz, santaCruz, tarija])!;
+
+    expect(bounds[0][0]).toBeLessThanOrEqual(tarija.latitud);
+    expect(bounds[1][0]).toBeGreaterThanOrEqual(laPaz.latitud);
+    expect(bounds[0][1]).toBeLessThanOrEqual(laPaz.longitud);
+    expect(bounds[1][1]).toBeGreaterThanOrEqual(santaCruz.longitud);
+  });
+
+  it("agrega margen cuando hay un único cliente", () => {
+    const bounds = boundsDeClientes([laPaz])!;
+
+    expect(bounds[0][0]).toBeLessThan(laPaz.latitud);
+    expect(bounds[1][0]).toBeGreaterThan(laPaz.latitud);
+    expect(bounds[0][1]).toBeLessThan(laPaz.longitud);
+    expect(bounds[1][1]).toBeGreaterThan(laPaz.longitud);
+  });
+
+  it("calcula radio creciente según intensidad", () => {
+    expect(radioIntensidad(0)).toBeLessThan(radioIntensidad(1));
+  });
+
+  it("genera color hsl con alpha configurable", () => {
+    expect(colorIntensidad(0.5, 0.75)).toContain("hsl(");
+    expect(colorIntensidad(0.5, 0.75)).toContain("/ 0.75");
   });
 });

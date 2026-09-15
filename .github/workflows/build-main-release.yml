@@ -16,10 +16,11 @@ jobs:
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
-      - name: Checkout exact main SHA
+      - name: Checkout current main SHA
         uses: actions/checkout@v4
-        with:
-          ref: 1ce26930e609e2a49adfb60563cb53a4a9129e05
+
+      - name: Report build SHA
+        run: echo "Building SHA $GITHUB_SHA from ref $GITHUB_REF"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -46,7 +47,7 @@ jobs:
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: westone-main-1ce26930
+          name: westone-main-${{ github.sha }}
           path: dist/
           if-no-files-found: error
           retention-days: 3

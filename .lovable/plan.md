@@ -1,39 +1,31 @@
-# Diagnóstico del preview en blanco — evidencia recogida, sin cambios
+# Auditoría controlada del build externo — sin publicar
 
-## Hallazgo principal
+## Evidencia confirmada
 
-El archivo `index-C4CTIVI1.js` que aparece en tu consola **no existe hoy en ninguno de los tres sitios**:
+- El entorno interno tiene presentes `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`; `.env` es local y no está versionado.
+- La URL publicada `https://westone-bizflow-hub.lovable.app/` sirve actualmente `/assets/index-DWog-5iS.js`, no `index-C4CTlVIl.js`.
+- Ese bundle contiene la referencia, URL y clave pública del backend vinculado `ickw…eabi` (valores completos no expuestos).
+- Una prueba en navegador limpio de la URL publicada renderiza WESTONE e “INICIAR SESIÓN”, sin `supabaseUrl is required` y sin errores de consola.
+- La cadena literal `supabaseUrl is required` aparece dentro del código de la librería, pero no se ejecuta: su presencia por sí sola no demuestra que falte la URL.
+- La URL externa de preview protegida responde 401 sin acceso válido y no se pudo completar una carga autenticada; por ello todavía no está demostrado que use el mismo ámbito de variables que el preview interno.
 
-| Origen | Paquete que sirve ahora | ¿Contiene la dirección del backend? |
-| --- | --- | --- |
-| Preview de Lovable (interno, localhost) | `/src/main.tsx` (sin nombre con código) | Sí, variables presentes |
-| Sitio publicado en Lovable | `index-DWog-5iS.js` | Sí |
-| Raiola (westone.vinculovirtual.com) | `index-D2qGJ2WS.js` | Sí |
-| Paquete compilado local | `index-CMIeSDdf.js` | Sí |
+## Plan de verificación
 
-Al pedir `index-C4CTIVI1.js` a Raiola responde con la página HTML de inicio (no existe el archivo); en el sitio publicado responde 404.
-
-Conclusión: el paquete que ejecuta tu navegador es una **copia antigua guardada por el modo instalable (PWA)** de una compilación previa hecha sin la variable. Ningún servidor lo sirve hoy.
-
-## Respuestas a los puntos pedidos
-
-1. **¿El proceso del preview lee el archivo de entorno?** Sí. Las tres variables están presentes y el preview arranca con ellas.
-2. **¿El paquete público contiene la dirección del backend?** Sí, en los tres paquetes vivos aparece completa. El único que no la tiene es el que ya no existe (`C4CTIVI1`), servido desde la caché de tu navegador.
-3. **¿El preview que pruebo es el mismo de la dirección pública?** Es el mismo proyecto y el mismo contenido, pero esa dirección pública exige inicio de sesión de Lovable: desde fuera responde "Unauthorized" (401). Además el preview nunca sirve archivos con nombre tipo `index-XXXX.js`, así que tu error viene de un sitio compilado, no del preview.
-4. **Diferencia interno vs. externo:** ninguna en el código. La diferencia es de acceso (401 sin sesión) y de caché del navegador.
-5. **Acción segura sin commit ni publicación:** reiniciar el servidor de preview y limpiar su caché de dependencias. No modifica archivos, ni base de datos, ni publica.
-
-## Verificación propuesta (sin cambios)
-
-1. Reiniciar el servidor de preview y esperar a que responda.
-2. Abrir el preview en un navegador limpio, eliminar el modo instalable y el almacenamiento de ese dominio, y recargar.
-3. Confirmar que la pantalla WESTONE carga y que la consola no registra el error.
-4. Reportar: archivos tocados (ninguno), publicación (no), base de datos (no tocada).
-
-## Lo que necesitas hacer en tu navegador
-
-Como la copia antigua vive en tu equipo, hay que retirarla ahí: abrir el sitio, entrar en las herramientas del navegador, quitar el registro del modo instalable ("Service Workers" → Unregister), borrar el almacenamiento del sitio y recargar. En una ventana de incógnito debería cargar bien de inmediato: eso confirma el diagnóstico.
+1. Registrar como línea base el bundle, cabeceras y resultado visual de cada URL accesible, sin modificar archivos.
+2. Auditar el preview externo protegido con una sesión válida de Lovable y capturar:
+   - nombre exacto del bundle o módulos servidos;
+   - presencia/ausencia de las tres variables en tiempo de compilación, sin revelar valores;
+   - coincidencia enmascarada con el backend `ickw…eabi`;
+   - contenido de `#root` y errores reales de consola.
+3. Comparar el ámbito del preview interno, preview externo y URL publicada. No asumir que comparten variables hasta observar los tres.
+4. Si el preview externo realmente carece de variables, buscar únicamente una acción de plataforma que re-vincule o regenere ese preview sin commit, publicación, despliegue ni edición de archivos.
+5. Aplicar criterio **NO-GO** si esa acción no existe o si exige publicar: no cambiar código, `.env`, configuración, base de datos ni Raiola.
+6. Si existe una regeneración segura y aislada, ejecutarla una sola vez y comprobar que cambió el nombre o timestamp del recurso.
+7. Repetir la prueba limpia y entregar el reporte solicitado: URL, bundle antes/después, variables presentes/ausentes, regeneración, archivos tocados, publicación, base de datos, resultado visual y errores restantes.
 
 ## Límites
 
-Sin publicar, sin desplegar, sin tocar Raiola, sin base de datos, sin migraciones, sin editar `src/`, `supabase/`, `.env` ni `.gitignore`. Archivos previstos a modificar: ninguno.
+- No se tocarán `src/`, `supabase/`, `.gitignore`, `.env`, datos ni configuración funcional.
+- No se publicará, desplegará ni modificará Raiola.
+- No se expondrán claves completas.
+- Con la evidencia actual no procede corregir la URL publicada: ya recibe las variables y funciona correctamente.

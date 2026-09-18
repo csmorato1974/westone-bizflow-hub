@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { EstadoBadge } from "@/components/EstadoBadge";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface Pedido { id: string; numero: number; estado: string; total: number; created_at: string; origen: string; clientes: { empresa: string } | null; }
 
@@ -19,16 +17,6 @@ export default function VendedorPedidos() {
   };
 
   useEffect(() => { void load(); }, []);
-
-  const cambiarEstado = async (pedido: Pedido, estado: "aprobado" | "cancelado") => {
-    const { error } = await supabase.from("pedidos").update({ estado }).eq("id", pedido.id);
-    if (error) {
-      toast.error(error.message.includes("Stock insuficiente") ? "No hay stock suficiente para confirmar este pedido." : error.message);
-      return;
-    }
-    toast.success(estado === "aprobado" ? "Pedido confirmado y stock reservado" : "Solicitud cancelada");
-    await load();
-  };
 
   return (
     <div className="space-y-4">
@@ -53,10 +41,7 @@ export default function VendedorPedidos() {
                   <EstadoBadge estado={p.estado} />
                   <span className="industrial-title text-lg">Bs {Number(p.total).toFixed(2)}</span>
                   {p.estado === "enviado" && (
-                    <>
-                      <Button size="sm" onClick={() => cambiarEstado(p, "aprobado")}><CheckCircle2 className="h-4 w-4" /> Confirmar</Button>
-                      <Button size="sm" variant="outline" onClick={() => cambiarEstado(p, "cancelado")}><XCircle className="h-4 w-4" /> Cancelar</Button>
-                    </>
+                    <span className="text-xs text-muted-foreground">Pendiente de aprobación administrativa</span>
                   )}
                 </div>
               </CardContent>

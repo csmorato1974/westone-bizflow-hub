@@ -240,27 +240,33 @@ export default function VendedorClientes() {
     if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
     setSaving(true);
 
-    const payload = {
-      empresa: empresa.trim(), contacto: contacto.trim(), celular: celular.trim(),
-      email: emailTrim || null,
+    const payloadEditable = {
+      contacto: contacto.trim(),
+      celular: celular.trim(),
       direccion: direccion.trim() || null,
-      lista_precio_id: listaPrecio || null, notas: notas.trim() || null,
+      notas: notas.trim() || null,
     };
 
     let clienteGuardado: Cliente | null = null;
 
     if (editingId) {
       const { data, error } = await supabase.from("clientes")
-        .update(payload)
+        .update(payloadEditable)
         .eq("id", editingId)
         .eq("vendedor_id", user.id)
         .select().single();
       if (error) { setSaving(false); toast.error(mensajeErrorGuardarCliente(error)); return; }
       clienteGuardado = data;
     } else {
+      const payloadAlta = {
+        ...payloadEditable,
+        empresa: empresa.trim(),
+        email: emailTrim || null,
+        lista_precio_id: listaPrecio || null,
+      };
       // El código CLI, el teléfono normalizado y la clave técnica los genera la base de datos.
       const { data, error } = await supabase.from("clientes").insert({
-        ...payload,
+        ...payloadAlta,
         vendedor_id: user.id,
         origen_registro: "manual",
       }).select().single();
@@ -353,10 +359,10 @@ export default function VendedorClientes() {
                   <Wand2 className="h-3.5 w-3.5" /> Completar ficha
                 </Button>
               </div>
-              <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required /></div>
+              <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required readOnly={!!editingId} /></div>
               <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
               <div><Label>Celular * (con código país, ej. 59170000000)</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required /></div>
-              <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" /></div>
+              <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" readOnly={!!editingId} /></div>
               <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
               <div className="flex gap-2 items-end">
                 <div className="flex-1"><Label>Latitud</Label><Input value={latitud ?? ""} readOnly /></div>
@@ -368,7 +374,7 @@ export default function VendedorClientes() {
               </div>
               {precisionMetros != null && <p className="text-xs text-muted-foreground">Precisión GPS: ±{precisionMetros} m</p>}
               <div><Label>Lista de precios</Label>
-                <Select value={listaPrecio} onValueChange={setListaPrecio}>
+                <Select value={listaPrecio} onValueChange={setListaPrecio} disabled={!!editingId}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar lista" /></SelectTrigger>
                   <SelectContent>{listas.map((l) => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}</SelectContent>
                 </Select>

@@ -1,0 +1,69 @@
+name: Build WESTONE staging release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      VITE_SUPABASE_PROJECT_ID: ${{ secrets.STAGING_VITE_SUPABASE_PROJECT_ID }}
+      VITE_SUPABASE_URL: ${{ secrets.STAGING_VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_APP_LOGIN_URL: https://staging.westone.vinculovirtual.com/login
+
+    steps:
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Capture exact build SHA
+        id: meta
+        shell: bash
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Building canonical main SHA $SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify staging environment
+        shell: bash
+        run: |
+          test -n "$VITE_SUPABASE_PROJECT_ID" || (echo "Missing STAGING_VITE_SUPABASE_PROJECT_ID" && exit 1)
+          test -n "$VITE_SUPABASE_URL" || (echo "Missing STAGING_VITE_SUPABASE_URL" && exit 1)
+          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY" || (echo "Missing STAGING_VITE_SUPABASE_PUBLISHABLE_KEY" && exit 1)
+
+          test "$VITE_SUPABASE_PROJECT_ID" = "wlxpmcorodrncfmdcnlc" || (echo "Refusing build: unexpected staging project id" && exit 1)
+          test "$VITE_SUPABASE_URL" = "https://wlxpmcorodrncfmdcnlc.supabase.co" || (echo "Refusing build: unexpected staging Supabase URL" && exit 1)
+
+          if printf '%s\n%s\n' "$VITE_SUPABASE_PROJECT_ID" "$VITE_SUPABASE_URL" | grep -q "ickwvreacprvsdozeabi"; then
+            echo "Refusing build: production Supabase reference detected"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build staging bundle
+        run: npm run build
+
+      - name: Upload staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: westone-staging-${{ steps.meta.outputs.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3

@@ -65,5 +65,6 @@ jobs:
         with:
           name: westone-staging-${{ steps.meta.outputs.sha }}
           path: dist/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3

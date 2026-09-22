@@ -20,6 +20,7 @@ import { OnboardingComercialPreview } from "@/components/vendedor/OnboardingCome
 import { contextoSeguro, mensajeErrorGeo, validarCoordenadas } from "@/lib/gps";
 import { camposDetectados, extraerDatosAltaExpress } from "@/lib/altaExpress";
 import { mensajeErrorGuardarCliente } from "@/lib/clienteErrores";
+import { normalizarCiudad, validarCiudadAlta } from "@/lib/clienteCiudad";
 import {
   generarOnboardingComercial,
   type OnboardingComercialGenerado,
@@ -29,7 +30,7 @@ import { useVoiceDictation } from "@/hooks/useVoiceDictation";
 interface Cliente {
   id: string; empresa: string; contacto: string; celular: string;
   email: string | null;
-  direccion: string | null; latitud: number | null; longitud: number | null;
+  direccion: string | null; ciudad?: string | null; latitud: number | null; longitud: number | null;
   precision_metros?: number | null; gps_capturado_en?: string | null;
   lista_precio_id: string | null; notas: string | null;
   user_id: string | null; vendedor_id: string | null;
@@ -55,6 +56,7 @@ export default function VendedorClientes() {
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [ciudad, setCiudad] = useState("");
   const [latitud, setLat] = useState<number | null>(null);
   const [longitud, setLng] = useState<number | null>(null);
   const [precisionMetros, setPrecisionMetros] = useState<number | null>(null);
@@ -140,7 +142,7 @@ export default function VendedorClientes() {
 
   const reset = () => {
     dictado.stop();
-    setEmpresa(""); setContacto(""); setCelular(""); setEmail(""); setDireccion("");
+    setEmpresa(""); setContacto(""); setCelular(""); setEmail(""); setDireccion(""); setCiudad("");
     setLat(null); setLng(null); setPrecisionMetros(null); setGpsPendiente(false); setListaPrecio(""); setNotas("");
     setEditingId(null);
     dictado.reset();
@@ -153,6 +155,7 @@ export default function VendedorClientes() {
     setCelular(c.celular);
     setEmail(c.email ?? "");
     setDireccion(c.direccion ?? "");
+    setCiudad(c.ciudad ?? "");
     setLat(c.latitud);
     setLng(c.longitud);
     setPrecisionMetros(c.precision_metros ?? null);
@@ -238,6 +241,11 @@ export default function VendedorClientes() {
     if (!/^\+?\d{7,15}$/.test(celular.replace(/\s/g, ""))) return toast.error("Celular inválido");
     const emailTrim = email.trim();
     if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return toast.error("Email inválido");
+    const ciudadNormalizada = normalizarCiudad(ciudad);
+    if (!editingId) {
+      const errorCiudad = validarCiudadAlta(ciudad);
+      if (errorCiudad) return toast.error(errorCiudad);
+    }
     setSaving(true);
 
     const payloadEditable = {
@@ -262,6 +270,7 @@ export default function VendedorClientes() {
         ...payloadEditable,
         empresa: empresa.trim(),
         email: emailTrim || null,
+        ciudad: ciudadNormalizada,
         lista_precio_id: listaPrecio || null,
       };
       // El código CLI, el teléfono normalizado y la clave técnica los genera la base de datos.
@@ -364,6 +373,18 @@ export default function VendedorClientes() {
               <div><Label>Celular * (con código país, ej. 59170000000)</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required /></div>
               <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" readOnly={!!editingId} /></div>
               <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
+              <div>
+                <Label htmlFor="cliente-ciudad">Ciudad *</Label>
+                <Input
+                  id="cliente-ciudad"
+                  value={ciudad}
+                  onChange={(e) => setCiudad(e.target.value)}
+                  maxLength={120}
+                  required={!editingId}
+                  readOnly={!!editingId}
+                  placeholder="Ej. Cochabamba"
+                />
+              </div>
               <div className="flex gap-2 items-end">
                 <div className="flex-1"><Label>Latitud</Label><Input value={latitud ?? ""} readOnly /></div>
                 <div className="flex-1"><Label>Longitud</Label><Input value={longitud ?? ""} readOnly /></div>

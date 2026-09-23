@@ -7,6 +7,7 @@ import { Loader2, Save, Upload, Image as ImageIcon, Plus, Minus } from "lucide-r
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { uploadProductImage, productImageUrl } from "@/lib/productImage";
+import { resumenStockVariante, resumenStockProducto } from "@/lib/stockVariante";
 
 interface Variante {
   id: string;
@@ -14,6 +15,7 @@ interface Variante {
   sku_variante: string | null;
   activa: boolean;
   cantidad: number;
+  reservado: number;
 }
 interface ProductoGroup {
   id: string;
@@ -42,13 +44,16 @@ export default function AdminStock() {
     if (vErr) { toast.error(vErr.message); setLoading(false); return; }
 
     const ids = (variantes ?? []).map((v: any) => v.id).filter(Boolean) as string[];
-    const stockMap = new Map<string, number>();
+    const stockMap = new Map<string, { cantidad: number; reservado: number }>();
     if (ids.length > 0) {
       const { data: stockRows } = await supabase
         .from("variante_stock")
-        .select("variante_id,cantidad")
+        .select("variante_id,cantidad,reservado")
         .in("variante_id", ids);
-      (stockRows ?? []).forEach((s: any) => stockMap.set(s.variante_id, Number(s.cantidad ?? 0)));
+      (stockRows ?? []).forEach((s: any) => {
+        const r = resumenStockVariante({ cantidad: s.cantidad, reservado: s.reservado });
+        stockMap.set(s.variante_id, { cantidad: r.fisico, reservado: r.reservado });
+      });
     }
 
     const map = new Map<string, ProductoGroup>();
@@ -61,7 +66,8 @@ export default function AdminStock() {
         presentacion: v.presentacion,
         sku_variante: v.sku_variante,
         activa: v.activa,
-        cantidad: stockMap.get(v.id) ?? 0,
+        cantidad: stockMap.get(v.id)?.cantidad ?? 0,
+        reservado: stockMap.get(v.id)?.reservado ?? 0,
       });
     });
     const list = Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -144,6 +150,16 @@ export default function AdminStock() {
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold truncate">{g.nombre}</p>
                     <p className="text-xs text-muted-foreground">{g.sku}</p>
+                    {(() => {
+                      const t = resumenStockProducto(g.variantes);
+                      return (
+                        <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                          <span>Físico: <span className="font-semibold text-foreground">{t.fisico}</span></span>
+                          <span>Reservado: <span className="font-semibold text-foreground">{t.reservado}</span></span>
+                          <span>Disponible: <span className="font-semibold text-brand">{t.disponible}</span></span>
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="border-t pt-2 space-y-1">
@@ -157,12 +173,17 @@ export default function AdminStock() {
                       const next = Math.max(0, base + delta);
                       setEdits({ ...edits, [v.id]: next });
                     };
+                    const r = resumenStockVariante(v);
                     return (
-                      <div key={v.id} className="flex items-center gap-2 text-sm py-1">
-                        <span className={`flex-1 ${!v.activa && "text-muted-foreground line-through"}`}>
+                      <div key={v.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
+                        <span className={`min-w-0 flex-1 basis-full sm:basis-auto ${!v.activa && "text-muted-foreground line-through"}`}>
                           <span className="font-semibold">{v.presentacion}</span>
                           {v.sku_variante && <span className="ml-2 text-xs font-mono text-muted-foreground">{v.sku_variante}</span>}
-                          <span className="ml-2 text-xs text-muted-foreground">· Actual: {v.cantidad}</span>
+                          <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                            <span>Físico: <span className="font-semibold text-foreground">{r.fisico}</span></span>
+                            <span>Reservado: <span className="font-semibold text-foreground">{r.reservado}</span></span>
+                            <span>Disponible: <span className="font-semibold text-brand">{r.disponible}</span></span>
+                          </span>
                         </span>
                         <div className="flex items-center">
                           <Button

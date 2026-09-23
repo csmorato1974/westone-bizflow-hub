@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +65,10 @@ export default function VendedorClientes() {
   const [notas, setNotas] = useState("");
   const [gpsBusy, setGpsBusy] = useState(false);
   const dictado = useVoiceDictation();
+  const formularioAbiertoRef = useRef(false);
+  useEffect(() => {
+    formularioAbiertoRef.current = open;
+  }, [open]);
 
   const load = async () => {
     if (!user) return;
@@ -79,7 +83,14 @@ export default function VendedorClientes() {
   };
   useEffect(() => {
     load();
-    const onFocus = () => load();
+    // Mientras el formulario está abierto no se recarga la lista: una recarga
+    // por foco de ventana (p. ej. al abrirse el teclado en móvil) o por
+    // realtime redibuja el formulario y puede perder lo que se está escribiendo.
+    const recargarSiFormularioCerrado = () => {
+      if (formularioAbiertoRef.current) return;
+      load();
+    };
+    const onFocus = () => recargarSiFormularioCerrado();
     window.addEventListener("focus", onFocus);
 
     const channel = supabase
@@ -87,7 +98,7 @@ export default function VendedorClientes() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "clientes" },
-        () => load(),
+        () => recargarSiFormularioCerrado(),
       )
       .subscribe();
 
@@ -371,7 +382,22 @@ export default function VendedorClientes() {
               <div><Label>Empresa *</Label><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} maxLength={200} required readOnly={!!editingId} /></div>
               <div><Label>Contacto *</Label><Input value={contacto} onChange={(e) => setContacto(e.target.value)} maxLength={120} required /></div>
               <div><Label>Celular * (con código país, ej. 59170000000)</Label><Input value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={20} required /></div>
-              <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={255} placeholder="contacto@empresa.com" readOnly={!!editingId} /></div>
+              <div>
+                <Label htmlFor="cliente-email">Email</Label>
+                <Input
+                  id="cliente-email"
+                  name="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={255}
+                  placeholder="contacto@empresa.com"
+                  readOnly={!!editingId}
+                />
+              </div>
               <div><Label>Dirección</Label><Input value={direccion} onChange={(e) => setDireccion(e.target.value)} maxLength={300} /></div>
               <div>
                 <Label htmlFor="cliente-ciudad">Ciudad *</Label>

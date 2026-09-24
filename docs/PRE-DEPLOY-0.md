@@ -15,9 +15,15 @@ No se crea ningún dominio, subdominio ni entorno adicional durante una release 
 
 ## Flujo obligatorio
 
+0. **Lovable STAGING — validación funcional previa**
+   - Todo cambio funcional se implementa primero en Lovable STAGING.
+   - Se prueba allí el caso afectado y se obtiene un PASS explícito.
+   - No se abre ni se prepara para merge una PR funcional antes de este PASS.
+   - Si aparece un fallo nuevo durante Raiola STAGING, la corrección vuelve a Lovable STAGING y reinicia el ciclo.
+
 1. **Código cerrado**
-   - El cambio queda terminado.
-   - Se abre PR.
+   - El cambio queda terminado y validado en Lovable STAGING.
+   - Recién entonces se abre o completa la PR.
    - El PR se valida y se integra en `main`.
    - Se identifica el SHA exacto que se va a desplegar.
 
@@ -57,6 +63,7 @@ Guardar o extraer un artifact allí no sustituye el despliegue y la prueba en Ra
 
 Antes de continuar, se debe detener el proceso y pedir aprobación si aparece cualquiera de estas situaciones:
 
+- se intenta saltar Lovable STAGING para un cambio funcional;
 - se propone crear un dominio, subdominio o entorno nuevo;
 - el SHA del artifact no coincide con el SHA aprobado;
 - el build apunta a un backend distinto del STAGING esperado;
@@ -77,4 +84,4 @@ Las respuestas deben ser ejecutivas. No se añaden capas, controles o trabajo ex
 
 ## Flujo resumido
 
-`Lovable → PR → main → artifact → Raiola STAGING → smoke → GO → producción`
+`Lovable STAGING (PASS) → PR → main → artifact → Raiola STAGING → smoke → GO → producción`

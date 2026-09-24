@@ -1,4 +1,4 @@
-export type CampoAltaExpress = "empresa" | "contacto" | "celular" | "email" | "direccion" | "notas" | "listaPrecio";
+export type CampoAltaExpress = "empresa" | "contacto" | "celular" | "email" | "direccion" | "ciudad" | "notas" | "listaPrecio";
 
 export type DatosAltaExpress = Partial<Record<CampoAltaExpress, string>>;
 
@@ -8,6 +8,7 @@ const etiquetas: Array<{ campo: CampoAltaExpress; patron: string }> = [
   { campo: "celular", patron: "celular|tel[eé]fono|whatsapp" },
   { campo: "email", patron: "e[- ]?mail|correo(?: electr[oó]nico)?" },
   { campo: "direccion", patron: "direcci[oó]n|ubicaci[oó]n" },
+  { campo: "ciudad", patron: "ciudad|localidad" },
   { campo: "listaPrecio", patron: "lista(?: de)? precios?" },
   { campo: "notas", patron: "notas?|observaciones?" },
 ];

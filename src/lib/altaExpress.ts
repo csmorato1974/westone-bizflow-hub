@@ -44,7 +44,7 @@ export function normalizarEmailDictado(valor: string): string {
 }
 
 /** Extrae campos cuando el vendedor dicta frases etiquetadas, por ejemplo:
- * "Empresa Repuestos Norte. Contacto Ana Pérez. Celular 591 700 00000."
+ * "Empresa Repuestos Norte. Contacto Ana Pérez. Celular 591 700 00000. Ciudad Cochabamba."
  */
 export function extraerDatosAltaExpress(transcripcion: string): DatosAltaExpress {
   const resultado: DatosAltaExpress = {};

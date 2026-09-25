@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { PUBLIC_APP_ORIGIN } from "@/lib/appUrls";
+import { getPublicAppOrigin } from "@/lib/appUrls";
 
 export type DisponibilidadPortal = "disponible" | "poco_stock" | "consultar";
 
@@ -71,7 +71,7 @@ export const DISPONIBILIDAD_LABEL: Record<DisponibilidadPortal, string> = {
 };
 
 export function construirPortalUrl(token: string): string {
-  return `${PUBLIC_APP_ORIGIN}/portal/${encodeURIComponent(token)}`;
+  return `${getPublicAppOrigin()}/portal/${encodeURIComponent(token)}`;
 }
 
 export function calcularTotalCarrito(items: ItemCarritoPortal[]): number {
@@ -88,7 +88,8 @@ export async function obtenerPortalCliente(clienteId: string, rotar = false): Pr
     _cliente_id: clienteId,
     _rotar: rotar,
   });
-  if (error) throw error;
+  // Los errores del backend no son instancias de Error: se convierten para mostrar la causa real.
+  if (error) throw new Error(`No se pudo generar el portal del cliente: ${error.message}`);
   const token = (data as { token?: string } | null)?.token;
   if (!token) throw new Error("No se pudo generar el enlace personalizado.");
   return token;

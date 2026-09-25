@@ -9,7 +9,7 @@
  * lote si no coincide con la suya.
  */
 
-export const RULES_VERSION = "1.5.0";
+export const RULES_VERSION = "1.6.0";
 
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
@@ -20,6 +20,7 @@ export const TEMPLATE_HEADERS = [
   "email",
   "direccion",
   "ciudad",
+  "zona",
   "vendedor_asignado",
   "lista_precio",
   "codigo_cliente_externo",
@@ -51,6 +52,7 @@ export interface RawRow {
   email: string;
   direccion: string;
   ciudad: string;
+  zona: string;
   vendedor_asignado: string;
   lista_precio: string;
   codigo_cliente_externo: string;
@@ -69,6 +71,7 @@ export interface NormalizedRow {
   direccion: string;
   direccion_normalizada: string;
   ciudad: string;
+  zona: string;
   vendedor_asignado: string;
   lista_precio: string;
   codigo_cliente_externo: string;
@@ -241,6 +244,7 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     direccion,
     direccion_normalizada,
     ciudad: (raw.ciudad ?? "").trim(),
+    zona: (raw.zona ?? "").trim(),
     vendedor_asignado: (raw.vendedor_asignado ?? "").trim(),
     lista_precio: (raw.lista_precio ?? "").trim(),
     codigo_cliente_externo: (raw.codigo_cliente_externo ?? "").trim(),
@@ -369,8 +373,8 @@ const HEADER_ALIASES: Record<string, TemplateHeader> = {
   domicilio: "direccion",
   ciudad: "ciudad",
   localidad: "ciudad",
-  zona: "notas",
-  barrio: "notas",
+  zona: "zona",
+  barrio: "zona",
   vendedor: "vendedor_asignado",
   vendedor_asignado: "vendedor_asignado",
   lista: "lista_precio",
@@ -419,6 +423,7 @@ export function parseRows(text: string): { rows: RawRow[]; headerFound: boolean 
       email: "",
       direccion: "",
       ciudad: "",
+      zona: "",
       vendedor_asignado: "",
       lista_precio: "",
       codigo_cliente_externo: "",
@@ -444,6 +449,6 @@ export function parseRows(text: string): { rows: RawRow[]; headerFound: boolean 
 
 export const TEMPLATE_CSV = [
   TEMPLATE_HEADERS.join(","),
-  "Juan Pérez,Talleres Pérez,+54 9 11 5555-1234,juan@talleres.com,Av. Siempreviva 742,Rosario,Ana Vendedora,Lista Mayorista,CLI-001,Cliente histórico",
-  "María Gómez,,1155559876,,Calle Falsa 123,Córdoba,,,,Sin email: se genera provisional",
+  "Juan Pérez,Talleres Pérez,+54 9 11 5555-1234,juan@talleres.com,Av. Siempreviva 742,Rosario,Centro,Ana Vendedora,Lista Mayorista,CLI-001,Cliente histórico",
+  "María Gómez,,1155559876,,Calle Falsa 123,Córdoba,,,,,Sin email: se genera provisional",
 ].join("\n");

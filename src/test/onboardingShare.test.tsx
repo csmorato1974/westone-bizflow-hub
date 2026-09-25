@@ -18,57 +18,57 @@ const cliente = (id: string): OnboardingComercialGenerado => ({
 function preparar(soportado = true) {
   const share = vi.fn().mockResolvedValue(undefined);
   const writeText = vi.fn().mockResolvedValue(undefined);
+  const download = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
   vi.stubGlobal("navigator", { share, canShare: vi.fn(() => soportado), clipboard: { writeText } });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
     ok: true, blob: async () => new Blob(["imagen"], { type: "image/png" }),
   }));
-  return { share, writeText };
+  return { share, writeText, download };
 }
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("compartir onboarding del cliente", () => {
-  it("comparte el PNG precargado con el texto y enlace del cliente actualmente abierto", async () => {
-    const { share } = preparar();
+  it("comparte imagen y texto completos con enlace en una sola acción Web Share", async () => {
+    const { share, download } = preparar();
     const onWhatsapp = vi.fn();
-    const { rerender } = render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={onWhatsapp} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir todo" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Compartir todo" }));
+    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={onWhatsapp} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir imagen, texto y enlace" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Compartir imagen, texto y enlace" }));
     await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
-    expect(share.mock.calls[0][0].text).toBe(cliente("ana").mensaje);
+    // Misma llamada lleva el File de imagen, el mensaje completo con el portalUrl y el título.
     expect(share.mock.calls[0][0].files[0]).toMatchObject({ name: "westone-portal-pedidos.png", type: "image/png" });
-    rerender(<OnboardingComercialPreview data={cliente("maria")} onClose={vi.fn()} onWhatsapp={onWhatsapp} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir todo" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Compartir todo" }));
-    await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
-    expect(share.mock.calls[1][0].text).toBe(cliente("maria").mensaje);
+    expect(share.mock.calls[0][0].text).toBe(cliente("ana").mensaje);
+    expect(share.mock.calls[0][0].text).toContain(cliente("ana").portalUrl);
+    expect(share.mock.calls[0][0].title).toBe("Portal de pedidos Westone");
+    // Sin descargas ni flujo manual: una sola invocación de compartir.
+    expect(download).not.toHaveBeenCalled();
     expect(onWhatsapp).not.toHaveBeenCalled();
   });
 
-  it("ofrece pasos manuales y copia el enlace sin abrir chats automáticamente", async () => {
-    const { share, writeText } = preparar(false);
-    const onWhatsapp = vi.fn();
-    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={onWhatsapp} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir todo" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Compartir todo" }));
-    expect(screen.getByRole("region", { name: "Envío manual por WhatsApp" })).toBeInTheDocument();
-    expect(share).not.toHaveBeenCalled();
-    expect(onWhatsapp).not.toHaveBeenCalled();
+  it("no existe flujo manual de preparar/copiar/adjuntar como acción principal", async () => {
+    preparar();
+    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir imagen, texto y enlace" })).toBeEnabled());
+    expect(screen.queryByRole("button", { name: /Preparar WhatsApp integrado/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/adjunta\/abre la imagen/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Descargar/ })).not.toBeInTheDocument();
+  });
+
+  it("muestra imagen y caption juntos, y permite copiar íntegro el texto con su enlace", async () => {
+    const { writeText } = preparar(false);
+    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={vi.fn()} />);
+    const vistaPrevia = screen.getByRole("region", { name: "Vista previa de imagen con pie de foto" });
+    expect(vistaPrevia).toContainElement(screen.getByRole("img"));
+    expect(vistaPrevia).toHaveTextContent(cliente("ana").mensaje);
     fireEvent.click(screen.getByRole("button", { name: "Copiar texto y enlace" }));
-    expect(writeText).toHaveBeenCalledWith(cliente("ana").mensaje);
-    fireEvent.click(screen.getByRole("button", { name: "Abrir chat del cliente" }));
-    expect(onWhatsapp).toHaveBeenCalledWith(cliente("ana"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(cliente("ana").mensaje));
   });
 
-  it("cancelar el menú no abre un chat ni activa el envío manual", async () => {
-    const { share } = preparar();
-    share.mockRejectedValue(new DOMException("Cancelado", "AbortError"));
-    const onWhatsapp = vi.fn();
-    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={onWhatsapp} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir todo" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Compartir todo" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir todo" })).toBeEnabled());
-    expect(screen.queryByRole("region", { name: "Envío manual por WhatsApp" })).not.toBeInTheDocument();
-    expect(onWhatsapp).not.toHaveBeenCalled();
+  it("deshabilita compartir si el navegador no admite archivos y avisa de la limitación", async () => {
+    preparar(false);
+    render(<OnboardingComercialPreview data={cliente("ana")} onClose={vi.fn()} onWhatsapp={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Compartir imagen, texto y enlace" })).toBeDisabled());
+    expect(screen.getByText(/limitación del navegador/i)).toBeInTheDocument();
   });
 });

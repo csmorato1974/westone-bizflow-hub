@@ -202,6 +202,9 @@ export type Database = {
           telefono_normalizado: string | null
           user_id: string | null
           vendedor_id: string | null
+          whatsapp_confirmado_en: string | null
+          whatsapp_confirmado_por: string | null
+          zona: string | null
         }
         Insert: {
           activo?: boolean
@@ -231,6 +234,9 @@ export type Database = {
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
+          whatsapp_confirmado_en?: string | null
+          whatsapp_confirmado_por?: string | null
+          zona?: string | null
         }
         Update: {
           activo?: boolean
@@ -260,6 +266,9 @@ export type Database = {
           telefono_normalizado?: string | null
           user_id?: string | null
           vendedor_id?: string | null
+          whatsapp_confirmado_en?: string | null
+          whatsapp_confirmado_por?: string | null
+          zona?: string | null
         }
         Relationships: [
           {
@@ -1306,6 +1315,51 @@ export type Database = {
         }
         Relationships: []
       }
+      zonas_geo: {
+        Row: {
+          activo: boolean
+          ciudad: string
+          ciudad_normalizada: string | null
+          created_at: string
+          fuente: string | null
+          id: string
+          latitud: number
+          longitud: number
+          nombre_display: string
+          updated_at: string
+          zona: string | null
+          zona_normalizada: string | null
+        }
+        Insert: {
+          activo?: boolean
+          ciudad: string
+          ciudad_normalizada?: string | null
+          created_at?: string
+          fuente?: string | null
+          id?: string
+          latitud: number
+          longitud: number
+          nombre_display: string
+          updated_at?: string
+          zona?: string | null
+          zona_normalizada?: string | null
+        }
+        Update: {
+          activo?: boolean
+          ciudad?: string
+          ciudad_normalizada?: string | null
+          created_at?: string
+          fuente?: string | null
+          id?: string
+          latitud?: number
+          longitud?: number
+          nombre_display?: string
+          updated_at?: string
+          zona?: string | null
+          zona_normalizada?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1324,6 +1378,15 @@ export type Database = {
         Returns: boolean
       }
       cliente_estadisticas: { Args: { _cliente: string }; Returns: Json }
+      cliente_lista_precio_actual: { Args: never; Returns: string }
+      cliente_puede_ver_producto: {
+        Args: { _producto: string }
+        Returns: boolean
+      }
+      cliente_puede_ver_variante: {
+        Args: { _variante: string }
+        Returns: boolean
+      }
       cliente_tiene_pedido_despacho: {
         Args: { _cliente: string }
         Returns: boolean
@@ -1365,6 +1428,7 @@ export type Database = {
       }
       email_provisional: { Args: { _v: string }; Returns: boolean }
       es_cuenta_administrativa: { Args: { _user_id: string }; Returns: boolean }
+      es_personal_interno: { Args: never; Returns: boolean }
       es_vendedor_de_usuario: {
         Args: { _user: string; _vendedor: string }
         Returns: boolean

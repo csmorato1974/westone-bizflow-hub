@@ -7,10 +7,10 @@
  */
 
 import { PROVISIONAL_DOMAIN } from "@/lib/clienteEstado";
-import { PUBLIC_LOGIN_URL } from "@/lib/appUrls";
+import { getPublicLoginUrl } from "@/lib/appUrls";
 
-/** Los mensajes externos siempre enlazan a la aplicación pública. */
-export const APP_LOGIN_URL: string = PUBLIC_LOGIN_URL;
+/** Los mensajes externos enlazan al login del entorno actual. */
+export const appLoginUrl = (): string => getPublicLoginUrl();
 
 const LEGACY_LOGIN_URL = /https:\/\/westone-bizflow-hub\.lovable\.app(?:\/login)?/gi;
 
@@ -57,7 +57,7 @@ export function buildVars(input: {
     empresa: (input.empresa || "").trim(),
     username: (input.username || "").trim(),
     clave_provisional: clave,
-    url_login: APP_LOGIN_URL,
+    url_login: appLoginUrl(),
   };
 }
 
@@ -88,7 +88,7 @@ Equipo Westone Performance`;
 export function mensajeBienvenida(template: string, vars: Record<string, string>): string {
   return template
     .replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? "")
-    .replace(LEGACY_LOGIN_URL, APP_LOGIN_URL);
+    .replace(LEGACY_LOGIN_URL, appLoginUrl());
 }
 
 export const ASUNTO_EMAIL = "Acceso a tu cuenta en Westone Performance – Portal de Clientes";

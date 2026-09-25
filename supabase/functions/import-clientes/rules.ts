@@ -4,7 +4,7 @@
  * cada petición: si el frontend envía otra versión, el lote se rechaza.
  */
 
-export const RULES_VERSION = "1.5.0";
+export const RULES_VERSION = "1.6.0";
 export const PROVISIONAL_EMAIL_DOMAIN = "clientes-temp.local";
 
 export type RowEstado =
@@ -22,6 +22,7 @@ export interface RawRow {
   email: string;
   direccion: string;
   ciudad: string;
+  zona: string;
   vendedor_asignado: string;
   lista_precio: string;
   codigo_cliente_externo: string;
@@ -40,6 +41,7 @@ export interface NormalizedRow {
   direccion: string;
   direccion_normalizada: string;
   ciudad: string;
+  zona: string;
   vendedor_asignado: string;
   lista_precio: string;
   codigo_cliente_externo: string;
@@ -207,6 +209,7 @@ export function normalizeRow(raw: RawRow): NormalizedRow {
     direccion,
     direccion_normalizada,
     ciudad: (raw.ciudad ?? "").trim(),
+    zona: (raw.zona ?? "").trim(),
     vendedor_asignado: (raw.vendedor_asignado ?? "").trim(),
     lista_precio: (raw.lista_precio ?? "").trim(),
     codigo_cliente_externo: (raw.codigo_cliente_externo ?? "").trim(),
@@ -402,4 +405,3 @@ export function detectarDuplicadosInternos(rows: NormalizedRow[]): Map<number, s
 
   return bloqueadas;
 }
-

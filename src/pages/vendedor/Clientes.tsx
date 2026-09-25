@@ -17,6 +17,7 @@ import { waLink, mapsLink } from "@/lib/whatsapp";
 import { PedidosRecientes } from "@/components/cliente/PedidosRecientes";
 import { UbicacionGps } from "@/components/cliente/UbicacionGps";
 import { OnboardingComercialPreview } from "@/components/vendedor/OnboardingComercialPreview";
+import { OnboardingPasos } from "@/components/vendedor/OnboardingPasos";
 import { contextoSeguro, mensajeErrorGeo, validarCoordenadas } from "@/lib/gps";
 import { camposDetectados, extraerDatosAltaExpress } from "@/lib/altaExpress";
 import { mensajeErrorGuardarCliente } from "@/lib/clienteErrores";
@@ -35,6 +36,7 @@ interface Cliente {
   lista_precio_id: string | null; notas: string | null;
   user_id: string | null; vendedor_id: string | null;
   onboarding_enviado_en?: string | null; onboarding_canal?: string | null;
+  whatsapp_confirmado_en?: string | null;
 }
 
 export default function VendedorClientes() {
@@ -213,38 +215,30 @@ export default function VendedorClientes() {
     try {
       const generado = await generarOnboardingComercial({
         cliente,
-        vendedorNombre: profile?.full_name || profile?.username || user.email || "tu asesor comercial",
+        vendedorNombre,
         creadoPor: user.id,
       });
       setOnboardingActual(generado);
-      await logAudit("onboarding_generado", "clientes", cliente.id, {
+      await logAudit("landing_generada", "clientes", cliente.id, {
         snapshot_id: generado.id,
         lista: generado.listaNombre,
         precios_guardados: generado.items.length,
       });
-      toast.success("Onboarding generado y precios guardados en el historial");
+      toast.success("Landing personalizada generada y precios guardados en el historial");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo generar el onboarding");
+      toast.error(error instanceof Error ? error.message : "No se pudo generar la landing personalizada");
     } finally {
       setOnboardingBusyId(null);
     }
   };
 
+  // Landing: abrir WhatsApp NO marca nada como enviado; solo se registra en auditoría.
   const abrirWhatsappOnboarding = async (data: OnboardingComercialGenerado) => {
     window.open(waLink(data.celular, data.mensaje), "_blank", "noopener,noreferrer");
-    setOnboardingActual(null);
-    if (!user) return;
-
-    const ahora = new Date().toISOString();
-    const { error } = await supabase
-      .from("clientes")
-      .update({ onboarding_enviado_en: ahora, onboarding_canal: "whatsapp", onboarding_enviado_por: user.id })
-      .eq("id", data.clienteId)
-      .eq("vendedor_id", user.id);
-    if (error) toast.warning("WhatsApp se abrió, pero no se pudo actualizar el estado: " + error.message);
-    await logAudit("onboarding_whatsapp_abierto", "clientes", data.clienteId, { snapshot_id: data.id });
-    await load();
+    await logAudit("landing_whatsapp_abierto", "clientes", data.clienteId, { snapshot_id: data.id });
   };
+
+  const vendedorNombre = profile?.full_name || profile?.username || user?.email || "tu asesor comercial";
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -315,10 +309,10 @@ export default function VendedorClientes() {
       });
       toast.success(editingId ? "Cliente actualizado" : "Cliente creado");
     }
-    const generarAlCrear = !editingId && !!clienteGuardado?.lista_precio_id;
+    const esAlta = !editingId && !!clienteGuardado;
     setSaving(false);
     setOpen(false); reset(); await load();
-    if (generarAlCrear && clienteGuardado) await prepararOnboarding(clienteGuardado);
+    if (esAlta) toast.message("Siguiente paso: envía el mensaje de prueba por WhatsApp y confirma el número del cliente.");
   };
 
   return (
@@ -502,6 +496,14 @@ export default function VendedorClientes() {
                     capturadoEn={c.gps_capturado_en ?? null}
                     onGuardado={load}
                   />
+                  <OnboardingPasos
+                    cliente={c}
+                    userId={user?.id}
+                    vendedorNombre={vendedorNombre}
+                    landingBusy={onboardingBusyId === c.id}
+                    onLanding={() => prepararOnboarding(c)}
+                    onActualizado={load}
+                  />
                   <div className="flex gap-2 pt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" /> Editar
@@ -551,6 +553,19 @@ export default function VendedorClientes() {
                   {pedidosCliente.direccion && <div className="md:col-span-2"><span className="text-muted-foreground">Dirección:</span> {pedidosCliente.direccion}</div>}
                 </CardContent>
               </Card>
+              {(() => {
+                const actual = clientes.find((x) => x.id === pedidosCliente.id) ?? pedidosCliente;
+                return (
+                  <OnboardingPasos
+                    cliente={actual}
+                    userId={user?.id}
+                    vendedorNombre={vendedorNombre}
+                    landingBusy={onboardingBusyId === actual.id}
+                    onLanding={() => prepararOnboarding(actual)}
+                    onActualizado={load}
+                  />
+                );
+              })()}
               <PedidosRecientes
                 clienteId={pedidosCliente.id}
                 limit={20}

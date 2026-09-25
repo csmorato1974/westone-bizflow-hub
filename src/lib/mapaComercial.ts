@@ -67,3 +67,11 @@ export const radioIntensidad = (i: number) => 14 + i * 34;
 /** Color del heatmap: amarillo marca (baja venta) → rojo (alta venta). */
 export const colorIntensidad = (i: number, alpha = 0.75) =>
   `hsl(${Math.round(48 - 48 * i)} 95% ${Math.round(55 - 8 * i)}% / ${alpha})`;
+
+/** Porcentaje (1 decimal) de clientes con GPS verificado. 0 si no hay clientes. */
+export const coberturaGps = (conGps: number, total: number) =>
+  total > 0 ? Math.round((1000 * Math.max(0, conGps)) / total) / 10 : 0;
+
+/** Solo clientes con GPS verificado y coordenadas válidas pueden ser pin. */
+export const esPinVerificado = (c: Partial<PuntoGeo> & { gps_verificado?: boolean | null }) =>
+  c.gps_verificado === true && coordenadaValida(c);

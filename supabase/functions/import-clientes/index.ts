@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
         admin
           .from("clientes")
           .select(
-            "id,user_id,empresa,contacto,celular,email,direccion,ciudad,vendedor_id,lista_precio_id,telefono_normalizado,external_import_key,codigo_cliente_externo",
+            "id,user_id,empresa,contacto,celular,email,direccion,ciudad,zona,vendedor_id,lista_precio_id,telefono_normalizado,external_import_key,codigo_cliente_externo",
           ),
         admin.from("listas_precios").select("id,nombre").eq("activa", true),
         admin.from("user_roles").select("user_id,role"),
@@ -847,6 +847,7 @@ async function crearFicha(
       email: n.email,
       direccion: n.direccion || null,
       ciudad: n.ciudad || null,
+      zona: n.zona || null,
       notas: n.notas || null,
       user_id,
       vendedor_id,
@@ -884,6 +885,7 @@ async function actualizarFicha(
   if (n.email && !n.email_provisional) patch.email = n.email;
   if (n.direccion) patch.direccion = n.direccion;
   if (n.ciudad) patch.ciudad = n.ciudad;
+  if (n.zona) patch.zona = n.zona;
   if (n.notas) patch.notas = n.notas;
   if (vendedor_id) patch.vendedor_id = vendedor_id;
   if (lista_precio_id) patch.lista_precio_id = lista_precio_id;

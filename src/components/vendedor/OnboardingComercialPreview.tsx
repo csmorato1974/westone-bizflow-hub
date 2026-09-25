@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { Copy, Download, ExternalLink, ImageOff, Loader2, MessageCircle, Share2 } from "lucide-react";
+import { Copy, ExternalLink, ImageOff, Loader2, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { WestoneLogo } from "@/components/WestoneLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
 import type { OnboardingComercialGenerado } from "@/lib/onboardingComercial";
 import { productImageUrl } from "@/lib/productImage";
 
@@ -25,11 +24,9 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
   const [errorImagen, setErrorImagen] = useState(false);
   const [intentoImagen, setIntentoImagen] = useState(0);
   const [compartiendo, setCompartiendo] = useState(false);
-  const [envioManual, setEnvioManual] = useState(false);
 
   // Preparar el archivo antes del clic conserva la activación requerida por Web Share.
   useEffect(() => {
-    setEnvioManual(false);
     setArchivo(null);
     setErrorImagen(false);
     setCargandoImagen(true);
@@ -54,24 +51,16 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
     return () => controller.abort();
   }, [data?.id, intentoImagen]);
 
-  const copiar = async () => {
-    if (!data) return;
+  const copiar = async (): Promise<boolean> => {
+    if (!data) return false;
     try {
       await navigator.clipboard.writeText(data.mensaje);
       toast.success("Mensaje copiado");
+      return true;
     } catch {
       toast.error("No se pudo copiar el mensaje");
+      return false;
     }
-  };
-
-  const descargarPieza = () => {
-    const link = document.createElement("a");
-    link.href = PROMO_ASSET_URL;
-    link.download = PROMO_ASSET_NAME;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    toast.success("Imagen promocional descargada");
   };
 
   const compartirPieza = async () => {
@@ -86,25 +75,26 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
       };
       if (navigator.share && navigator.canShare?.(contenido)) {
         await navigator.share(contenido);
-        toast.message("Contenido entregado al menú de compartir. Comprueba en WhatsApp la imagen, el texto y el enlace antes de enviar.");
+        toast.message("Contenido entregado al menú de compartir. Algunos dispositivos o versiones de WhatsApp pueden separar la imagen y el texto: es una limitación del navegador, no un envío incompleto.");
         return;
       }
-      setEnvioManual(true);
+      toast.error("Este navegador no admite compartir imagen y texto juntos.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setEnvioManual(true);
-      toast.error("No se pudo abrir el menú de compartir. Puedes preparar el envío manual aquí.");
+      toast.error("No se pudo compartir. Inténtalo de nuevo o usa otro navegador.");
     } finally {
       setCompartiendo(false);
     }
   };
+
+  const puedeCompartir = !!archivo && !!navigator.share && !!navigator.canShare?.({ files: [archivo], text: data?.mensaje });
 
   return (
     <Dialog open={!!data} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <WestoneLogo />
-          <DialogTitle className="industrial-title pt-2">Onboarding generado</DialogTitle>
+          <DialogTitle className="industrial-title pt-2">Landing personalizada</DialogTitle>
           <DialogDescription>
             Imagen, mensaje y enlace al portal de pedidos de este cliente, listos para compartir.
           </DialogDescription>
@@ -117,49 +107,38 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
               <p className="text-muted-foreground">WhatsApp: {data.celular}</p>
               <p className="mt-1 text-xs">En el menú de compartir, elige WhatsApp y selecciona este contacto.</p>
             </div>
-            <div className="overflow-hidden rounded-lg border bg-black">
-              <img
-                src={PROMO_ASSET_URL}
-                alt="Portal de pedidos Westone: refrigerantes y anticongelantes de 1 L, 5 L y 20 L. Consulta el catálogo, los precios y la disponibilidad; añade productos al carrito y solicita tu pedido."
-                className="mx-auto w-full object-contain"
-              />
+            <div className="overflow-hidden rounded-md border bg-background" role="region" aria-label="Vista previa de imagen con pie de foto">
+              <div className="bg-foreground">
+                <img
+                  src={PROMO_ASSET_URL}
+                  alt="Portal de pedidos Westone: refrigerantes y anticongelantes de 1 L, 5 L y 20 L. Consulta el catálogo, los precios y la disponibilidad; añade productos al carrito y solicita tu pedido."
+                  className="mx-auto w-full object-contain"
+                />
+              </div>
+              <div className="border-t p-3">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Pie de foto para WhatsApp</p>
+                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">{data.mensaje}</p>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={compartirPieza} disabled={!archivo || compartiendo} className="bg-brand text-brand-foreground hover:bg-brand-dark">
-                {cargandoImagen || compartiendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-                {cargandoImagen ? "Preparando imagen…" : "Compartir imagen, texto y enlace"}
+            <div className="space-y-2">
+              <Button
+                type="button"
+                onClick={compartirPieza}
+                disabled={!puedeCompartir || cargandoImagen || compartiendo}
+                className="w-full bg-brand text-brand-foreground hover:bg-brand-dark"
+              >
+                {cargandoImagen ? <Loader2 className="h-4 w-4 animate-spin" /> : compartiendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                {cargandoImagen ? "Preparando imagen…" : compartiendo ? "Compartiendo…" : "Compartir imagen, texto y enlace"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => setEnvioManual(true)}>
-                Preparar envío manual
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Comparte imagen y texto en una sola acción. Si tu dispositivo los muestra por separado, es una limitación del navegador; el mensaje completo llega igualmente.
+              </p>
             </div>
             {errorImagen && (
               <div role="alert" className="text-sm text-destructive">
                 No se pudo preparar la imagen.
                 <Button type="button" variant="link" onClick={() => setIntentoImagen((valor) => valor + 1)}>Reintentar</Button>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Revisa que WhatsApp conserve el texto y el enlace junto a la imagen antes de pulsar Enviar. Si falta el texto, usa «Copiar texto y enlace» y pégalo como pie de foto.
-            </p>
-            {envioManual && (
-              <div className="space-y-3 rounded-md border p-3" role="region" aria-label="Envío manual por WhatsApp">
-                <p className="text-sm font-semibold">Enviar con imagen desde este dispositivo</p>
-                <ol className="list-decimal space-y-1 pl-5 text-sm">
-                  <li>Copia el texto con el enlace y descarga la imagen.</li>
-                  <li>Abre el chat de {data.contacto} ({data.celular}).</li>
-                  <li>Adjunta la imagen, pega el texto como pie de foto y pulsa Enviar.</li>
-                </ol>
-                <p className="text-xs text-muted-foreground">Abrir el chat prepara el texto y el enlace; la imagen se adjunta manualmente.</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={descargarPieza} disabled={!archivo}>
-                    <Download className="h-4 w-4" /> Descargar imagen
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => onWhatsapp(data)} disabled={!data.celular}>
-                    <MessageCircle className="h-4 w-4" /> Abrir chat del cliente
-                  </Button>
-                </div>
               </div>
             )}
 
@@ -171,8 +150,6 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
                 <Badge variant="outline">{data.items.length} precios guardados</Badge>
               </div>
             </div>
-
-            <Textarea readOnly rows={13} className="text-xs" value={data.mensaje} />
 
             <Button asChild variant="outline" className="w-full">
               <a href={data.portalUrl} target="_blank" rel="noopener noreferrer">
@@ -219,15 +196,8 @@ export function OnboardingComercialPreview({ data, onClose, onWhatsapp }: Props)
         <DialogFooter className="gap-2 sm:justify-between">
           <Button variant="ghost" onClick={onClose}>Cerrar</Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={copiar} disabled={!data}>
+            <Button variant="outline" onClick={() => void copiar()} disabled={!data}>
               <Copy className="h-4 w-4" /> Copiar texto y enlace
-            </Button>
-            <Button
-              className="bg-brand text-brand-foreground hover:bg-brand-dark"
-              onClick={compartirPieza}
-              disabled={!data || !archivo || compartiendo}
-            >
-              <Share2 className="h-4 w-4" /> Compartir todo
             </Button>
           </div>
         </DialogFooter>

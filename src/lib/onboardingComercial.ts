@@ -199,3 +199,50 @@ export async function generarOnboardingComercial(input: {
     canal,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Flujo manual por pasos: confirmar WhatsApp → onboarding → landing.
+// No existe API de WhatsApp: abrir wa.me NUNCA equivale a confirmado/enviado.
+// ---------------------------------------------------------------------------
+
+export type PasoOnboarding = "confirmar_whatsapp" | "enviar_onboarding" | "landing";
+
+export interface EstadoOnboardingCliente {
+  whatsapp_confirmado_en?: string | null;
+  onboarding_enviado_en?: string | null;
+}
+
+export function estadoOnboarding(cliente: EstadoOnboardingCliente) {
+  const whatsappConfirmado = !!cliente.whatsapp_confirmado_en;
+  const onboardingEnviado = whatsappConfirmado && !!cliente.onboarding_enviado_en;
+  const paso: PasoOnboarding = !whatsappConfirmado
+    ? "confirmar_whatsapp"
+    : !onboardingEnviado ? "enviar_onboarding" : "landing";
+  return {
+    whatsappConfirmado,
+    onboardingEnviado,
+    puedeEnviarOnboarding: whatsappConfirmado,
+    puedeLanding: whatsappConfirmado && onboardingEnviado,
+    paso,
+  };
+}
+
+export function mensajePruebaWhatsapp(input: { contacto: string; empresa: string; vendedorNombre: string }): string {
+  const nombre = input.contacto.trim() || input.empresa.trim();
+  const vendedor = input.vendedorNombre.trim() || "tu asesor comercial";
+  return `Hola ${nombre}, te saluda ${vendedor} de Westone Performance. Estamos confirmando que este número de WhatsApp corresponde a ${input.empresa.trim()}. ¿Nos confirmas por favor?`;
+}
+
+export function mensajeBienvenidaOnboarding(input: { contacto: string; empresa: string; vendedorNombre: string }): string {
+  const nombre = input.contacto.trim() || input.empresa.trim();
+  const vendedor = input.vendedorNombre.trim() || "tu asesor comercial";
+  return `Hola ${nombre}, ¡gracias por confirmar! 🙌
+
+Te damos la bienvenida a Westone Performance. Soy ${vendedor} y seré tu asesor comercial para ${input.empresa.trim()}.
+
+Trabajamos refrigerantes, anticongelantes y productos de mantenimiento en presentaciones de 1 L, 5 L y 20 L.
+
+En breve te enviaré tu portal de pedidos personalizado, con tus precios y la disponibilidad actualizada, para que puedas pedir cuando lo necesites.
+
+Quedo atento a cualquier consulta.`;
+}

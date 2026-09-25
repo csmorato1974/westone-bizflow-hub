@@ -1,5 +1,11 @@
-/** Dominio comercial para enlaces que se envían fuera de la aplicación.
- * No depende del navegador, localhost ni de las previsualizaciones de Lovable.
- */
-export const PUBLIC_APP_ORIGIN = "https://westone.vinculovirtual.com";
-export const PUBLIC_LOGIN_URL = `${PUBLIC_APP_ORIGIN}/login`;
+/** Origen público de la app en el entorno actual. */
+export function getPublicAppOrigin(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "https://westone.vinculovirtual.com";
+}
+
+export function getPublicLoginUrl(): string {
+  return `${getPublicAppOrigin()}/login`;
+}

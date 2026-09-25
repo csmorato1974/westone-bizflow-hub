@@ -23,7 +23,9 @@ export interface DashboardComercialData {
   top_clientes: { cliente_id: string; empresa: string; ciudad: string; total: number; pedidos: number }[];
   top_productos: { producto_id: string; nombre: string; sku: string | null; cantidad: number; monto: number }[];
   ventas_ciudad: { ciudad: string; total: number; pedidos: number }[];
-  mapa: DashboardMapaCliente[];
+  /** @deprecated Alias de mapa_geo.pines (solo GPS verificado). Usar mapa_geo. */
+  mapa?: DashboardMapaCliente[];
+  mapa_geo: DashboardMapaGeo;
   oportunidades: { id: string; empresa: string; ciudad: string; ultima_compra: string | null }[];
   filtros: {
     ciudades: string[];
@@ -39,6 +41,47 @@ export interface DashboardMapaCliente {
   longitud: number;
   ventas: number;
   pedidos: number;
+}
+
+export interface DashboardMapaPin {
+  id: string;
+  empresa: string;
+  ciudad: string;
+  zona: string | null;
+  latitud: number;
+  longitud: number;
+  ventas: number;
+  pedidos: number;
+}
+
+export interface DashboardMapaHeatmapPunto {
+  clave: string;
+  origen: "zona" | "ciudad";
+  nombre: string;
+  ciudad: string;
+  zona: string | null;
+  latitud: number;
+  longitud: number;
+  ventas: number;
+  pedidos: number;
+  cantidad_clientes: number;
+  clientes_con_gps: number;
+  clientes_pendientes_gps: number;
+}
+
+export interface DashboardMapaGeoMetricas {
+  total_clientes: number;
+  con_gps: number;
+  pendientes_gps: number;
+  sin_referencia_geo: number;
+  representados_heatmap: number;
+  cobertura_gps_pct: number;
+}
+
+export interface DashboardMapaGeo {
+  metricas: DashboardMapaGeoMetricas;
+  pines: DashboardMapaPin[];
+  heatmap: DashboardMapaHeatmapPunto[];
 }
 
 export const DASHBOARD_PERIODOS: { value: DashboardPeriodo; label: string }[] = [

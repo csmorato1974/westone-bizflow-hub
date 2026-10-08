@@ -591,29 +591,27 @@ EXECUTE FUNCTION public.clientes_revocar_portal_al_activar_cuenta();
 REVOKE ALL ON FUNCTION public.generar_portal_cliente(uuid, boolean)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.generar_portal_cliente(uuid, boolean)
-  TO authenticated, service_role;
+  TO authenticated;
 
 REVOKE ALL ON FUNCTION public.revocar_portal_cliente(uuid)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.revocar_portal_cliente(uuid)
-  TO authenticated, service_role;
+  TO authenticated;
 
 REVOKE ALL ON FUNCTION public.portal_catalogo(text)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.portal_catalogo(text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.portal_pedidos(text)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.portal_pedidos(text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.portal_crear_pedido(text, jsonb, text)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.portal_crear_pedido(text, jsonb, text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.clientes_revocar_portal_al_activar_cuenta()
   FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.clientes_revocar_portal_al_activar_cuenta()
-  TO service_role;

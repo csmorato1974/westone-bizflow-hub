@@ -43,7 +43,29 @@ AS $$
                       WHERE lpvi.lista_id = c.lista_precio_id AND lpvi.variante_id = _variante)
            OR EXISTS (SELECT 1 FROM public.lista_precio_items lpi
                       WHERE lpi.lista_id = c.lista_precio_id AND lpi.producto_id = pv.producto_id)))
-$$;
+$;
+
+-- Estas funciones SECURITY DEFINER forman parte de la lógica RLS autenticada,
+-- no de la superficie RPC pública.
+REVOKE ALL ON FUNCTION public.es_personal_interno()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.es_personal_interno()
+  TO authenticated;
+
+REVOKE ALL ON FUNCTION public.cliente_lista_precio_actual()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cliente_lista_precio_actual()
+  TO authenticated;
+
+REVOKE ALL ON FUNCTION public.cliente_puede_ver_producto(uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cliente_puede_ver_producto(uuid)
+  TO authenticated;
+
+REVOKE ALL ON FUNCTION public.cliente_puede_ver_variante(uuid)
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cliente_puede_ver_variante(uuid)
+  TO authenticated;
 
 DROP POLICY IF EXISTS "productos_view_auth" ON public.productos;
 DROP POLICY IF EXISTS "variantes_view_auth" ON public.producto_variantes;

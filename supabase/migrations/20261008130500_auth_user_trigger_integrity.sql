@@ -49,5 +49,3 @@ EXECUTE FUNCTION public.handle_new_user();
 -- Trigger helper: never part of the public RPC surface.
 REVOKE ALL ON FUNCTION public.handle_new_user()
   FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.handle_new_user()
-  TO service_role;

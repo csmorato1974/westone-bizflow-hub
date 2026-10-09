@@ -1,4 +1,5 @@
 -- Canonical Phase 0 baseline for provisioning application records from Auth.
+-- Transitional baseline only; invitation lifecycle belongs to Phase 1.
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger

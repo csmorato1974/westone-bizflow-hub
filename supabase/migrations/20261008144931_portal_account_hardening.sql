@@ -24,19 +24,20 @@ BEGIN
   SELECT * INTO v_cliente
   FROM public.clientes
   WHERE id = _cliente_id
+    AND activo = true
   FOR UPDATE;
 
-  IF NOT FOUND OR NOT v_cliente.activo THEN
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Cliente no disponible' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF NOT public.is_admin(v_uid) AND v_cliente.vendedor_id IS DISTINCT FROM v_uid THEN
+    RAISE EXCEPTION 'No tienes permiso para gestionar este portal' USING ERRCODE = '42501';
   END IF;
 
   IF v_cliente.user_id IS NOT NULL THEN
     RAISE EXCEPTION 'El cliente ya tiene una cuenta activa; el portal provisional no está disponible'
       USING ERRCODE = '42501';
-  END IF;
-
-  IF NOT public.is_admin(v_uid) AND v_cliente.vendedor_id IS DISTINCT FROM v_uid THEN
-    RAISE EXCEPTION 'No tienes permiso para gestionar este portal' USING ERRCODE = '42501';
   END IF;
 
   IF v_cliente.lista_precio_id IS NULL THEN
@@ -476,11 +477,13 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  UPDATE public.cliente_portal_tokens
-  SET revocado_en = now(),
-      actualizado_en = now()
-  WHERE cliente_id = NEW.id
-    AND revocado_en IS NULL;
+  IF OLD.user_id IS NULL AND NEW.user_id IS NOT NULL THEN
+    UPDATE public.cliente_portal_tokens
+    SET revocado_en = now(),
+        actualizado_en = now()
+    WHERE cliente_id = NEW.id
+      AND revocado_en IS NULL;
+  END IF;
 
   RETURN NEW;
 END;
@@ -509,16 +512,14 @@ REVOKE ALL ON FUNCTION public.clientes_revocar_portal_al_activar_cuenta()
   FROM PUBLIC, anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION public.generar_portal_cliente(uuid, boolean)
-  TO authenticated, service_role;
+  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.revocar_portal_cliente(uuid)
-  TO authenticated, service_role;
+  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_catalogo(text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_pedidos(text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.portal_crear_pedido(text, jsonb, text)
-  TO anon, authenticated, service_role;
+  TO anon, authenticated;
 
--- The trigger helper is intentionally not exposed as an RPC.
-GRANT EXECUTE ON FUNCTION public.clientes_revocar_portal_al_activar_cuenta()
-  TO service_role;
+-- The trigger helper has no direct EXECUTE grants; it runs only via the trigger.
